@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WebScope — logic analyzer</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <span class="brand">WebScope</span>
+    <span class="sep"></span>
+    <select id="sourceKind">
+      <option value="demo">Demo source</option>
+      <option value="ws">WebSocket gateway</option>
+    </select>
+    <input id="wsUrl" type="text" placeholder="ws://localhost:8080" value="ws://localhost:8080" />
+    <span class="sep"></span>
+    <label>Rate <input id="samplerateIn" type="number" value="8000000" step="1000" style="width:110px" /></label>
+    <label>Duration (s) <input id="durationIn" type="number" value="0.02" step="0.001" /></label>
+    <button id="captureBtn" class="primary">Start</button>
+    <span id="statusPill" class="status-pill">idle</span>
+    <span class="spacer"></span>
+    <button id="fitBtn">Fit</button>
+  </div>
+
+  <div class="main">
+    <div class="gutter" id="gutter">
+      <div class="gutter-head"><span>Channels</span></div>
+      <div id="gutterBody"></div>
+    </div>
+    <div class="plot-wrap" id="plotWrap">
+      <canvas id="canvas"></canvas>
+      <div id="hoverTip" class="hover-tip" style="display:none"></div>
+      <div id="emptyState" class="empty">
+        <div class="empty-title">No capture yet</div>
+        <div class="empty-sub">Pick a source above, then press <kbd>Start</kbd></div>
+      </div>
+    </div>
+    <aside class="right" id="rightPanel"></aside>
+  </div>
+
+  <div class="statusbar">
+    <span>Samples <b id="stSamples">0</b></span>
+    <span>Rate <b id="stRate">—</b></span>
+    <span>View <b id="stView">—</b></span>
+  </div>
+</div>
+
+<!--
+  Classic (non-module) scripts, loaded in dependency order, all attaching to one global
+  `WS` namespace object (see the (function(WS){...})(window.WS = window.WS || {}) wrapper
+  at the top of every file). This is deliberate: `type="module"` scripts are blocked by CORS
+  when a page is opened directly via file:// in Chrome/Edge, so plain scripts are what make
+  double-click-to-run work. If you'd rather use real ES modules with import/export, switch
+  these to type="module" and serve the folder with any static server, e.g. `python3 -m http.server`.
+-->
+<script src="js/format.js"></script>
+<script src="js/view.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/store.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/draw.js"></script>
+<script src="js/decoders/registry.js"></script>
+<script src="js/decoders/uart.js"></script>
+<script src="js/decoders/i2c.js"></script>
+<script src="js/decoders/spi.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/sources/WebSocketSource.js"></script>
+<script src="js/sources/DemoSource.js"></script>
+<script src="js/sources/sources.js"></script>
+<script src="js/actions.js"></script>
+<script src="js/ui/rows.js"></script>
+<script src="js/ui/gutter.js"></script>
+<script src="js/ui/waveform.js"></script>
+<script src="js/ui/rightpanel.js"></script>
+<script src="js/ui/topbar.js"></script>
+<script src="js/ui/statusbar.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
