@@ -101,3 +101,15 @@ Expect things to change.
 ## License
 
 See the original [Edgewise repository](https://github.com/mtharrison/edgewise) and the license included with this project for licensing information.
+
+## Credits
+
+WebScope is based on code from
+[mtharrison/edgewise](https://github.com/mtharrison/edgewise).
+
+Copyright © 2025 Matthew Harrison for the original Edgewise code.
+
+Additional code, modifications and new components in WebScope are
+Copyright © 2026 Jannik Svensson.
+
+WebScope is released under the MIT License.
