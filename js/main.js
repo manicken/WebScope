@@ -3,6 +3,12 @@
 
   document.addEventListener('DOMContentLoaded', () => {
 
+    WS.sources.setRefreshCallback(() => {
+
+    });
+    WS.sources.refresh(); // do not call the function above
+    WebSocketSource.connect();
+
     const gutterBody = document.getElementById('gutterBody');
     const waveform = WS.ui.waveform.init({
       canvas: document.getElementById('canvas'),

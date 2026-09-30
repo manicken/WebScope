@@ -3,14 +3,63 @@
  * with no hardware; WebSocketSource is the reference client for your Rust gateway.
  *
  * WebSocketSource protocol (adjust to match your backend):
- *   client -> server: {"type":"start","sampleRate":N,"channels":N,"samples":N}  (JSON text)
- *   server -> client: {"type":"info","sampleRate":N,"channels":N}               (JSON text, once)
+ *   client -> server: {"type":"start","samplerate":N,"channels":N,"samples":N}  (JSON text)
+ *   server -> client: {"type":"info","samplerate":N,"channels":N}               (JSON text, once)
  *   server -> client: binary frames, each a run of little-endian uint32 sample words,
  *                      appended in order to the capture buffer
  *   server -> client: {"type":"done","samples":N} | {"type":"error","message":"..."}
  */
 (function (WS) {
-  'use strict';
+    'use strict';
 
-  WS.sources = { DemoSource, WebSocketSource };
+    let devices = new Map();
+    let selectedDevice = null;
+    let deviceSelect_el = document.getElementById("deviceSelect");
+    deviceSelect_el.onchange = deviceSelected;
+    deviceSelect_el.onclick = deviceSelected;
+
+    let refresh_cb = () => {};
+
+    document.getElementById("devicesRefreshBtn").onclick = () => {
+        refresh();
+    };
+
+    function clearDevicesList() {
+        deviceSelect_el.innerHTML = "";
+        devices.clear();
+    }
+
+    function addDevice(device) {
+        if (devices.has(device.id)) return;
+        devices.set(device.id, device);
+        appendNewElement(deviceSelect_el, 'option', {textContent:device.name, value:device.id});
+        selectedDevice = device;
+        deviceSelect_el.value = device.id;
+    }
+
+    function deviceSelected(e) {
+        let id = deviceSelect_el.value;
+        selectedDevice = devices.get(id);
+        console.log(selectedDevice);
+    }
+
+    function refresh() {
+        clearDevicesList();
+        addDevice(DemoSource.info());
+        refresh_cb();
+    }
+
+    function setRefreshCallback(cb) {
+        refresh_cb = cb;
+    }
+
+    function getSelected() {
+        return selectedDevice.sourceKind;
+    }
+
+    function getSelectedId() {
+        return selectedDevice.id;
+    }
+
+    WS.sources = { setRefreshCallback, addDevice, refresh, getSelected, getSelectedId };
 })(window.WS = window.WS || {});

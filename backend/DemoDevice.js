@@ -1,12 +1,12 @@
+import { DemoWave } from './DemoWave.js'
 
-
-class DemoSource {
+export class DemoDevice {
 
     static info() {
         return {
-            id: 'localdemo',
-            name: 'Local Demo device',
-            sourceKind: DemoSource,
+            id: 'remotedemo',
+            name: 'Remote Demo device',
+            deviceKind: DemoDevice,
             channels: 8,
             samplerates: [4_000_000, 8_000_000, 10_000_000, 20_000_000, 25_000_000, 50_000_000, 100_000_000 ],
             defaultSamplerate: 20_000_000,
@@ -36,8 +36,8 @@ class DemoSource {
         const w = new DemoWave();
 
         // UART
-        w.uart( 0, 0.0010, 115_200, DemoSource.bytes('Hello from WebScope Frontend!\r\n'), );
-        w.uart( 0, 0.0120, 115_200, DemoSource.bytes('temp=22.5C\r\n'), );
+        w.uart( 0, 0.0010, 115_200, DemoDevice.bytes('Hello from WebScope Backend!\r\n'), );
+        w.uart( 0, 0.0120, 115_200, DemoDevice.bytes('temp=30.5C\r\n'), );
 
         // I2C
         w.i2c( 1, 2, 0.0040, 400_000, [ [0xA0, 0x10, 0xDE, 0xAD], ], false, );
@@ -65,10 +65,11 @@ class DemoSource {
     static stopped = false;
     
     static start(cfg, onData, onDone) {
-        DemoSource.stopped = false;
+        console.log("Demo Device acquire started");
+        DemoDevice.stopped = false;
 
         const rate = cfg.samplerate;
-        const buffer = DemoSource.pattern(rate);
+        const buffer = DemoDevice.pattern(rate);
         const total = Math.max(1, Math.round(rate * cfg.duration));
         const chunk = Math.max(1, Math.floor(rate / 100));
 
@@ -76,12 +77,12 @@ class DemoSource {
         let sent = 0;
 
         const streamChunk = () => {
-            if (DemoSource.stopped) return;
+            if (DemoDevice.stopped) return;
 
             const count = Math.min(chunk, total - sent);
 
             if (count <= 0) {
-                DemoSource.stopped = true;
+                DemoDevice.stopped = true;
                 onDone({ samples: sent, samplerate: rate, channels: 8 });
                 return;
             }
@@ -114,6 +115,7 @@ class DemoSource {
     }
 
     static stop() {
-        DemoSource.stopped = true;
+        DemoDevice.stopped = true;
+        console.log("Demo Device acquire stopped");
     }
 }

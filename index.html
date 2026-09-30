@@ -11,17 +11,18 @@
   <div class="topbar">
     <span class="brand">WebScope</span>
     <span class="sep"></span>
-    <select id="sourceKind">
-      <option value="demo">Demo source</option>
-      <option value="ws">WebSocket gateway</option>
-    </select>
-    <input id="wsUrl" type="text" placeholder="ws://localhost:8080" value="ws://localhost:8080" />
-    <span class="sep"></span>
+    <span class="spacer"></span>
+    <select id="deviceSelect"></select>
+    <button id="devicesRefreshBtn">↻</button>
+    
     <label>Rate <input id="samplerateIn" type="number" value="8000000" step="1000" style="width:110px" /></label>
     <label>Duration (s) <input id="durationIn" type="number" value="0.02" step="0.001" /></label>
     <button id="captureBtn" class="primary">Start</button>
     <span id="statusPill" class="status-pill">idle</span>
     <span class="spacer"></span>
+    <input id="wsUrlInput" type="text" placeholder="ws://localhost:8080" value="ws://localhost:8080" />
+    <button id="wsConnectBtn" title="(Re)Connect to the websocket server">⇄</button>'
+    <span class="sep"></span>
     <button id="fitBtn">Fit</button>
   </div>
 
@@ -56,6 +57,7 @@
   double-click-to-run work. If you'd rather use real ES modules with import/export, switch
   these to type="module" and serve the folder with any static server, e.g. `python3 -m http.server`.
 -->
+<script src="js/dom_helpers.js"></script>
 <script src="js/format.js"></script>
 <script src="js/view.js"></script>
 <script src="js/theme.js"></script>
@@ -68,6 +70,7 @@
 <script src="js/decoders/spi.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/sources/WebSocketSource.js"></script>
+<script src="js/sources/DemoWave.js"></script>
 <script src="js/sources/DemoSource.js"></script>
 <script src="js/sources/sources.js"></script>
 <script src="js/actions.js"></script>
