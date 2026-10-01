@@ -31,12 +31,15 @@
       <div class="gutter-head"><span>Channels</span></div>
       <div id="gutterBody"></div>
     </div>
-    <div class="plot-wrap" id="plotWrap">
-      <canvas id="canvas"></canvas>
-      <div id="hoverTip" class="hover-tip" style="display:none"></div>
-      <div id="emptyState" class="empty">
-        <div class="empty-title">No capture yet</div>
-        <div class="empty-sub">Pick a source above, then press <kbd>Start</kbd></div>
+    <div class="plot-col">
+      <div class="overview"><canvas id="overviewCanvas"></canvas></div>
+      <div class="plot-wrap" id="plotWrap">
+        <canvas id="canvas"></canvas>
+        <div id="hoverTip" class="hover-tip" style="display:none"></div>
+        <div id="emptyState" class="empty">
+          <div class="empty-title">No capture yet</div>
+          <div class="empty-sub">Pick a source above, then press <kbd>Start</kbd></div>
+        </div>
       </div>
     </div>
     <aside class="right" id="rightPanel"></aside>
@@ -46,6 +49,8 @@
     <span>Samples <b id="stSamples">0</b></span>
     <span>Rate <b id="stRate">—</b></span>
     <span>View <b id="stView">—</b></span>
+    <span class="spacer"></span>
+    <span class="muted keys" id="keyHints"></span>
   </div>
 </div>
 
@@ -80,6 +85,8 @@
 <script src="js/ui/rightpanel.js"></script>
 <script src="js/ui/topbar.js"></script>
 <script src="js/ui/statusbar.js"></script>
+<script src="js/ui/overview.js"></script>
+<script src="js/ui/keymap.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

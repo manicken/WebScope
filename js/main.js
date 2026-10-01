@@ -23,7 +23,8 @@
       captureBtn: 'captureBtn', fitBtn: 'fitBtn', statusPill: 'statusPill'
     });
     WS.ui.statusbar.init({ samples: 'stSamples', rate: 'stRate', view: 'stView' });
-
+    WS.ui.overview.init(document.getElementById('overviewCanvas'));
+    WS.ui.keymap.init(document.getElementById('keyHints'));
     WS.uiRows.recompute();
   });
 })(window.WS = window.WS || {});

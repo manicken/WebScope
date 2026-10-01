@@ -29,6 +29,7 @@
       pill.textContent = s.status.state; pill.className = 'status-pill ' + s.status.state;
       if (s.status.state !== 'running' && captureBtn.textContent === 'Stop') captureBtn.textContent = 'Start';
     });
+    WS.ui.topbar.toggleCapture = () => captureBtn.click();
   }
 
   WS.ui = WS.ui || {};
