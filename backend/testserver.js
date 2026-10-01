@@ -1,4 +1,5 @@
 import { DemoDevice } from './DemoDevice.js'
+import { scanSigrok } from './SigrokDevice.js';
 
 import { WebSocketServer, WebSocket } from 'ws';
 
@@ -12,7 +13,8 @@ server.on('listening', () => {
 
 const devices = new Map();
 
-function sendDevices() {
+async function sendDevices() {
+    for (const info of await scanSigrok()) devices.set(info.id, info);
     const arr = [...devices.values()];
     sendToAll({
         type: 'devices',
@@ -51,6 +53,9 @@ server.on('connection', (ws) => {
         if (msg.type === 'start') {
             console.log(msg);
             let device = devices.get(msg.deviceId);
+            if (msg.duration && !msg.samples) {
+                msg.samples = msg.duration * msg.samplerate;
+            }
             device?.deviceKind.start(msg, 
                 /* onData */
                 (chunk, offset) => {
@@ -63,6 +68,7 @@ server.on('connection', (ws) => {
                     sendToAll({type:"done", ...info});
                 },
                 (msg) => { 
+                    sendToAll({type:"error", message:msg});
                     console.log("Error: " + msg);
                 }
             );

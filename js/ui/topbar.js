@@ -16,8 +16,10 @@
     captureBtn.addEventListener('click', () => {
       if (get().status.state === 'running') { A.stopCapture(); captureBtn.textContent = 'Start'; }
       else {
-        const rate = Number(rateIn.value) || 8_000_000, dur = Number(durIn.value) || 0.02;
-        A.startCapture(WS.sources.getSelected(), rate, dur);
+        const samplerate = Number(rateIn.value) || 8_000_000;
+        const duration = Number(durIn.value) || 0.02;
+        const device = WS.sources.getSelectedInfo();
+        A.startCapture(device.sourceKind, {samplerate, duration, channels:device.channels});
         captureBtn.textContent = 'Stop';
       }
     });

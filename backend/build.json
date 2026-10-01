@@ -1,0 +1,4 @@
+{
+  "main": "testserver.js",
+  "output": "testserver.exe"
+}

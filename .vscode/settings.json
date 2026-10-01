@@ -9,5 +9,6 @@
         "**/*.html",
         "**/*.md",
         "LICENSE"
-    ]
+    ],
+    "cmake.sourceDirectory": "G:/_git/WebScope/backend_cpp"
 }

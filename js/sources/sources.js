@@ -61,5 +61,9 @@
         return selectedDevice.id;
     }
 
-    WS.sources = { setRefreshCallback, addDevice, refresh, getSelected, getSelectedId };
+    function getSelectedInfo() {
+        return selectedDevice;
+    }
+
+    WS.sources = { setRefreshCallback, addDevice, refresh, getSelected, getSelectedId, getSelectedInfo };
 })(window.WS = window.WS || {});

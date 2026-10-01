@@ -56,10 +56,17 @@ class WebSocketSource {
                     
                     
                 } else if (msg.type === 'done') {
+                    // fix for now, TODO make WebScope handle different kind of channels
+                    console.log(msg);
+                    if (Array.isArray(msg.channels)) {
+                        console.log("was array");
+                        msg.channels = msg.channels.length;
+                    }
+                    console.log(WebSocketSource.#cfg);
                     WebSocketSource.#onDone({
                         samples: msg.samples,
-                        samplerate: msg.samplerate,
-                        channels: msg.channels
+                        samplerate: WebSocketSource.#cfg.samplerate,
+                        channels: Array.isArray(WebSocketSource.#cfg.channels)?WebSocketSource.#cfg.channels.length:WebSocketSource.#cfg.channels
                     });
                 } else if (msg.type === 'error') {
                     WebSocketSource.#onError(msg.message);
@@ -84,11 +91,13 @@ class WebSocketSource {
             deviceId: window.WS.sources.getSelectedId(),
             samplerate: cfg.samplerate,
             //channels: 8,
-            duration: cfg.duration //Math.round(cfg.samplerate * cfg.duration)
+            duration: cfg.duration,
+            //samples:Math.round(cfg.samplerate * cfg.duration)
         }));
     }
 
     static start(cfg, onData, onDone, onError) {
+        console.trace(cfg);
         WebSocketSource.#offset = 0;
         WebSocketSource.#cfg = cfg;
         WebSocketSource.#onData = onData;

@@ -80,7 +80,7 @@
   let activeSource = null;
   let growing = null; // Uint32Array being filled while a capture streams in
 
-  function startCapture(source, samplerate, duration) {
+  function startCapture(source, {samplerate, duration, channels} = {}) {
     const total = Math.max(64, Math.round(samplerate * duration));
     growing = new Uint32Array(total);
     set({
@@ -89,7 +89,7 @@
     });
     activeSource = source;
     activeSource.start(
-      { samplerate, duration },
+      { samplerate, duration, channels },
       /* onData */
       (chunk, offset) => {
         growing.set(chunk, offset);
@@ -104,6 +104,7 @@
         for (const d of get().decoders) engine.decode(d.id);
         if (get().follow) fit();
       },
+      /* onError */
       (msg) => { set((s) => ({ status: { ...s.status, state: 'error', message: msg } })); toast(msg); }
     );
   }
