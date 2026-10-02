@@ -14,6 +14,7 @@
   --marker-b: #ff9f43;
   --trigger: #ff5577;
   --danger: #f03e3e;
+  --overviewHeight: 30px;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -49,14 +50,14 @@ button:disabled { opacity: 0.4; cursor: default; }
 .status-pill.error   { color: var(--danger); border-color: rgba(240,62,62,0.4); }
 
 .plot-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.overview { height: 30px; padding: 4px 8px; background: var(--panel); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.overview { height: var(--overviewHeight); padding: 4px 8px; background: var(--panel); border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .overview canvas { width: 100%; height: 100%; display: block; border-radius: 6px; background: rgba(255,255,255,0.025); cursor: pointer; }
 
 
 /* ---- main layout ---- */
 .main { display: flex; flex: 1; min-height: 0; }
 .gutter { width: 220px; overflow-y: auto; border-right: 1px solid var(--border); background: var(--panel); flex-shrink: 0; }
-.gutter-head { height: 32px; display: flex; align-items: center; padding: 0 8px; color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); }
+.gutter-head { margin-top: var(--overviewHeight); height: 32px; display: flex; align-items: center; padding: 0 8px; color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); }
 .ch-row { height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--border); }
 .ch-bar { width: 3px; height: 20px; border-radius: 2px; flex-shrink: 0; }
 .ch-index { color: var(--muted); font-size: 10px; width: 20px; flex-shrink: 0; }
@@ -80,7 +81,7 @@ canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-act
 kbd { background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 10px; }
 
 /* ---- right panel ---- */
-.right { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; min-height: 0; }
+.right { margin-top: var(--overviewHeight); width: 320px; flex-shrink: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; min-height: 0; }
 .section { border-bottom: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .section.grow { flex: 1; min-height: 220px; overflow: hidden; }
 .section-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }

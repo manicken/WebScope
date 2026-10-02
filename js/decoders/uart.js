@@ -10,6 +10,7 @@
   WS.decoders.uart = {
     rows: () => ['data'],
     run(engine, cfg) {
+      console.trace();
       const buf = engine.getRootSource();
       const ch = cfg.channel;
       const spb = buf.samplerate / cfg.baud; // samples per bit

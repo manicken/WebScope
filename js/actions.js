@@ -54,7 +54,7 @@
   /* ---- decoders ---- */
   function addDecoder(kind, config) {
     const cfg = { ...WS.decoderDefaults[kind], ...config };
-    const id = get().decoders.reduce((m, d) => Math.max(m, d.id), 0) + 1;
+    const id = get().decoders.reduce((m, d) => Math.max(m, d.id), 0) + 1; // find the last used id and add 1
     const n = get().decoders.length;
     const d = { id, kind, name: WS.decoderNames[kind], color: WS.theme.DECODER_COLORS[n % WS.theme.DECODER_COLORS.length], config: cfg, rows: WS.decoders[kind].rows(), visible: true };
     set({ decoders: [...get().decoders, d], table: { decoder: id, row: 0, focus: null } });

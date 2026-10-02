@@ -9,8 +9,9 @@
   const { ANN } = WS.theme;
 
   WS.decoders.i2c = {
-    rows: () => ['data'],
+    rows: () => ['data','test'],
     run(engine, cfg) {
+      console.trace();
       const buf = engine.getRootSource();
       const sclBit = 1 << cfg.scl, sdaBit = 1 << cfg.sda;
       const sclHigh = (i) => !!(buf.samples[i] & sclBit);
@@ -54,7 +55,7 @@
             while ( end < buf.length && sclHigh(end)) { end++; }
             while ( end < buf.length && sclHigh(end) == false) { end++; }
             anns.push({ start: byteStart, end: i, row: 0, class: ANN.DATA , text: `${text}` });
-            anns.push({ start: i, end, row: 0, class: ack ? ANN.DATA : ANN.ERROR, text: `${(ack ? 'ACK' : ' NACK')}` });
+            anns.push({ start: i, end, row: 1, class: ack ? ANN.DATA : ANN.ERROR, text: `${(ack ? 'ACK' : ' NACK')}` });
             bitBuf = 0; bitCount = 0;
           }
         }
@@ -62,7 +63,12 @@
       return {anns};
     }
   };
+  WS.decoders.push(
+    {
+      kind:'i2c',
 
+    }
+  );
   WS.decoderDefaults.i2c = { kind: 'i2c', scl: 1, sda: 2, format: 'hex' };
   WS.decoderNames.i2c = 'I²C';
 })(window.WS = window.WS || {});
