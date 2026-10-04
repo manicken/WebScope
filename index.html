@@ -62,36 +62,40 @@
   double-click-to-run work. If you'd rather use real ES modules with import/export, switch
   these to type="module" and serve the folder with any static server, e.g. `python3 -m http.server`.
 -->
-<script src="js/dom_helpers.js"></script>
-<script src="js/format.js"></script>
-<script src="js/view.js"></script>
-<script src="js/theme.js"></script>
-<script src="js/store.js"></script>
-<script src="js/layout.js"></script>
-<script src="js/draw.js"></script>
+<script src="js/core/dom_helpers.js"></script>
+<script src="js/core/format.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/store.js"></script>
+<script src="js/capture/captureEngine.js"></script>
 <script src="js/decoders/Decoder.js"></script>
-<script src="js/decoders/registry.js"></script>
+<script src="js/decoders/DecoderRegistry.js"></script>
 <script src="js/decoders/uart.js"></script>
 <script src="js/decoders/i2c.js"></script>
 <script src="js/decoders/spi.js"></script>
-<script src="js/engine.js"></script>
-<script src="js/sources/WebSocketSource.js"></script>
-<script src="js/sources/DemoWave.js"></script>
-<script src="js/sources/DemoSource.js"></script>
-<script src="js/sources/sources.js"></script>
-<script src="js/actions.js"></script>
-<script src="js/ui/rows.js"></script>
-<script src="js/ui/gutter.js"></script>
-<script src="js/ui/waveform.js"></script>
-
-<script src="js/ui/analyzers.js"></script>
-<script src="js/ui/measurements.js"></script>
-<script src="js/ui/rightpanel.js"></script>
-
-<script src="js/ui/topbar.js"></script>
-<script src="js/ui/statusbar.js"></script>
-<script src="js/ui/overview.js"></script>
-<script src="js/ui/keymap.js"></script>
-<script src="js/main.js"></script>
+<script src="js/decoders/decoderEngine.js"></script>
+<script src="js/annotations/annotationHelpers.js"></script>
+<script src="js/annotations/annotationEngine.js"></script>
+<script src="js/annotations/annotationGui.js"></script>
+<script src="js/waveform/view.js"></script>
+<script src="js/waveform/rowslayout.js"></script>
+<script src="js/waveform/waveformRenderer.js"></script>
+<script src="js/capture/sources/WebSocketSource.js"></script>
+<script src="js/capture/sources/DemoWave.js"></script>
+<script src="js/capture/sources/DemoSource.js"></script>
+<script src="js/capture/sources/sources.js"></script>
+<script src="js/waveform/waveformActions.js"></script>
+<script src="js/decoders/decoderActions.js"></script>
+<script src="js/capture/captureActions.js"></script>
+<script src="js/waveform/rows.js"></script>
+<script src="js/waveform/gutter.js"></script>
+<script src="js/waveform/waveformGui.js"></script>
+<script src="js/decoders/decoderGui.js"></script>
+<script src="js/waveform/measurements.js"></script>
+<script src="js/app/rightpanel.js"></script>
+<script src="js/capture/captureGui.js"></script>
+<script src="js/app/statusbar.js"></script>
+<script src="js/waveform/overview.js"></script>
+<script src="js/app/keymap.js"></script>
+<script src="js/app/main.js"></script>
 </body>
 </html>

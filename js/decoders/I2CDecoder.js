@@ -9,24 +9,27 @@ class I2CFrame {
 
 class I2CDecoder extends Decoder {
 
+    static Info = {
+        name: "I2C",
+        class: I2CDecoder
+    };
+
     static GuiConfigData = {
         scl:{ label: 'SCL', type: 'channel', default: 1},
         sda:{ label: 'SDA', type: 'channel', default: 2},
-        format: { ...FORMAT_FIELD, default: 'hex'}
+        format: { ...FORMAT_FIELD, default: 'hex'},
+        subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
     }
 
     constructor() {
+        super();
         this.frames = [];
-        this.scl = I2CDecoder.GuiConfigData.scl.default;
-        this.sda = I2CDecoder.GuiConfigData.sda.default;
-        this.format = I2CDecoder.GuiConfigData.format.default;
-        this.subDecoders = [];
     }
 
-    decode(buf) {
+    run(buf) {
         this.frames = [];
         const ANN = window.WS.theme;
-        const sclBit = 1 << this.scl, sdaBit = 1 << this.sda;
+        const sclBit = 1 << this.cfg.scl, sdaBit = 1 << this.cfg.sda;
         const sclHigh = (i) => !!(buf.samples[i] & sclBit);
         const sdaAt = (i) => (buf.samples[i] & sdaBit) ? 1 : 0;
         const anns = [];
@@ -66,24 +69,28 @@ class I2CDecoder extends Decoder {
                         frame.bufferIndex = byteStart;
                         frame.address = addr;
                     } else {
-                        text = this.format === 'hex' ? '0x' + bitBuf.toString(16).padStart(2, '0').toUpperCase() : String(bitBuf);
+                        text = this.cfg.format === 'hex' ? '0x' + bitBuf.toString(16).padStart(2, '0').toUpperCase() : String(bitBuf);
                         frame.payload.push(bitBuf);
                     }
                     let end = i + 1;
                     while ( end < buf.length && sclHigh(end)) { end++; }
                     while ( end < buf.length && sclHigh(end) == false) { end++; }
-                    anns.push({ start: byteStart, end: i, row: 0, class: ANN.DATA , text: `${text}` });
-                    anns.push({ start: i, end, row: 0, class: ack ? ANN.DATA : ANN.ERROR, text: `${(ack ? 'ACK' : ' NACK')}` });
+                    anns.push({ start: byteStart, end: i, row: 0, class: ANN.DATA , text });
+                    anns.push({ start: i, end, row: 0, class: ack ? ANN.ACK : ANN.NACK, text: ack ? 'ACK' : ' NACK' });
                     bitBuf = 0; bitCount = 0;
                 }
             }
         }
         let row = 1;
         for (let sub of this.subDecoders) {
-            let subDecodeAnns = sub.decode(this.frames);
-            anns.push({...subDecodeAnns, row});
+            let result  = sub.decode(this.frames);
+            for (const ann of result.anns) {
+                anns.push({ ...ann, row });
+            }
             row++;
         }
-        return anns;
+        return {anns};
     }
 }
+
+window.WS.decoderregistry.push(I2CDecoder.Info);

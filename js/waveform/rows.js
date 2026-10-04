@@ -5,8 +5,9 @@
  */
 (function (WS) {
   'use strict';
-  const { layoutRows } = WS.layout;
+
   const { store } = WS.store;
+  const { layoutRows } = WS.uiRowsLayout;
 
   let rows = [];
   let shapeKey = '';
@@ -18,7 +19,11 @@
     const s = store.get();
     rows = layoutRows(s.channels, s.decoders);
     const key = rowShapeKey(rows);
-    if (key !== shapeKey) { shapeKey = key; listeners.forEach((fn) => fn(rows)); }
+    console.log(key);
+    if (key !== shapeKey) { 
+      shapeKey = key;
+      listeners.forEach((fn) => fn(rows));
+    }
   }
 
   store.subscribe(recompute);

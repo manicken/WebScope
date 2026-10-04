@@ -1,11 +1,11 @@
+/**
+ * decoderGui.js — the "Analyzers" section of the right panel: add buttons and one config card
+ * per decoder instance. (The "Decoded data" table is annotations/annotationGui.js.)
+ */
 (function (WS) {
   'use strict';
-
-  const { get, set } = WS.store;
-  const { fmtTime, fmtFreq } = WS.format;
-  const { engine } = WS;
+  const { get } = WS.store;
   const A = WS.actions;
-  const ROW_H = 26;
 
   const FORMAT_FIELD = { key: 'format', label: 'Display', type: 'select', options: [['hex', 'Hex'], ['dec', 'Decimal'], ['bin', 'Binary'], ['ascii', 'ASCII']] };
   const FIELDS = {
@@ -42,7 +42,7 @@
 
 /* ============================== Analyzers ============================== */
   function renderAnalyzers(container) {
-    console.trace();
+    //console.trace();
     container.innerHTML = '';
     const extra = el('div', 'add-row');
     for (const kind of ['uart', 'i2c', 'spi']) {
@@ -120,90 +120,6 @@
     return card;
   }
 
-  /* ============================== Decoded data table ============================== */
-  function renderDataTable(container) {
-    container.innerHTML = '';
-    const { decoders, table, status } = get();
-    const dec = decoders.find((d) => d.id === table.decoder) ?? decoders[0];
-
-    let extra = null;
-    if (dec) {
-      extra = el('div', 'tabs');
-      if (decoders.length > 1) {
-        const sel = document.createElement('select');
-        for (const d of decoders) sel.appendChild(new Option(d.name, String(d.id)));
-        sel.value = String(dec.id);
-        sel.addEventListener('change', () => set({ table: { decoder: Number(sel.value), row: 0, focus: null } }));
-        extra.appendChild(sel);
-      }
-      dec.rows.forEach((r, i) => {
-        const tab = el('button', 'tab' + (i === table.row ? ' on' : ''), r);
-        tab.addEventListener('click', () => set({ table: { decoder: dec.id, row: i, focus: null } }));
-        extra.appendChild(tab);
-      });
-    }
-    const sec = WS.ui.rightpanel.section('Decoded data', extra, true);
-
-    if (!dec) {
-      sec.appendChild(el('div', 'hint', 'Decoded frames appear here.'));
-      container.appendChild(sec);
-      return;
-    }
-
-    const page = engine.annotationPage(dec.id, table.row, 0, 1); // just for total, cheap
-    const head = el('div', 'table-head', `<span>#</span><span>Time</span><span>Value</span><span class="muted">${page.total.toLocaleString()} rows</span>`);
-    sec.appendChild(head);
-
-    const tableEl = el('div', 'table');
-    const spacer = el('div', null); spacer.style.position = 'relative';
-    tableEl.appendChild(spacer);
-    sec.appendChild(tableEl);
-    container.appendChild(sec);
-
-    const origin = status.trigger ?? 0;
-    let rowsById = new Map();
-
-    function renderVisible() {
-      const total = engine.annotationPage(dec.id, table.row, 0, 0).total;
-      spacer.style.height = (total * ROW_H) + 'px';
-      const scrollTop = tableEl.scrollTop, height = tableEl.clientHeight || 300;
-      const first = Math.max(0, Math.floor(scrollTop / ROW_H) - 10);
-      const count = Math.ceil(height / ROW_H) + 20;
-      const p = engine.annotationPage(dec.id, table.row, first, count);
-      // Diff against what's currently rendered rather than rebuilding every scroll tick.
-      const keep = new Set();
-      p.items.forEach((a, i) => {
-        const idx = p.offset + i;
-        keep.add(idx);
-        let node = rowsById.get(idx);
-        if (!node) {
-          node = el('div', 'table-row', `<span class="muted mono">${idx + 1}</span><span class="mono"></span><span class="mono value"></span>`);
-          node.style.top = (idx * ROW_H) + 'px';
-          node.style.height = ROW_H + 'px';
-          node.addEventListener('click', () => {
-            set({ table: { ...get().table, decoder: dec.id, focus: idx } });
-            A.centerOn((a.start + a.end) / 2, a.end - a.start);
-          });
-          spacer.appendChild(node);
-          rowsById.set(idx, node);
-        }
-        node.children[1].textContent = fmtTime((a.start - origin) / status.samplerate, 6);
-        node.children[2].textContent = a.text;
-        node.className = 'table-row' + (idx === table.focus ? ' focus' : '') + ` cls-${a.class}`;
-      });
-      for (const [idx, node] of rowsById) if (!keep.has(idx)) { node.remove(); rowsById.delete(idx); }
-    }
-
-    tableEl.addEventListener('scroll', renderVisible);
-    new ResizeObserver(renderVisible).observe(tableEl);
-    renderVisible();
-
-    if (table.focus !== null) {
-      const y = table.focus * ROW_H;
-      if (y < tableEl.scrollTop || y > tableEl.scrollTop + tableEl.clientHeight - ROW_H) tableEl.scrollTop = y - tableEl.clientHeight / 2;
-    }
-  }
-
   WS.ui = WS.ui || {};
-  WS.ui.decoders = { renderAnalyzers, renderDataTable };
+  WS.ui.decoders = { renderAnalyzers };
 })(window.WS = window.WS || {});

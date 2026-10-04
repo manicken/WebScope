@@ -1,5 +1,15 @@
 class CustomDecoder extends Decoder {
-    #decode;
+    static Info = {
+        name: "I2C",
+        class: I2CDecoder
+    };
+
+    static GuiConfigData = {
+        code: {label:'code', type:'js_code_edit', default: ""},
+        custom:{ label: 'custom', type: 'custom', default: []},
+    }
+
+    #decodeFunc;
 
     constructor(code) {
         super();
@@ -8,7 +18,7 @@ class CustomDecoder extends Decoder {
 
     compile(code) {
         try {
-            this.#decode = eval(code);
+            this.#decodeFunc = eval(code);
             return true;
         } catch (ex) {
             console.log(ex);
@@ -18,7 +28,7 @@ class CustomDecoder extends Decoder {
     }
 
     decode(input) {
-        return this.#decode(input, this);
+        return this.#decodeFunc(input, this);
     }
 
     /* custom decoder example:
@@ -29,3 +39,5 @@ class CustomDecoder extends Decoder {
 
     */
 }
+
+window.WS.decoderregistry.push(CustomDecoder.Info);

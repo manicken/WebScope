@@ -10,8 +10,8 @@
 
   WS.decoders.spi = {
     rows: () => ['data'],
-    run(engine, cfg) {
-      const buf = engine.getRootSource();
+    run(buf, cfg) {
+      
       const clkBit = 1 << cfg.clk;
       const mosiBit = cfg.mosi != null ? 1 << cfg.mosi : null;
       const misoBit = cfg.miso != null ? 1 << cfg.miso : null;
@@ -46,7 +46,7 @@
             const fmt = (v) => cfg.format === 'hex' ? '0x' + v.toString(16).padStart(digits, '0').toUpperCase() : String(v);
             let text = mosiBit !== null ? fmt(mosiWord) : '';
             if (misoBit !== null) text += (text ? ' / ' : '') + 'MISO ' + fmt(misoWord);
-            anns.push({ start: wordStart, end: i, row: 0, class: ANN.DATA, text });
+            anns.push({ start: wordStart, end: i, class: ANN.DATA, text });
             mosiWord = 0; misoWord = 0; bitCount = 0;
           }
         }
@@ -55,6 +55,6 @@
     }
   };
 
-  WS.decoderDefaults.spi = { kind: 'spi', clk: 3, mosi: 4, miso: 5, cs: 6, csActiveLow: true, cpol: 0, cpha: 0, wordBits: 8, msbFirst: true, format: 'hex' };
+  WS.decoderDefaults.spi = { kind: 'spi', clk: 3, mosi: 4, miso: 5, cs: 6, csActiveLow: true, cpol: 0, cpha: 0, wordBits: 8, msbFirst: true, format: 'hex', signals:['clk', 'mosi', 'miso', 'cs'] };
   WS.decoderNames.spi = 'SPI';
 })(window.WS = window.WS || {});

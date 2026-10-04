@@ -32,7 +32,7 @@
       state: 'idle', message: '', samples: 0, samplerate: 8_000_000, channels: 8,
       trigger: null, captureId: 0, decoding: false, decodeGen: 0
     },
-    view: { start: 0, spp: 1000 },
+    view: { start: 0, /** samples per pixel */ spp: 1000 },
     plotWidth: 1000,
     follow: true,
     markers: { a: null, b: null },

@@ -32,7 +32,7 @@
     function renderAll() {
       WS.ui.decoders.renderAnalyzers(analyzers);
       WS.ui.measurements.render(measurements);
-      WS.ui.decoders.renderDataTable(dataTable);
+      WS.annotations.renderDataTable(dataTable);
     }
     WS.store.store.subscribe(renderAll);
     renderAll();

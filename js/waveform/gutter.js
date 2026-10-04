@@ -54,10 +54,13 @@
       const row = document.createElement('div');
       row.className = 'dec-row';
       row.innerHTML = `<span class="dec-dot" style="background:${r.dec.color}"></span><span class="dec-name">${r.dec.name}</span><span class="dec-sub">${r.label}</span>`;
-      const btn = document.createElement('button');
-      btn.textContent = '✕'; btn.title = 'Remove decoder';
-      btn.addEventListener('click', () => removeDecoder(r.dec.id));
-      row.appendChild(btn);
+      if (r.row == 0) { 
+        // only show the close button on the first decoder row
+        const btn = document.createElement('button');
+        btn.textContent = '✕'; btn.title = 'Remove decoder';
+        btn.addEventListener('click', () => removeDecoder(r.dec.id));
+        row.appendChild(btn);
+      }
       return row;
     }
 

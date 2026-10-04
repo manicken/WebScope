@@ -9,10 +9,10 @@
   const { ANN } = WS.theme;
 
   WS.decoders.i2c = {
-    rows: () => ['data','test'],
-    run(engine, cfg) {
+    rows: () => ['data'],
+    run(buf, cfg) {
       console.trace();
-      const buf = engine.getRootSource();
+      
       const sclBit = 1 << cfg.scl, sdaBit = 1 << cfg.sda;
       const sclHigh = (i) => !!(buf.samples[i] & sclBit);
       const sdaAt = (i) => (buf.samples[i] & sdaBit) ? 1 : 0;
@@ -25,12 +25,12 @@
 
         if (prevScl && curScl) {
           if (prevSda === 1 && curSda === 0) { // SDA falls while SCL high: START
-            anns.push({ start: i, end: i+2, row: 0, class: ANN.CONTROL, text: 'START' });
+            anns.push({ start: i, end: i+2, class: ANN.CONTROL, text: 'START' });
             inTx = true; bitBuf = 0; bitCount = 0; isAddress = true;
             continue;
           }
           if (prevSda === 0 && curSda === 1) { // SDA rises while SCL high: STOP
-            anns.push({ start: i, end: i+2, row: 0, class: ANN.CONTROL, text: 'STOP' });
+            anns.push({ start: i, end: i+2, class: ANN.CONTROL, text: 'STOP' });
             inTx = false;
             continue;
           }
@@ -54,8 +54,8 @@
             let end = i + 1;
             while ( end < buf.length && sclHigh(end)) { end++; }
             while ( end < buf.length && sclHigh(end) == false) { end++; }
-            anns.push({ start: byteStart, end: i, row: 0, class: ANN.DATA , text: `${text}` });
-            anns.push({ start: i, end, row: 1, class: ack ? ANN.DATA : ANN.ERROR, text: `${(ack ? 'ACK' : ' NACK')}` });
+            anns.push({ start: byteStart, end: i, class: ANN.DATA , text: `${text}` });
+            anns.push({ start: i, end, class: ack ? ANN.DATA : ANN.ERROR, text: `${(ack ? 'ACK' : ' NACK')}` });
             bitBuf = 0; bitCount = 0;
           }
         }
@@ -69,6 +69,6 @@
 
     }
   );
-  WS.decoderDefaults.i2c = { kind: 'i2c', scl: 1, sda: 2, format: 'hex' };
+  WS.decoderDefaults.i2c = { kind: 'i2c', scl: 1, sda: 2, format: 'hex', signals:['scl', 'sda'] };
   WS.decoderNames.i2c = 'I²C';
 })(window.WS = window.WS || {});

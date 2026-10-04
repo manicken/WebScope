@@ -1,6 +1,8 @@
 /**
- * engine.js — replaces the Rust core + api.ts IPC bridge. Runs locally in the browser
- * against a plain sample buffer (one Uint32Array word per sample, one bit per channel).
+ * captureEngine.js — the capture's sample buffer and queries over it. Runs locally in the
+ * browser against a plain sample buffer (one Uint32Array word per sample, one bit per channel).
+ * Decoding lives in decoders/decoderEngine.js, annotation queries in annotations/annotationEngine.js;
+ * both add their methods to the shared WS.engine object created here.
  *
  * LOD strategy: samples are grouped into fixed-size chunks; each chunk stores {first, last,
  * toggleMask}. render() scans raw samples for narrow columns and falls back to merging chunk
@@ -11,7 +13,6 @@
  */
 (function (WS) {
   'use strict';
-  const { ANN } = WS.theme;
 
   const CHUNK = 512;
 
@@ -117,31 +118,7 @@
     }
   }
 
-  function runDecoder(inst) {
-    const impl = WS.decoders[inst.kind];
-    if (!impl) return null;
-
-    return impl.run(engine, inst.config);
-  }
-
-  /** View-windowed annotations, merging runs too dense to read into one DENSE block. */
-  function annotationsInRange(all, start, end, minWidth, limit) {
-    const visible = all.filter((a) => a.end >= start && a.start <= end);
-    const out = [];
-    let i = 0;
-    while (i < visible.length && out.length < limit) {
-      const a = visible[i];
-      if (a.end - a.start >= minWidth) { out.push(a); i++; continue; }
-      let j = i, groupEnd = a.end;
-      while (j + 1 < visible.length && visible[j + 1].start - groupEnd < minWidth) { j++; groupEnd = visible[j].end; }
-      if (j > i) { out.push({ start: a.start, end: groupEnd, row: a.row, class: ANN.DENSE, text: '' }); i = j + 1; }
-      else { out.push(a); i++; }
-    }
-    return out;
-  }
-
   let buffer = null; // CaptureBuffer | null
-  const decodedCache = new Map(); // decoder id -> Annotation[]
 
   const engine = {
     hasData: () => !!buffer,
@@ -151,37 +128,7 @@
     measure(channel, sample) { return buffer ? buffer.measure(channel, sample) : null; },
     findEdge(channel, from, forward) { return buffer ? buffer.findEdge(channel, from, forward) : null; },
     burstAt(channel, sample, maxGap, tol) { return buffer ? buffer.burstAt(channel, sample, maxGap, tol) : null; },
-    getSource(id) {
-      return decodedCache.get(id);
-    },
-    getRootSource() {
-      return buffer;
-    },
-    decode(id) {
-      console.log("decode ID:" + id);
-      if (!buffer) return;
-      const inst = WS.store.get().decoders.find((d) => d.id === id);
-      if (!inst) return;
-
-      decodedCache.set(id, runDecoder(inst));
-      
-      WS.store.set((s) => ({ status: { ...s.status, decodeGen: s.status.decodeGen + 1 } }));
-    },
-    annotations(id, row, start, end, minWidth, limit) {
-      const all = (decodedCache.get(id)?.anns || []).filter((a) => a.row === row);
-      return annotationsInRange(all, start, end, minWidth, limit);
-    },
-    /** Page of raw (unmerged) annotations for the data table: { total, offset, items }. */
-    annotationPage(id, row, offset, limit) {
-      const all = (decodedCache.get(id)?.anns || []).filter((a) => a.row === row);
-      return { total: all.length, offset, items: all.slice(offset, offset + limit) };
-    },
-    /** Index of the annotation nearest `sample`, for click-to-focus from the waveform. */
-    annotationIndex(id, row, sample) {
-      const all = (decodedCache.get(id)?.anns || []).filter((a) => a.row === row);
-      for (let i = 0; i < all.length; i++) if (all[i].end >= sample) return i;
-      return Math.max(0, all.length - 1);
-    }
+    getBuffer: () => buffer
   };
 
   WS.CaptureBuffer = CaptureBuffer;

@@ -23,18 +23,5 @@
     return { start: (start + end) / 2 - (plotWidth / 2) * clamped, spp: clamped };
   }
 
-  /** The annotation (or merged block) covering `sample`, within `tolerance` samples; nearest wins. */
-  function annotationAt(anns, sample, tolerance) {
-    let best = null, bestDist = Infinity;
-    for (const a of anns) {
-      const dist = sample < a.start ? a.start - sample : sample > a.end ? sample - a.end : 0;
-      if (dist <= tolerance && dist < bestDist) {
-        best = a; bestDist = dist;
-        if (dist === 0) break;
-      }
-    }
-    return best;
-  }
-
-  WS.view = { clampViewTo, frameRange, annotationAt };
+  WS.view = { clampViewTo, frameRange };
 })(window.WS = window.WS || {});

@@ -8,9 +8,9 @@
 (function (WS) {
   'use strict';
   const { get, set } = WS.store;
-  const { drawFrame, annKey } = WS.draw;
+  const { drawFrame } = WS.draw;
   const { engine } = WS;
-  const { annotationAt } = WS.view;
+  const { annKey, annotationAt, annotationsAtRow, annotationIndex } = WS.annotations;
   const { RULER_H } = WS.theme;
   const { fmtTime, fmtFreq } = WS.format;
   const A = WS.actions;
@@ -43,7 +43,7 @@
       const row = rowAt(pointer.y);
       if (!row || row.kind !== 'decoder') return null;
       const { view } = get();
-      const anns = engine.annotations(row.dec.id, row.row, view.start, view.start + size.w * view.spp, view.spp * 3, 4000);
+      const anns = annotationsAtRow(row.dec.id, row.row, view.start, view.start + size.w * view.spp, view.spp * 3, 4000);
       const a = annotationAt(anns, view.start + pointer.x * view.spp, 2 * view.spp);
       return a ? { decoder: row.dec.id, row: row.row, start: a.start, end: a.end } : null;
     }
@@ -85,8 +85,8 @@
       const rows = WS.uiRows.get();
       const decRows = rows.filter((r) => r.kind === 'decoder');
       const end = st.view.start + w * st.view.spp;
-      const annotations = new Map();
-      for (const r of decRows) annotations.set(annKey(r.dec.id, r.row), engine.annotations(r.dec.id, r.row, st.view.start, end, st.view.spp * 3, 4000));
+      const annotationsMap = new Map();
+      for (const r of decRows) annotationsMap.set(annKey(r.dec.id, r.row), annotationsAtRow(r.dec.id, r.row, st.view.start, end, st.view.spp * 3, 4000));
 
       const hl = hitTestAnnotation();
       updateBurst();
@@ -95,7 +95,7 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawFrame(ctx, w, h, dpr, {
         view: st.view, samplerate: st.status.samplerate, samples: st.status.samples, trigger: st.status.trigger,
-        rows, scrollY: scroll.y, wave, annotations, markers: st.markers, hover: st.hover, measurement: st.measurement,
+        rows, scrollY: scroll.y, wave, annotations:annotationsMap, markers: st.markers, hover: st.hover, measurement: st.measurement,
         hoverChannel: st.hover ? st.hover.channel : null, highlight: hl, burst: lastBurst
       });
       renderHoverTip();
@@ -136,18 +136,18 @@
     canvas.addEventListener('pointermove', (e) => {
       const { x, y } = local(e);
       const { view } = get();
-      const sample = view.start + x * view.spp;
+      const sampleIndex = view.start + x * view.spp;
       pointer = { x, y }; modHeld = e[MOD_KEY];
       if (drag) {
         if (Math.abs(x - drag.x0) > 3) drag.moved = true;
         if (drag.kind === 'pan') A.panBy(drag.last - x);
-        else set({ markers: { ...get().markers, [drag.marker]: sample } });
+        else set({ markers: { ...get().markers, [drag.marker]: sampleIndex } });
         drag.last = x; return;
       }
       const row = y >= RULER_H ? rowAt(y) : undefined;
       const channel = row?.kind === 'channel' ? row.ch.index : null;
-      set({ hover: { sample, channel, x, y } });
-      if (channel !== null && engine.hasData()) set({ measurement: engine.measure(channel, Math.floor(sample)) });
+      set({ hover: { sampleIndex, channel, x, y } });
+      if (channel !== null && engine.hasData()) set({ measurement: engine.measure(channel, Math.floor(sampleIndex)) });
       else if (get().measurement) set({ measurement: null });
     });
 
@@ -159,8 +159,8 @@
       const { x, y } = local(e);
       const row = rowAt(y);
       if (row?.kind === 'decoder' && engine.hasData()) {
-        const sample = get().view.start + x * get().view.spp;
-        const index = engine.annotationIndex(row.dec.id, row.row, sample);
+        const sampleIndex = get().view.start + x * get().view.spp; // spp = samples per pixel
+        const index = annotationIndex(row.dec.id, row.row, sampleIndex);
         set({ table: { decoder: row.dec.id, row: row.row, focus: index } });
       }
     });

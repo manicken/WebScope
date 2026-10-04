@@ -9,9 +9,9 @@
 
   WS.decoders.uart = {
     rows: () => ['data'],
-    run(engine, cfg) {
+    run(buf, cfg) {
       console.trace();
-      const buf = engine.getRootSource();
+      
       const ch = cfg.channel;
       const spb = buf.samplerate / cfg.baud; // samples per bit
       const invert = !!cfg.invert;
@@ -47,7 +47,7 @@
           ? byte.toString(16).padStart(2, '0').toUpperCase()
           : (byte >= 32 && byte < 127) ? String.fromCharCode(byte) : '\\x' + byte.toString(16).padStart(2, '0');
         anns.push({
-          start: startSample, end: endSample, row: 0,
+          start: startSample, end: endSample,
           class: (!parityOk || !stopOk) ? ANN.ERROR : ANN.DATA,
           text: (!parityOk ? 'PERR ' : '') + (!stopOk ? 'FERR ' : '') + text
         });
@@ -57,6 +57,6 @@
     }
   };
 
-  WS.decoderDefaults.uart = { kind: 'uart', channel: 0, baud: 115200, dataBits: 8, parity: 'none', stopBits: 1, invert: false, msbFirst: false, format: 'ascii' };
+  WS.decoderDefaults.uart = { kind: 'uart', channel: 0, baud: 115200, dataBits: 8, parity: 'none', stopBits: 1, invert: false, msbFirst: false, format: 'ascii', signals:['channel'] };
   WS.decoderNames.uart = 'UART';
 })(window.WS = window.WS || {});
