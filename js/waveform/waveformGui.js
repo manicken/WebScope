@@ -10,7 +10,7 @@
   const { get, set } = WS.store;
   const { drawFrame } = WS.draw;
   const { engine } = WS;
-  const { annKey, annotationAt, annotationsAtRow, annotationIndex } = WS.annotations;
+  const { annKey, annotationAt, annotationsAtRowInRange, annotationIndex } = WS.annotations;
   const { RULER_H } = WS.theme;
   const { fmtTime, fmtFreq } = WS.format;
   const A = WS.actions;
@@ -43,7 +43,7 @@
       const row = rowAt(pointer.y);
       if (!row || row.kind !== 'decoder') return null;
       const { view } = get();
-      const anns = annotationsAtRow(row.dec.id, row.row, view.start, view.start + size.w * view.spp, view.spp * 3, 4000);
+      const anns = annotationsAtRowInRange(row.dec.id, row.row, view.start, view.start + size.w * view.spp, view.spp * 3, 4000);
       const a = annotationAt(anns, view.start + pointer.x * view.spp, 2 * view.spp);
       return a ? { decoder: row.dec.id, row: row.row, start: a.start, end: a.end } : null;
     }
@@ -86,7 +86,7 @@
       const decRows = rows.filter((r) => r.kind === 'decoder');
       const end = st.view.start + w * st.view.spp;
       const annotationsMap = new Map();
-      for (const r of decRows) annotationsMap.set(annKey(r.dec.id, r.row), annotationsAtRow(r.dec.id, r.row, st.view.start, end, st.view.spp * 3, 4000));
+      for (const r of decRows) annotationsMap.set(annKey(r.dec.id, r.row), annotationsAtRowInRange(r.dec.id, r.row, st.view.start, end, st.view.spp * 3, 4000));
 
       const hl = hitTestAnnotation();
       updateBurst();

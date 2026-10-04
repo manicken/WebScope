@@ -47,7 +47,7 @@
           ? byte.toString(16).padStart(2, '0').toUpperCase()
           : (byte >= 32 && byte < 127) ? String.fromCharCode(byte) : '\\x' + byte.toString(16).padStart(2, '0');
         anns.push({
-          start: startSample, end: endSample,
+          start: startSample, end: endSample,// row:0,
           class: (!parityOk || !stopOk) ? ANN.ERROR : ANN.DATA,
           text: (!parityOk ? 'PERR ' : '') + (!stopOk ? 'FERR ' : '') + text
         });
