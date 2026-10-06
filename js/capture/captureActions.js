@@ -22,11 +22,33 @@
     });
     activeSource = source;
     activeSource.start(
-      { samplerate, duration, channels },
+      { samplerate, samplecount:total, channels },
       /* onData */
       (chunk, offset) => {
-        growing.set(chunk, offset);
-        set((s) => ({ status: { ...s.status, samples: Math.min(total, offset + chunk.length) } }));
+        const available = growing.length - offset;
+        if (chunk.length > available) {
+          console.warn(
+              `capture overflow: ` +
+              `offset=${offset}, ` +
+              `chunk=${chunk.length}, ` +
+              `available=${available}, ` +
+              `diff=${chunk.length - available}, ` +
+              `total=${total}`
+          );
+        }
+        const count = Math.min(chunk.length, available);
+
+        if (count > 0) {
+            // this is a failsafe in cases where the received amount exceed the expected amount
+            growing.set(chunk.subarray(0, count), offset); 
+        }
+
+        const samples = Math.min(total, offset + count); // sample count
+
+        set((s) => ({
+            status: { ...s.status, samples }
+        }));
+
         if (get().follow) A.fit();
       },
       /* onDone */

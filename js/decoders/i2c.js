@@ -9,7 +9,7 @@
   const { ANN } = WS.theme;
 
   WS.decoders.i2c = {
-    rows: () => ['data'],
+    rows: () => [{id:'data', label:'DATA'}],
     run(buf, cfg) {
       console.trace();
       
@@ -60,7 +60,7 @@
           }
         }
       }
-      return {anns};
+      return {'data':anns};
     }
   };
   WS.decoders.push(

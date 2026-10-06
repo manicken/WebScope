@@ -94,9 +94,9 @@ class SigrokKind {
         }
         args.push('-C', wanted.join(','));
 
-        if (msg.samples !== undefined) {
-            if (!Number.isInteger(msg.samples) || msg.samples <= 0) return onError('bad samples');
-            args.push('--samples', String(msg.samples));
+        if (msg.samplecount !== undefined) {
+            if (!Number.isInteger(msg.samplecount) || msg.samplecount <= 0) return onError('bad samplecount');
+            args.push('--samples', String(msg.samplecount));
         } else {
             args.push('--continuous');
         }
@@ -123,9 +123,21 @@ class SigrokKind {
             const usable = buf.length - (buf.length % unitSize);
             leftover = Buffer.from(buf.subarray(usable));
             if (usable === 0) return;
-            const chunk = buf.subarray(0, usable);
+            /*const chunk = buf.subarray(0, usable);
             onData(chunk, totalBytes / unitSize);   // offset in samples
-            totalBytes += usable;
+            totalBytes += usable;*/
+            const remainingBytes = msg.samplecount !== undefined
+                ? msg.samplecount * unitSize - totalBytes
+                : usable;
+
+            const bytes = Math.min(usable, remainingBytes);
+
+            if (bytes <= 0) return;
+
+            const chunk = buf.subarray(0, bytes);
+
+            onData(chunk, totalBytes / unitSize);
+            totalBytes += bytes;
         });
 
         proc.stderr.on('data', (d) => { stderr = (stderr + d).slice(-2000); });
@@ -173,8 +185,9 @@ async function run(args) {
 //   fx2lafw:conn=1.5 - Saleae Logic with 8 channels: D0 D1 ...
 export async function scanSigrok(driver /* optional, e.g. "fx2lafw" */) {
     const out = await run(driver ? ['-d', driver, '--scan'] : ['--scan']);
+    const outLines = out.split(/\r?\n/);
     const devices = [];
-    for (const line of out.split(/\r?\n/)) {
+    for (const line of outLines) {
         const m = line.match(/^(\S+) - (.+)$/);
         if (!m) continue;
         const [, spec, rest] = m;
@@ -182,12 +195,66 @@ export async function scanSigrok(driver /* optional, e.g. "fx2lafw" */) {
         const name = d ? d[1] : rest;
         const channels = d ? d[3].trim().split(/\s+/) : [];
 
+        const deviceInfoOut = await run(['-d', spec, '--show']);
+        const deviceInfoLines = deviceInfoOut.split(/\r?\n/);
+        const sampleRates = [];
+        let li = 0;
+        for (; li < deviceInfoLines.length; li++) {
+            if (deviceInfoLines[li].trim() === 'samplerate - supported samplerates:')
+            {
+                li++;
+                //console.log('found sampleRates');
+                break;
+            }
+        }
+        for (; li < deviceInfoLines.length; li++) {
+            let line = deviceInfoLines[li];
+            //console.log("scanning:" + line);
+            let currentEntryMaybeIndex = line.indexOf('(current)');
+            if (currentEntryMaybeIndex != -1) {
+                line = line.substring(0, currentEntryMaybeIndex);
+            }
+            line = line.trim();
+            currentEntryMaybeIndex = line.indexOf('Hz');
+            if (currentEntryMaybeIndex != -1) {
+                currentEntryMaybeIndex--;
+                let prefix = line[currentEntryMaybeIndex];
+                let mult = 1;
+                if (prefix >= '0' && prefix <= '9') {
+                    currentEntryMaybeIndex++;
+                } else if (prefix == 'k' || prefix == 'K') {
+                    mult = 1_000;
+                } else if (prefix == 'M') {
+                    mult = 1_000_000;
+                } else if (prefix == 'G') {
+                    mult = 1_000_000_000;
+                } // not sure there is any hobby logic analyzer that support terahertz hehe
+                sampleRates.push(Number(line.substring(0, currentEntryMaybeIndex).trim())*mult);
+                //sampleRates.push(line.substring(0, line.length-3));
+            } else {
+                break;
+            }
+        }
+        let triggerOptions = [];
+        let triggerOptionsSearchText = 'Supported triggers:';
+        for (li = 0; li < deviceInfoLines.length; li++) {
+            let line = deviceInfoLines[li].trim();
+            if (line.startsWith(triggerOptionsSearchText)) {
+                line = line.substring(triggerOptionsSearchText.length).trim();
+                triggerOptions = line.split(' ');
+                break;
+            }
+        }
+                
         const info = {
             id: 'sigrok:' + spec,
             name,
+            sampleRates,
+            triggerOptions,
             driver: spec.split(':')[0],
             channels: channels.filter(isLogicChannel).map((n, i) => ({ index: i, name: n, type: 'logic' })),
         };
+        console.log(info);
         // non-enumerable so JSON.stringify(info) sends it to the browser without the kind object
         Object.defineProperty(info, 'deviceKind', {
             value: new SigrokKind(spec, channels),

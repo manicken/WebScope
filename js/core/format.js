@@ -36,6 +36,15 @@
     return `${trim(hz.toPrecision(sig))} Hz`;
   }
 
+  function fmtSampleResolution(hz, sig = 4) {
+    return fmtTime(1/hz, sig);
+    /*if (!isFinite(hz) || hz <= 0) return '—';
+    if (hz >= 1e9) return `${(1/trim((hz / 1e9))).toPrecision(sig)} pS`;
+    if (hz >= 1e6) return `${(1/trim((hz / 1e6))).toPrecision(sig)} nS`;
+    if (hz >= 1e3) return `${(1/trim((hz / 1e3))).toPrecision(sig)} mS`;
+    return `${trim(hz.toPrecision(sig))} S`;*/
+  }
+
   function fmtRate(hz) { return fmtFreq(hz, 6).replace('Hz', 'S/s'); }
 
   function fmtCount(n) {
@@ -52,5 +61,5 @@
     return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
   }
 
-  WS.format = { fmtTime, fmtTick, fmtFreq, fmtRate, fmtCount, niceStep };
+  WS.format = { fmtTime, fmtTick, fmtFreq, fmtRate, fmtCount, niceStep, fmtSampleResolution };
 })(window.WS = window.WS || {});

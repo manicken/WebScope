@@ -13,17 +13,22 @@
   let shapeKey = '';
   const listeners = new Set();
 
-  function rowShapeKey(rs) { return rs.map((r) => r.kind + ':' + (r.kind === 'channel' ? r.ch.index : r.dec.id + '.' + r.row)).join(','); }
+  function rowShapeKey(rs) { 
+    return rs.map((r) => r.kind + ':' + (r.kind === 'channel' ? r.ch.index : r.dec.id + '.' + r.row??0)).join(',');
+  }
 
   function recompute() {
     const s = store.get();
+   // console.log(s.channels, s.decoders);
     rows = layoutRows(s.channels, s.decoders);
+   // console.trace(rows);
     const key = rowShapeKey(rows);
-    console.log(key);
+    //console.log(key);
     if (key !== shapeKey) { 
       shapeKey = key;
       listeners.forEach((fn) => fn(rows));
     }
+
   }
 
   store.subscribe(recompute);

@@ -4,7 +4,7 @@
   document.addEventListener('DOMContentLoaded', () => {
 
     WS.sources.setRefreshCallback(() => {
-
+      WebSocketSource.refreshdevices();
     });
     WS.sources.refresh(); // do not call the function above
     WebSocketSource.connect();
@@ -22,7 +22,7 @@
       sourceKind: 'sourceKind', wsUrl: 'wsUrl', samplerate: 'samplerateIn', duration: 'durationIn',
       captureBtn: 'captureBtn', fitBtn: 'fitBtn', statusPill: 'statusPill'
     });
-    WS.ui.statusbar.init({ samples: 'stSamples', rate: 'stRate', view: 'stView' });
+    WS.ui.statusbar.init({ samples: 'stSamples', rate: 'stRate', view: 'stView', sampleResolution:'stSampleResolution' });
     WS.ui.overview.init(document.getElementById('overviewCanvas'));
     WS.ui.keymap.init(document.getElementById('keyHints'));
     WS.uiRows.recompute();

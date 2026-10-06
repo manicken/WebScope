@@ -6,21 +6,21 @@
     'use strict';
     const { engine } = WS;
 
-    function annotationAtRow(id, row) {
-        return (engine.decodedResult(id)?.anns || []).filter((a) => a.row??0 === row);
+    function annotationsAtRow(id, rowIndex) {
+        return (engine.decodedResult(id)?.anns || []).filter((a) => (a.row??0) === rowIndex);
     }
-    function annotationsAtRowInRange(id, row, start, end, minWidth, limit) {
-        const allAtRow = annotationAtRow(id, row);
+    function annotationsAtRowInRange(id, rowId, start, end, minWidth, limit) {
+        const allAtRow = engine.decodedResult(id)?.[rowId] ?? [];//annotationsAtRow(id, rowIndex);
         return annotationsInRange(allAtRow, start, end, minWidth, limit);
     }
     /** Page of raw (unmerged) annotations for the data table: { total, offset, items }. */
-    function annotationPage(id, row, offset, limit) {
-        const allAtRow = annotationAtRow(id, row);
+    function annotationPage(id, rowId, offset, limit) {
+        const allAtRow = engine.decodedResult(id)?.[rowId] ?? [];//annotationsAtRow(id, rowIndex);
         return { total: allAtRow.length, offset, items: allAtRow.slice(offset, offset + limit) };
     }
     /** Index of the annotation nearest `sampleIndex`, for click-to-focus from the waveform. */
-    function annotationIndex(id, row, sampleIndex) {
-        const allAtRow = annotationAtRow(id, row);
+    function annotationIndex(id, rowId, sampleIndex) {
+        const allAtRow = engine.decodedResult(id)?.[rowId] ?? [];//annotationsAtRow(id, rowIndex);
         for (let i = 0; i < allAtRow.length; i++) {
             if (allAtRow[i].end >= sampleIndex) {
                 return i;
@@ -31,8 +31,8 @@
 
     const { ANN } = WS.theme;
 
-    /** Key for per-row annotation maps (decoder id + row). */
-    function annKey(id, row) { return `${id}:${row}`; }
+    /** Key for per-row annotation maps (decoder id + rowIndex). */
+    function annKey(id, rowIndex) { return `${id}:${rowIndex}`; }
 
     /** The annotation (or merged block) covering `sample`, within `tolerance` samples; nearest wins. */
     function annotationAt(anns, sampleIndex, tolerance) {

@@ -8,7 +8,7 @@
   const { ANN } = WS.theme;
 
   WS.decoders.uart = {
-    rows: () => ['data'],
+    rows: () => [{id:'data', label:'DATA'}],
     run(buf, cfg) {
       console.trace();
       
@@ -53,7 +53,7 @@
         });
         i = Math.max(i + 1, Math.round(endSample));
       }
-      return {anns};
+      return {'data':anns};
     }
   };
 

@@ -15,6 +15,7 @@
     let devices = new Map();
     let selectedDevice = null;
     let deviceSelect_el = document.getElementById("deviceSelect");
+    let samplerateIn_el = document.getElementById("samplerateIn");
     deviceSelect_el.onchange = deviceSelected;
     deviceSelect_el.onclick = deviceSelected;
 
@@ -39,7 +40,11 @@
 
     function deviceSelected(e) {
         let id = deviceSelect_el.value;
+        
         selectedDevice = devices.get(id);
+        console.log(selectedDevice);
+        //for (let rate of selectedDevice.)
+        samplerateIn_el
         console.log(selectedDevice);
     }
 

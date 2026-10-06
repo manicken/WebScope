@@ -5,7 +5,7 @@
 (function (WS) {
   'use strict';
   const { THEME, ANN, CLASS_COLORS, hexA } = WS.theme;
-  const { get, set } = WS.store;
+  const { store } = WS;
   const { fmtTime } = WS.format;
   const { annotationPage } = WS.annotations;
   const ROW_H = 26;
@@ -50,7 +50,8 @@
   /* ============================== Decoded data table ============================== */
   function renderDataTable(container) {
     container.innerHTML = '';
-    const { decoders, table, status } = get();
+    const { decoders, table, status } = store.get();
+    console.log(table);
     const dec = decoders.find((d) => d.id === table.decoder) ?? decoders[0];
 
     let extra = null;
@@ -60,12 +61,13 @@
         const sel = document.createElement('select');
         for (const d of decoders) sel.appendChild(new Option(d.name, String(d.id)));
         sel.value = String(dec.id);
-        sel.addEventListener('change', () => set({ table: { decoder: Number(sel.value), row: 0, focus: null } }));
+        sel.addEventListener('change', () => store.set({ table: { decoder: Number(sel.value), rowId: r.id, focus: null } }));
         extra.appendChild(sel);
       }
       dec.rows.forEach((r, i) => {
         const tab = el('button', 'tab' + (i === table.row ? ' on' : ''), r);
-        tab.addEventListener('click', () => set({ table: { decoder: dec.id, row: i, focus: null } }));
+        console.log(r);
+        tab.addEventListener('click', () => store.set({ table: { decoder: dec.id, rowId: r.id, focus: null } }));
         extra.appendChild(tab);
       });
     }
@@ -76,8 +78,8 @@
       container.appendChild(sec);
       return;
     }
-
-    const page = annotationPage(dec.id, table.row, 0, 1); // just for total, cheap
+    console.log(table);
+    const page = annotationPage(dec.id, table.rowId, 0, 1); // just for total, cheap
     const head = el('div', 'table-head', `<span>#</span><span>Time</span><span>Value</span><span class="muted">${page.total.toLocaleString()} rows</span>`);
     sec.appendChild(head);
 
@@ -108,7 +110,7 @@
           node.style.top = (idx * ROW_H) + 'px';
           node.style.height = ROW_H + 'px';
           node.addEventListener('click', () => {
-            set({ table: { ...get().table, decoder: dec.id, focus: idx } });
+            store.set({ table: { ...store.get().table, decoder: dec.id, focus: idx } });
             WS.actions.centerOn((a.start + a.end) / 2, a.end - a.start);
           });
           spacer.appendChild(node);

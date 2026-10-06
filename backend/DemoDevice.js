@@ -70,7 +70,7 @@ export class DemoDevice {
 
         const rate = cfg.samplerate;
         const buffer = DemoDevice.pattern(rate);
-        const total = Math.max(1, Math.round(rate * cfg.duration));
+        const total = cfg.samplecount;
         const chunk = Math.max(1, Math.floor(rate / 100));
 
         let pos = 0;

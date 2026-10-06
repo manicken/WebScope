@@ -21,7 +21,7 @@
 
   function makeChannels(n, names) {
     return Array.from({ length: n }, (_, i) => ({
-      index: i, name: names?.[i] ?? `D${i}`, color: PALETTE[i % PALETTE.length], visible: true, trigger: null
+      index: i, name: names?.[i] ?? `CH${i+1}`, color: PALETTE[i % PALETTE.length], visible: true, trigger: null
     }));
   }
 

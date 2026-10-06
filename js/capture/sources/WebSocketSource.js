@@ -91,8 +91,7 @@ class WebSocketSource {
             deviceId: window.WS.sources.getSelectedId(),
             samplerate: cfg.samplerate,
             //channels: 8,
-            duration: cfg.duration,
-            //samples:Math.round(cfg.samplerate * cfg.duration)
+            samplecount: cfg.samplecount,
         }));
     }
 
@@ -116,10 +115,22 @@ class WebSocketSource {
         }
     }
 
+    static refreshdevices() {
+        const ws = WebSocketSource.#ws;
+        if (ws?.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({type:"refreshdevices"}));
+            
+        } else {
+            console.error("websocket is not connected");
+        }
+    }
+
     static stop() {
         const ws = WebSocketSource.#ws;
         if (ws?.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'stop', deviceId: window.WS.sources.getSelectedId()}));
+        } else {
+            console.error("websocket is not connected");
         }
     }
 }

@@ -29,6 +29,7 @@
       { key: 'mosi', label: 'MOSI', type: 'channel?' },
       { key: 'miso', label: 'MISO', type: 'channel?' },
       { key: 'cs', label: 'Enable', type: 'channel?' },
+      { key: 'rowLayout', label: 'Group mode', type: 'select', options: [['grouped', 'Grouped'],['bySignal', 'By Signal']]},
       { key: 'csActiveLow', label: 'Enable active low', type: 'bool' },
       { key: 'cpol', label: 'CPOL', type: 'select', options: [[0, '0 · idle low'], [1, '1 · idle high']] },
       { key: 'cpha', label: 'CPHA', type: 'select', options: [[0, '0 · leading edge'], [1, '1 · trailing edge']] },
