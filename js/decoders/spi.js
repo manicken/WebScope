@@ -10,7 +10,10 @@
 
   WS.decoders.spi = {
     //rows: () => ['MOSI','MISO'],
-    rows: () => [{id:'data', label:'DATA'}],
+    rows: () => [
+      {id:'mosi', label:'MOSI', anchor: { signal: 'mosi' }, placement: 'after'},
+      {id:'miso', label:'MISO', anchor: { signal: 'miso' }, placement: 'after'}
+    ],
     run(buf, cfg) {
       
       const clkBit = 1 << cfg.clk;

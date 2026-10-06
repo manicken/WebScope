@@ -8,7 +8,7 @@
   const { ANN } = WS.theme;
 
   WS.decoders.uart = {
-    rows: () => [{id:'data', label:'DATA'}],
+    rows: () => [{id:'data', label:'DATA', anchor: { signal: 'channel' }, placement: 'after'}],
     run(buf, cfg) {
       console.trace();
       

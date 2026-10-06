@@ -9,7 +9,7 @@
   const { ANN } = WS.theme;
 
   WS.decoders.i2c = {
-    rows: () => [{id:'data', label:'DATA'}],
+    rows: () => [{id:'data', label:'DATA', anchor: { signal: 'sda' }, placement: 'after'}],
     run(buf, cfg) {
       console.trace();
       
