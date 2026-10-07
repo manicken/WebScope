@@ -1,6 +1,10 @@
 :root {
+  /*
   --bg: #0a0b0f;
   --panel: #101219;
+  */
+  --bg: #1b1b1c;
+  --panel: #1b1b1c;
   --panel-2: #14161f;
   --panel-3: #1a1d28;
   --border: rgba(255,255,255,0.07);

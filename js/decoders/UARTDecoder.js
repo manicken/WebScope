@@ -14,7 +14,7 @@ class UARTDecoder extends Decoder {
         stopBits:{ label: 'Stop bits', type: 'select', options: [[1, '1'], [2, '2']], default:1 },
         msbFirst:{ label: 'MSB first', type: 'bool', default: false },
         invert:{ label: 'Inverted', type: 'bool', default:false },
-        format:{ ...FORMAT_FIELD, default:'ascii'},
+        format:{ ...Decoder.FORMAT_FIELD, default:'ascii'},
         subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
     };
 

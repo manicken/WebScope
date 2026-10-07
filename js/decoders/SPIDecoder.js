@@ -17,7 +17,7 @@ class SPIDecoder extends Decoder {
         cpha:{ label: 'CPHA', type: 'select', options: [[0, '0 · leading edge'], [1, '1 · trailing edge']], default:0 },
         wordBits:{ label: 'Bits/word', type: 'number', default:8 },
         msbFirst:{ label: 'MSB first', type: 'bool', default:true },
-        format:{ ...FORMAT_FIELD, default: 'hex'},
+        format:{ ...Decoder.FORMAT_FIELD, default: 'hex'},
         subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
     };
 

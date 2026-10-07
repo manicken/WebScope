@@ -41,6 +41,13 @@
 
   function el(tag, className, html) { const e = document.createElement(tag); if (className) e.className = className; if (html !== undefined) e.innerHTML = html; return e; }
 
+  let addDecoderMenu = null;
+
+  function init() {
+    addDecoderMenu = new AddNewDecoderContextMenu({itemClickedCb: (item) => {A.addNewDecoder(item.class)}});
+    console.log(WS.decoderregistry);
+    addDecoderMenu.setItems(WS.decoderregistry);
+  }
 /* ============================== Analyzers ============================== */
   function renderAnalyzers(container) {
     //console.trace();
@@ -51,6 +58,14 @@
       btn.addEventListener('click', () => A.addDecoder(kind));
       extra.appendChild(btn);
     }
+
+    const btn = el('button', 'pill', '+');
+    btn.addEventListener('click', (e) => {
+      const rect  = e.currentTarget.getBoundingClientRect();
+      addDecoderMenu.toggleContextMenu(e, {x:rect.left, y:(rect.top+rect.height)});
+    });
+    extra.appendChild(btn);
+
     const sec = WS.ui.rightpanel.section('Analyzers', extra);
     const decoders = get().decoders;
     if (decoders.length === 0) sec.appendChild(el('div', 'hint', 'Add a protocol analyzer to decode UART, I²C or SPI traffic.'));
@@ -122,5 +137,5 @@
   }
 
   WS.ui = WS.ui || {};
-  WS.ui.decoders = { renderAnalyzers };
+  WS.ui.decoders = { init, renderAnalyzers };
 })(window.WS = window.WS || {});

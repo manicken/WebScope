@@ -17,7 +17,7 @@ class I2CDecoder extends Decoder {
     static GuiConfigData = {
         scl:{ label: 'SCL', type: 'channel', default: 1},
         sda:{ label: 'SDA', type: 'channel', default: 2},
-        format: { ...FORMAT_FIELD, default: 'hex'},
+        format: { ...Decoder.FORMAT_FIELD, default: 'hex'},
         subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
     }
 

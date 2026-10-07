@@ -7,9 +7,9 @@
  */
 (function (WS) {
   'use strict';
-  const { get, set } = WS.store;
+ 
   const { drawFrame } = WS.draw;
-  const { engine } = WS;
+  const { engine, store } = WS;
   const { annKey, annotationAt, annotationsAtRowInRange, annotationIndex } = WS.annotations;
   const { RULER_H } = WS.theme;
   const { fmtTime, fmtFreq } = WS.format;
@@ -29,7 +29,7 @@
       const dpr = window.devicePixelRatio || 1;
       size.w = r.width; size.h = r.height; size.dpr = dpr;
       canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
-      set({ plotWidth: r.width });
+      store.set({ plotWidth: r.width });
     }
     new ResizeObserver(resize).observe(plotWrap);
 
@@ -42,7 +42,7 @@
       if (!modHeld || !pointer || pointer.y < RULER_H) return null;
       const row = rowAt(pointer.y);
       if (!row || row.kind !== 'decoder') return null;
-      const { view } = get();
+      const { view } = store.get();
       const anns = annotationsAtRowInRange(row.dec.id, row.row, view.start, view.start + size.w * view.spp, view.spp * 3, 4000);
       const a = annotationAt(anns, view.start + pointer.x * view.spp, 2 * view.spp);
       return a ? { decoder: row.dec.id, row: row.row, start: a.start, end: a.end } : null;
@@ -52,7 +52,7 @@
       if (!modHeld || !pointer || pointer.y < RULER_H) return null;
       const row = rowAt(pointer.y);
       if (!row || row.kind !== 'channel') return null;
-      const { view } = get();
+      const { view } = store.get();
       const sample = view.start + pointer.x * view.spp;
       return sample < 0 ? null : { channel: row.ch.index, sample, spp: view.spp };
     }
@@ -70,7 +70,7 @@
       drawPending = false;
       const { w, h, dpr } = size;
       if (w === 0) return;
-      const st = get();
+      const st = store.get();
       emptyStateEl.style.display = st.status.samples > 0 || st.status.state === 'running' ? 'none' : 'flex';
       const cols = Math.ceil(w * dpr);
       let wave = null;
@@ -102,7 +102,7 @@
     }
 
     function renderHoverTip() {
-      const { hover, measurement, status } = get();
+      const { hover, measurement, status } = store.get();
       if (!hover || !measurement || hover.channel === null) { hoverTipEl.style.display = 'none'; return; }
       const width = (measurement.end - measurement.start) / status.samplerate;
       const period = measurement.period ? measurement.period / status.samplerate : null;
@@ -119,7 +119,7 @@
 
     canvas.addEventListener('pointerdown', (e) => {
       const { x, y } = local(e);
-      const { view, markers } = get();
+      const { view, markers } = store.get();
       pointer = { x, y }; modHeld = e[MOD_KEY];
       const row = y >= RULER_H ? rowAt(y) : undefined;
       if (modHeld && row?.kind === 'decoder') { const hit = hitTestAnnotation(); if (hit) A.frameSpan(hit.start, hit.end); return; }
@@ -128,27 +128,27 @@
       if (y < RULER_H) {
         const near = (s) => s !== null && Math.abs((s - view.start) / view.spp - x) < 8;
         const marker = near(markers.b) ? 'b' : near(markers.a) ? 'a' : markers.a === null ? 'a' : 'b';
-        set({ markers: { ...markers, [marker]: view.start + x * view.spp } });
+        store.set({ markers: { ...markers, [marker]: view.start + x * view.spp } });
         drag = { kind: 'marker', marker, x0: x, last: x, moved: false };
       } else drag = { kind: 'pan', x0: x, last: x, moved: false };
     });
 
     canvas.addEventListener('pointermove', (e) => {
       const { x, y } = local(e);
-      const { view } = get();
+      const { view } = store.get();
       const sampleIndex = view.start + x * view.spp;
       pointer = { x, y }; modHeld = e[MOD_KEY];
       if (drag) {
         if (Math.abs(x - drag.x0) > 3) drag.moved = true;
         if (drag.kind === 'pan') A.panBy(drag.last - x);
-        else set({ markers: { ...get().markers, [drag.marker]: sampleIndex } });
+        else store.set({ markers: { ...store.get().markers, [drag.marker]: sampleIndex } });
         drag.last = x; return;
       }
       const row = y >= RULER_H ? rowAt(y) : undefined;
       const channel = row?.kind === 'channel' ? row.ch.index : null;
-      set({ hover: { sampleIndex, channel, x, y } });
-      if (channel !== null && engine.hasData()) set({ measurement: engine.measure(channel, Math.floor(sampleIndex)) });
-      else if (get().measurement) set({ measurement: null });
+      store.set({ hover: { sampleIndex, channel, x, y } });
+      if (channel !== null && engine.hasData()) store.set({ measurement: engine.measure(channel, Math.floor(sampleIndex)) });
+      else if (store.get().measurement) store.set({ measurement: null });
     });
 
     window.addEventListener('pointerup', (e) => {
@@ -159,24 +159,24 @@
       const { x, y } = local(e);
       const row = rowAt(y);
       if (row?.kind === 'decoder' && engine.hasData()) {
-        const sampleIndex = get().view.start + x * get().view.spp; // spp = samples per pixel
+        const sampleIndex = store.get().view.start + x * store.get().view.spp; // spp = samples per pixel
         const index = annotationIndex(row.dec.id, row.row, sampleIndex);
-        set({ table: { decoder: row.dec.id, row: row.row, focus: index } });
+        store.set({ table: { decoder: row.dec.id, row: row.row, focus: index } });
       }
     });
 
-    canvas.addEventListener('pointerleave', () => { pointer = null; if (!drag) set({ hover: null, measurement: null }); requestDraw(); });
+    canvas.addEventListener('pointerleave', () => { pointer = null; if (!drag) store.set({ hover: null, measurement: null }); requestDraw(); });
 
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
       const { x } = local(e);
-      if (get().measurement) set({ measurement: null });
+      if (store.get().measurement) store.set({ measurement: null });
       const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
       if (horizontal || e.shiftKey) A.panBy(horizontal ? e.deltaX : e.deltaY);
       else { const k = e.ctrlKey ? 0.012 : 0.0025; A.zoomAt(Math.exp(e.deltaY * k), x); }
     }, { passive: false });
 
-    canvas.addEventListener('dblclick', (e) => { if (local(e).y < RULER_H) set({ markers: { a: null, b: null } }); });
+    canvas.addEventListener('dblclick', (e) => { if (local(e).y < RULER_H) store.set({ markers: { a: null, b: null } }); });
 
     const modKeyName = MOD_KEY === 'metaKey' ? 'Meta' : 'Control';
     window.addEventListener('keydown', (e) => { if (e.key === modKeyName) { modHeld = true; requestDraw(); } });

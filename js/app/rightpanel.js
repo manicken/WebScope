@@ -4,15 +4,8 @@
  */
 (function (WS) {
   'use strict';
-  const { get, set } = WS.store;
-  const { fmtTime, fmtFreq } = WS.format;
-  const { engine } = WS;
-  const A = WS.actions;
-
-  const ROW_H = 26;
-
+  const { store } = WS.store;
   
-
   function el(tag, className, html) { const e = document.createElement(tag); if (className) e.className = className; if (html !== undefined) e.innerHTML = html; return e; }
 
   function section(title, extraEl, grow) {
@@ -34,7 +27,7 @@
       WS.ui.measurements.render(measurements);
       WS.annotations.renderDataTable(dataTable);
     }
-    WS.store.store.subscribe(renderAll);
+    store.subscribe(renderAll);
     renderAll();
   }
 

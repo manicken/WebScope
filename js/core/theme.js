@@ -14,9 +14,17 @@
   const DECODER_COLORS = ['#7c6cff', '#22d3ee', '#ff9f43', '#51cf66', '#ff6b9a', '#ffd43b'];
   const CLASS_COLORS = { [ANN.ADDRESS]: '#ffb020', [ANN.CONTROL]: '#4dabf7', [ANN.ACK]: '#37b24d', [ANN.NACK]: '#fd7e14', [ANN.WARN]: '#fd7e14', [ANN.ERROR]: '#f03e3e' };
 
-  const THEME = {
+  /*const THEME = {
     bg: '#0a0b0f', rowAlt: 'rgba(255,255,255,0.018)', grid: 'rgba(255,255,255,0.045)', gridMajor: 'rgba(255,255,255,0.08)',
     ruler: '#0f1116', rulerText: '#7d8394', border: 'rgba(255,255,255,0.07)', cursor: 'rgba(255,255,255,0.35)',
+    markerA: '#22d3ee', markerB: '#ff9f43', trigger: '#ff5577',
+    font: '11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif',
+    mono: '11px "SF Mono", "JetBrains Mono", ui-monospace, monospace'
+  };*/
+
+  const THEME = {
+    bg: '#1b1b1c', rowAlt: 'rgba(255,255,255,0.018)', grid: 'rgba(255,255,255,0.045)', gridMajor: 'rgba(255,255,255,0.08)',
+    ruler: '#1b1b1c', rulerText: '#949baf', border: 'rgba(255,255,255,0.07)', cursor: 'rgba(255,255,255,0.35)',
     markerA: '#22d3ee', markerB: '#ff9f43', trigger: '#ff5577',
     font: '11px -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, sans-serif',
     mono: '11px "SF Mono", "JetBrains Mono", ui-monospace, monospace'

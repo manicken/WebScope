@@ -4,8 +4,8 @@
  */
 (function (WS) {
   'use strict';
-  const { get, set } = WS.store;
-  const { engine, actions } = WS;
+
+  const { store, engine, actions } = WS;
 
   const MOD = navigator.platform?.startsWith('Mac') ? '⌘' : 'Ctrl';
   const HELP_HTML =
@@ -13,21 +13,21 @@
     `<kbd>${MOD}</kbd> click zoom to packet · <kbd>A</kbd>/<kbd>B</kbd> markers · <kbd>[</kbd><kbd>]</kbd> edges`;
 
   function jumpEdge(forward) {
-    const { hover, channels, view, plotWidth } = get();
+    const { hover, channels, view, plotWidth } = store.get();
     const ch = hover?.channel ?? channels.find((c) => c.visible)?.index;
     if (ch === undefined) return;
     const from = hover?.sample ?? view.start + (view.spp * plotWidth) / 2;
     const edge = engine.findEdge(ch, Math.round(from), forward);
     if (edge === null) return;
     actions.centerOn(edge);
-    const v = get().view;
-    set({ hover: { sample: edge, channel: ch, x: (edge - v.start) / v.spp, y: hover?.y ?? 0 } });
+    const v = store.get().view;
+    store.set({ hover: { sample: edge, channel: ch, x: (edge - v.start) / v.spp, y: hover?.y ?? 0 } });
   }
 
   function onKey(e) {
     const t = e.target;
     if (t.closest('input, select, textarea') || e.metaKey || e.ctrlKey) return;
-    const { plotWidth, hover, markers } = get();
+    const { plotWidth, hover, markers } = store.get();
     const mid = hover?.x ?? plotWidth / 2;
     switch (e.key) {
       case ' ':
@@ -35,7 +35,7 @@
         WS.ui.topbar.toggleCapture();
         break;
       case 'f':
-        set({ follow: false });
+        store.set({ follow: false });
         actions.fit();
         break;
       case '=':
@@ -53,10 +53,10 @@
         break;
       case 'a':
       case 'b':
-        if (hover) set({ markers: { ...markers, [e.key]: hover.sample } });
+        if (hover) store.set({ markers: { ...markers, [e.key]: hover.sample } });
         break;
       case 'Escape':
-        set({ markers: { a: null, b: null } });
+        store.set({ markers: { a: null, b: null } });
         break;
       case '[':
         jumpEdge(false);

@@ -51,7 +51,7 @@
   function renderDataTable(container) {
     container.innerHTML = '';
     const { decoders, table, status } = store.get();
-    console.log(table);
+    //console.log(table);
     const dec = decoders.find((d) => d.id === table.decoder) ?? decoders[0];
 
     let extra = null;

@@ -7,6 +7,10 @@
   const { store, engine } = WS;
   const A = (WS.actions = WS.actions || {});
 
+  function addNewDecoder(classItem) {
+    console.log(new classItem());
+  }
+
   function addDecoder(kind, config) {
     const cfg = { ...WS.decoderDefaults[kind], ...config };
     const id = store.get().decoders.reduce((m, d) => Math.max(m, d.id), 0) + 1; // find the last used id and add 1
@@ -33,5 +37,5 @@
     engine.decode(id);
   }
 
-  Object.assign(A, { addDecoder, removeDecoder, toggleDecoderVisible, updateDecoder });
+  Object.assign(A, { addNewDecoder, addDecoder, removeDecoder, toggleDecoderVisible, updateDecoder });
 })(window.WS = window.WS || {});

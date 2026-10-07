@@ -1,9 +1,8 @@
 (function (WS) {
   'use strict';
 
-  const { get, set } = WS.store;
   const { fmtTime, fmtFreq } = WS.format;
-  const { engine } = WS;
+  const { engine, store } = WS;
   const A = WS.actions;
   const ROW_H = 26;
 
@@ -12,7 +11,7 @@
   /* ============================== Timing ============================== */
   function render(container) {
     container.innerHTML = '';
-    const { markers, status, hover } = get();
+    const { markers, status, hover } = store.get();
     const origin = status.trigger ?? 0;
     const t = (s) => fmtTime((s - origin) / status.samplerate, 6);
     const dt = markers.a !== null && markers.b !== null ? Math.abs(markers.b - markers.a) / status.samplerate : null;
@@ -20,7 +19,7 @@
     let extra = null;
     if (markers.a !== null || markers.b !== null) {
       extra = el('button', 'link', 'Clear');
-      extra.addEventListener('click', () => set({ markers: { a: null, b: null } }));
+      extra.addEventListener('click', () => store.set({ markers: { a: null, b: null } }));
     }
     const sec = WS.ui.rightpanel.section('Timing', extra);
     const metrics = el('div', 'metrics');

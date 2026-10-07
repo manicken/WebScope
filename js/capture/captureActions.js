@@ -5,8 +5,8 @@
  */
 (function (WS) {
   'use strict';
-  const { get, set, makeChannels, toast } = WS.store;
-  const { engine } = WS;
+  const { makeChannels, toast } = WS.store;
+  const { engine, store } = WS;
   const A = (WS.actions = WS.actions || {});
 
   /* ---- capture orchestration ---- */
@@ -16,9 +16,9 @@
   function startCapture(source, {samplerate, duration, channels} = {}) {
     const total = Math.max(64, Math.round(samplerate * duration));
     growing = new Uint32Array(total);
-    set({
+    store.set({
       follow: true, markers: { a: null, b: null }, measurement: null,
-      status: { ...get().status, state: 'running', samples: 0, samplerate, captureId: get().status.captureId + 1 }
+      status: { ...store.get().status, state: 'running', samples: 0, samplerate, captureId: store.get().status.captureId + 1 }
     });
     activeSource = source;
     activeSource.start(
@@ -45,33 +45,33 @@
 
         const samples = Math.min(total, offset + count); // sample count
 
-        set((s) => ({
+        store.set((s) => ({
             status: { ...s.status, samples }
         }));
 
-        if (get().follow) A.fit();
+        if (store.get().follow) A.fit();
       },
       /* onDone */
       (info) => {
         engine.setBuffer(new WS.CaptureBuffer(growing.slice(0, info.samples), info.samplerate, info.channels));
-        if (get().channels.length !== info.channels) set({ channels: makeChannels(info.channels) });
-        set((s) => ({ status: { ...s.status, state: 'done', samples: info.samples, samplerate: info.samplerate, channels: info.channels, trigger: null } }));
-        for (const d of get().decoders) engine.decode(d.id);
-        if (get().follow) A.fit();
+        if (store.get().channels.length !== info.channels) store.set({ channels: makeChannels(info.channels) });
+        store.set((s) => ({ status: { ...s.status, state: 'done', samples: info.samples, samplerate: info.samplerate, channels: info.channels, trigger: null } }));
+        for (const d of store.get().decoders) engine.decode(d.id);
+        if (store.get().follow) A.fit();
       },
       /* onError */
-      (msg) => { set((s) => ({ status: { ...s.status, state: 'error', message: msg } })); toast(msg); }
+      (msg) => { store.set((s) => ({ status: { ...s.status, state: 'error', message: msg } })); toast(msg); }
     );
   }
 
   function stopCapture() {
     activeSource?.stop();
-    if (growing && get().status.samples > 0) {
-      const n = get().status.samples;
-      engine.setBuffer(new WS.CaptureBuffer(growing.slice(0, n), get().status.samplerate, get().channels.length));
-      for (const d of get().decoders) engine.decode(d.id);
+    if (growing && store.get().status.samples > 0) {
+      const n = store.get().status.samples;
+      engine.setBuffer(new WS.CaptureBuffer(growing.slice(0, n), store.get().status.samplerate, store.get().channels.length));
+      for (const d of store.get().decoders) engine.decode(d.id);
     }
-    set((s) => ({ status: { ...s.status, state: s.status.samples > 0 ? 'done' : 'idle' } }));
+    store.set((s) => ({ status: { ...s.status, state: s.status.samples > 0 ? 'done' : 'idle' } }));
   }
 
   Object.assign(A, { startCapture, stopCapture });

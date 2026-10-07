@@ -5,7 +5,7 @@
  */
 (function (WS) {
   'use strict';
-  const { get, set } = WS.store;
+  const { store } = WS;
 
   function init(canvas) {
     const cache = { key: '', cols: null };
@@ -17,7 +17,7 @@
       const ctx = canvas.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
-      const { status, view, plotWidth, channels } = get();
+      const { status, view, plotWidth, channels } = store.get();
       const n = status.samples;
       const cols = cache.cols;
       if (n > 0 && cols) {
@@ -43,7 +43,7 @@
     }
 
     function refresh() {
-      const { status } = get();
+      const { status } = store.get();
       //const key = `${status.captureId}:${status.samples}:${canvas.width}`;
       const key = `${status.captureId}:${status.samples}:${canvas.width}:${WS.engine.hasData()}`;
       if (key !== cache.key && status.samples > 0) {
@@ -56,10 +56,10 @@
     function jump(e) {
       if (e.buttons !== 1) return;
       const r = canvas.getBoundingClientRect();
-      const { status, view, plotWidth } = get();
+      const { status, view, plotWidth } = store.get();
       if (status.samples === 0) return;
       const center = ((e.clientX - r.left) / r.width) * status.samples;
-      set({ view: WS.actions.clampView(center - (view.spp * plotWidth) / 2, view.spp), follow: false });
+      store.set({ view: WS.actions.clampView(center - (view.spp * plotWidth) / 2, view.spp), follow: false });
     }
     canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); jump(e); });
     canvas.addEventListener('pointermove', jump);
