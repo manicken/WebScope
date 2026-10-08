@@ -7,7 +7,4 @@
 (function (WS) {
   'use strict';
   WS.decoderregistry = WS.decoderregistry || [];
-  WS.decoders = WS.decoders || [];
-  WS.decoderDefaults = WS.decoderDefaults || {};
-  WS.decoderNames = WS.decoderNames || {};
 })(window.WS = window.WS || {});
