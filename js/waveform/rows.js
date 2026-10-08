@@ -19,9 +19,10 @@
 
   function recompute() {
     const s = store.get();
+    //console.log(s.decoders);
    // console.log(s.channels, s.decoders);
     rows = layoutRows(s.channels, s.decoders);
-   // console.trace(rows);
+    //console.trace(rows);
     const key = rowShapeKey(rows);
     //console.log(key);
     if (key !== shapeKey) { 

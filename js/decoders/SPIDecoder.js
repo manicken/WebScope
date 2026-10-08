@@ -21,22 +21,41 @@ class SPIDecoder extends Decoder {
         subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
     };
 
-    constructor() {
-        super();
+    getCfgGui() {
+        return SPIDecoder.GuiConfigData;
+    }
+
+    constructor(p) {
+        super(p);
+        this.signals = ['clk', 'mosi', 'miso', 'cs'];
         this.frames = [];
     }
 
-    run(buf) {
-        const ANN = window.WS.theme;
-        const clkBit = 1 << this.cfg.clk;
-        const mosiBit = this.cfg.mosi != null ? 1 << this.cfg.mosi : null;
-        const misoBit = this.cfg.miso != null ? 1 << this.cfg.miso : null;
-        const csBit = this.cfg.cs != null ? 1 << this.cfg.cs : null;
+    summary(channels) {
+        const c = this.cfg;
+        const name = (i) => typeof i === 'number' ? (channels[i]?.name ?? `D${i}`) : '—';
+        return `SPI - CLK ${name(c.clk)} · mode ${Number(c.cpol) * 2 + Number(c.cpha)}`
+    }
 
-        const leadingRising = this.cfg.cpol === 0;
-        const sampleOnLeading = this.cfg.cpha === 0;
+    rows() {
+        return [
+            {id:'mosi', label:'MOSI', anchor: { signal: 'mosi' }, placement: 'after'},
+            {id:'miso', label:'MISO', anchor: { signal: 'miso' }, placement: 'after'}
+        ];
+    }
+
+    run(buf) {
+        const cfg = this.cfg;
+        const ANN = window.WS.theme;
+        const clkBit = 1 << cfg.clk;
+        const mosiBit = cfg.mosi != null ? 1 << cfg.mosi : null;
+        const misoBit = cfg.miso != null ? 1 << cfg.miso : null;
+        const csBit = cfg.cs != null ? 1 << cfg.cs : null;
+
+        const leadingRising = cfg.cpol === 0;
+        const sampleOnLeading = cfg.cpha === 0;
         const sampleRising = sampleOnLeading ? leadingRising : !leadingRising;
-        const csActive = (word) => csBit === null ? true : (this.cfg.csActiveLow ? !(word & csBit) : !!(word & csBit));
+        const csActive = (word) => csBit === null ? true : (cfg.csActiveLow ? !(word & csBit) : !!(word & csBit));
 
         const anns = [];
         let mosiWord = 0, misoWord = 0, bitCount = 0, wordStart = 0, active = false;
@@ -62,7 +81,7 @@ class SPIDecoder extends Decoder {
                 if (bitCount === 0) {
                     wordStart = i;
                 }
-                if (this.cfg.msbFirst) {
+                if (cfg.msbFirst) {
                     mosiWord = (mosiWord << 1) | mb; 
                     misoWord = (misoWord << 1) | sb; 
                 }
@@ -71,9 +90,9 @@ class SPIDecoder extends Decoder {
                     misoWord |= sb << bitCount;
                 }
                 bitCount++;
-                if (bitCount >= this.cfg.wordBits) {
-                    const digits = Math.ceil(this.cfg.wordBits / 4);
-                    const fmt = (v) => this.cfg.format === 'hex' ? '0x' + v.toString(16).padStart(digits, '0').toUpperCase() : String(v);
+                if (bitCount >= cfg.wordBits) {
+                    const digits = Math.ceil(cfg.wordBits / 4);
+                    const fmt = (v) => cfg.format === 'hex' ? '0x' + v.toString(16).padStart(digits, '0').toUpperCase() : String(v);
                     let text = mosiBit !== null ? fmt(mosiWord) : '';
                     if (misoBit !== null) text += (text ? ' / ' : '') + 'MISO ' + fmt(misoWord);
                     anns.push({ start: wordStart, end: i, row: 0, class: ANN.DATA, text });

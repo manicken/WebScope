@@ -4,23 +4,23 @@
  */
 (function (WS) {
     'use strict';
-    const { engine } = WS;
+    const { decodedResult } = WS.decoders;
 
     function annotationsAtRow(id, rowIndex) {
-        return (engine.decodedResult(id)?.anns || []).filter((a) => (a.row??0) === rowIndex);
+        return (decodedResult(id)?.anns || []).filter((a) => (a.row??0) === rowIndex);
     }
     function annotationsAtRowInRange(id, rowId, start, end, minWidth, limit) {
-        const allAtRow = engine.decodedResult(id)?.[rowId] ?? [];//annotationsAtRow(id, rowIndex);
+        const allAtRow = decodedResult(id)?.[rowId] ?? [];//annotationsAtRow(id, rowIndex);
         return annotationsInRange(allAtRow, start, end, minWidth, limit);
     }
     /** Page of raw (unmerged) annotations for the data table: { total, offset, items }. */
     function annotationPage(id, rowId, offset, limit) {
-        const allAtRow = engine.decodedResult(id)?.[rowId] ?? [];//annotationsAtRow(id, rowIndex);
+        const allAtRow = decodedResult(id)?.[rowId] ?? [];//annotationsAtRow(id, rowIndex);
         return { total: allAtRow.length, offset, items: allAtRow.slice(offset, offset + limit) };
     }
     /** Index of the annotation nearest `sampleIndex`, for click-to-focus from the waveform. */
     function annotationIndex(id, rowId, sampleIndex) {
-        const allAtRow = engine.decodedResult(id)?.[rowId] ?? [];//annotationsAtRow(id, rowIndex);
+        const allAtRow = decodedResult(id)?.[rowId] ?? [];//annotationsAtRow(id, rowIndex);
         for (let i = 0; i < allAtRow.length; i++) {
             if (allAtRow[i].end >= sampleIndex) {
                 return i;

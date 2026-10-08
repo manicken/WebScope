@@ -8,7 +8,13 @@
   const A = (WS.actions = WS.actions || {});
 
   function addNewDecoder(classItem) {
-    console.log(new classItem());
+    const newDec = new classItem();
+    const n = store.get().decoders.length;
+    newDec.color = WS.theme.DECODER_COLORS[n % WS.theme.DECODER_COLORS.length];
+    newDec.id = store.get().decoders.reduce((m, d) => Math.max(m, d.id), 0) + 1; // find the last used id and add 1
+    
+    console.log(newDec);
+    
   }
 
   function addDecoder(kind, config) {

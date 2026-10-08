@@ -18,6 +18,10 @@ class UARTDecoder extends Decoder {
         subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
     };
 
+    getCfgGui() {
+        return UARTDecoder.GuiConfigData;
+    }
+
     loadDefaultConfig() {
         this.cfg = {
             channel: UARTDecoder.GuiConfigData.channel.default,
@@ -31,13 +35,22 @@ class UARTDecoder extends Decoder {
         }
     }
 
-    constructor() {
-        super();
+    constructor(p) {
+        super(p);
+        this.signals = ['channel'];
         this.frames = [];
     }
 
+    summary(channels) {
+        const c = this.cfg;
+        const name = (i) => typeof i === 'number' ? (channels[i]?.name ?? `D${i}`) : '—';
+        return `UART - ${name(c.channel)} · ${c.baud} baud`;
+    }
+
+    rows() { return [{id:'data', label:'DATA', anchor: { signal: 'channel' }, placement: 'after'}] }
+
     run(buf) {
-        console.trace();
+        const ANN = window.WS.theme;
         const ch = this.cfg.channel;
         const spb = buf.samplerate / this.cfg.baud; // samples per bit
         const invert = !!this.cfg.invert;

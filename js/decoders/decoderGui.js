@@ -4,8 +4,8 @@
  */
 (function (WS) {
   'use strict';
-  const { get } = WS.store;
-  const A = WS.actions;
+  const { store } = WS;
+  const { addNewDecoder, updateDecoder, toggleDecoderVisible, removeDecoder } = WS.decoders;
 
   const FORMAT_FIELD = { key: 'format', label: 'Display', type: 'select', options: [['hex', 'Hex'], ['dec', 'Decimal'], ['bin', 'Binary'], ['ascii', 'ASCII']] };
   const FIELDS = {
@@ -44,7 +44,7 @@
   let addDecoderMenu = null;
 
   function init() {
-    addDecoderMenu = new AddNewDecoderContextMenu({itemClickedCb: (item) => {A.addNewDecoder(item.class)}});
+    addDecoderMenu = new AddNewDecoderContextMenu({itemClickedCb: (item) => {addNewDecoder(item.class)}});
     console.log(WS.decoderregistry);
     addDecoderMenu.setItems(WS.decoderregistry);
   }
@@ -53,13 +53,8 @@
     //console.trace();
     container.innerHTML = '';
     const extra = el('div', 'add-row');
-    for (const kind of ['uart', 'i2c', 'spi']) {
-      const btn = el('button', 'pill', `+ ${WS.decoderNames[kind]}`);
-      btn.addEventListener('click', () => A.addDecoder(kind));
-      extra.appendChild(btn);
-    }
 
-    const btn = el('button', 'pill', '+');
+    const btn = el('button', '', '➕');
     btn.addEventListener('click', (e) => {
       const rect  = e.currentTarget.getBoundingClientRect();
       addDecoderMenu.toggleContextMenu(e, {x:rect.left, y:(rect.top+rect.height)});
@@ -67,7 +62,7 @@
     extra.appendChild(btn);
 
     const sec = WS.ui.rightpanel.section('Analyzers', extra);
-    const decoders = get().decoders;
+    const decoders = store.get().decoders;
     if (decoders.length === 0) sec.appendChild(el('div', 'hint', 'Add a protocol analyzer to decode UART, I²C or SPI traffic.'));
     const cards = el('div', 'cards');
     for (const d of decoders) cards.appendChild(analyzerCard(d));
@@ -76,13 +71,8 @@
   }
 
   function analyzerCard(d) {
-    const channels = get().channels;
-    const name = (i) => typeof i === 'number' ? (channels[i]?.name ?? `D${i}`) : '—';
-    const c = d.config;
-    const summary = c.kind === 'uart' ? `${name(c.channel)} · ${c.baud} baud`
-      : c.kind === 'i2c' ? `${name(c.scl)} / ${name(c.sda)}`
-      : `CLK ${name(c.clk)} · mode ${Number(c.cpol) * 2 + Number(c.cpha)}`;
-
+    //console.log(d);
+    const channels = store.get().channels;
     const card = el('div', 'card');
     const head = el('div', 'card-head');
     const toggleBtn = el('button', 'icon-btn', '▾');
@@ -92,22 +82,22 @@
     head.appendChild(toggleBtn);
     head.appendChild(el('span', 'dot', '')); head.lastChild.style.background = d.color;
     head.appendChild(el('span', 'card-title', d.name));
-    head.appendChild(el('span', 'card-sub', summary));
+    head.appendChild(el('span', 'card-sub', d.summary(channels)));
     const eyeBtn = el('button', 'icon-btn', d.visible ? '👁' : '🚫');
     eyeBtn.title = d.visible ? 'Hide rows' : 'Show rows';
-    eyeBtn.addEventListener('click', () => A.toggleDecoderVisible(d.id));
+    eyeBtn.addEventListener('click', () => toggleDecoderVisible(d.id));
     head.appendChild(eyeBtn);
     const delBtn = el('button', 'icon-btn danger', '✕');
     delBtn.title = 'Remove';
-    delBtn.addEventListener('click', () => A.removeDecoder(d.id));
+    delBtn.addEventListener('click', () => removeDecoder(d.id));
     head.appendChild(delBtn);
     card.appendChild(head);
 
-    for (const f of FIELDS[d.config.kind]) {
+    for (const [key, f] of Object.entries(d.getCfgGui())) {
       const row = el('label', 'form-row' + (f.type === 'bool' ? ' bool' : ''));
       row.appendChild(el('span', null, f.label));
-      const v = d.config[f.key];
-      const update = (val) => A.updateDecoder(d.id, { [f.key]: val });
+      const v = d.cfg[key];
+      const update = (val) => updateDecoder(d.id, { [key]: val });
       let input;
       if (f.type === 'channel' || f.type === 'channel?') {
         input = document.createElement('select');
@@ -136,6 +126,8 @@
     return card;
   }
 
-  WS.ui = WS.ui || {};
-  WS.ui.decoders = { init, renderAnalyzers };
+  WS.decoders = WS.decoders || {};
+  WS.decoders.ui = WS.decoders.ui || {};
+  Object.assign(WS.decoders.ui, { init, renderAnalyzers });
+
 })(window.WS = window.WS || {});

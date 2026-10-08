@@ -64,9 +64,9 @@
         sel.addEventListener('change', () => store.set({ table: { decoder: Number(sel.value), rowId: r.id, focus: null } }));
         extra.appendChild(sel);
       }
-      dec.rows.forEach((r, i) => {
+      dec.rows().forEach((r, i) => {
         const tab = el('button', 'tab' + (i === table.row ? ' on' : ''), r);
-        console.log(r);
+        //console.log(r);
         tab.addEventListener('click', () => store.set({ table: { decoder: dec.id, rowId: r.id, focus: null } }));
         extra.appendChild(tab);
       });
@@ -78,7 +78,7 @@
       container.appendChild(sec);
       return;
     }
-    console.log(table);
+    //console.log(table);
     const page = annotationPage(dec.id, table.rowId, 0, 1); // just for total, cheap
     const head = el('div', 'table-head', `<span>#</span><span>Time</span><span>Value</span><span class="muted">${page.total.toLocaleString()} rows</span>`);
     sec.appendChild(head);

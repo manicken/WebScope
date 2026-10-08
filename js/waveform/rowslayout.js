@@ -9,10 +9,10 @@
   const { CH_H, DEC_H } = WS.theme;
 
   /** Channel indexes a decoder reads, taken from the config fields named in cfg.signals. */
-  function decoderChannels(cfg) {
+  function decoderChannels(decoder) {
     //console.log(cfg);
-    const keys = cfg.signals || [];
-    return keys.map((k) => cfg[k]).filter((v) => typeof v === 'number');
+    const keys = decoder.signals || [];
+    return keys.map((k) => decoder[k]).filter((v) => typeof v === 'number');
   }
 
   /**
@@ -38,7 +38,7 @@
         const visibleChannels = channels.filter((c) => c.visible);
 
         // Visible channels a decoder reads: unique and in ascending channel order.
-        const readBy = (d) => [...new Set(decoderChannels(d.config).filter((i) => channels[i]?.visible))].sort((p, q) => p - q);
+        const readBy = (d) => [...new Set(decoderChannels(d).filter((i) => channels[i]?.visible))].sort((p, q) => p - q);
 
         // ---- Step 1: decide the order of the channel rows ------------------------------------
         // Channels normally keep their index order. The exception: when we reach a channel that a
@@ -89,7 +89,8 @@
             const groupEnd = chans.length ? blockEnd.get(lowest) : lastChannel;
 
             // Visiting decoders in list order and rows in row order keeps rows under one channel ordered.
-            d.rows.forEach((_, row) => {
+
+            d.rows().forEach((_, row) => {
                 const under = boundChannel(d, row) ?? groupEnd;
                 (rowsUnder.get(under) ?? rowsAtEnd).push({ dec: d, row });   // no channels at all -> bottom
             });
@@ -100,7 +101,7 @@
         let y = 0;
         const pushDecoderRows = (list) => {
             for (const { dec, row } of list) {
-                out.push({ kind: 'decoder', dec, row:row, gutter: dec.rows[row], y, h: DEC_H });
+                out.push({ kind: 'decoder', dec, row:row, gutter: dec.rows()[row], y, h: DEC_H });
                 y += DEC_H;
             }
         };

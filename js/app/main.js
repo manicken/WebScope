@@ -26,6 +26,6 @@
     WS.ui.overview.init(document.getElementById('overviewCanvas'));
     WS.ui.keymap.init(document.getElementById('keyHints'));
     WS.uiRows.recompute();
-    WS.ui.decoders.init();
+    WS.decoders.ui.init();
   });
 })(window.WS = window.WS || {});

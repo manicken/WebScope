@@ -21,15 +21,31 @@ class I2CDecoder extends Decoder {
         subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
     }
 
-    constructor() {
-        super();
+    getCfgGui() {
+        return I2CDecoder.GuiConfigData;
+    }
+
+    constructor(p) {
+        super(p);
+        this.signals = ['scl', 'sda'];
         this.frames = [];
     }
 
+    summary(channels) {
+        const c = this.cfg;
+        const name = (i) => typeof i === 'number' ? (channels[i]?.name ?? `D${i}`) : '—';
+        return `I2C - ${name(c.scl)} / ${name(c.sda)}`;
+    }
+
+    rows() {
+        return [{id:'data', label:'DATA', anchor: { signal: 'sda' }, placement: 'after'}];
+    }
+
     run(buf) {
+        const cfg = this.cfg;
         this.frames = [];
         const ANN = window.WS.theme;
-        const sclBit = 1 << this.cfg.scl, sdaBit = 1 << this.cfg.sda;
+        const sclBit = 1 << cfg.scl, sdaBit = 1 << cfg.sda;
         const sclHigh = (i) => !!(buf.samples[i] & sclBit);
         const sdaAt = (i) => (buf.samples[i] & sdaBit) ? 1 : 0;
         const anns = [];
@@ -69,7 +85,7 @@ class I2CDecoder extends Decoder {
                         frame.bufferIndex = byteStart;
                         frame.address = addr;
                     } else {
-                        text = this.cfg.format === 'hex' ? '0x' + bitBuf.toString(16).padStart(2, '0').toUpperCase() : String(bitBuf);
+                        text = cfg.format === 'hex' ? '0x' + bitBuf.toString(16).padStart(2, '0').toUpperCase() : String(bitBuf);
                         frame.payload.push(bitBuf);
                     }
                     let end = i + 1;
