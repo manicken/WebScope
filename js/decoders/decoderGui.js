@@ -7,38 +7,6 @@
   const { store } = WS;
   const { addNewDecoder, updateDecoder, toggleDecoderVisible, removeDecoder } = WS.decoders;
 
-  const FORMAT_FIELD = { key: 'format', label: 'Display', type: 'select', options: [['hex', 'Hex'], ['dec', 'Decimal'], ['bin', 'Binary'], ['ascii', 'ASCII']] };
-  const FIELDS = {
-    uart: [
-      { key: 'channel', label: 'Channel', type: 'channel' },
-      { key: 'baud', label: 'Baud', type: 'number' },
-      { key: 'dataBits', label: 'Data bits', type: 'select', options: [5, 6, 7, 8, 9].map((n) => [n, String(n)]) },
-      { key: 'parity', label: 'Parity', type: 'select', options: [['none', 'None'], ['even', 'Even'], ['odd', 'Odd']] },
-      { key: 'stopBits', label: 'Stop bits', type: 'select', options: [[1, '1'], [2, '2']] },
-      { key: 'msbFirst', label: 'MSB first', type: 'bool' },
-      { key: 'invert', label: 'Inverted', type: 'bool' },
-      FORMAT_FIELD
-    ],
-    i2c: [
-      { key: 'scl', label: 'SCL', type: 'channel' },
-      { key: 'sda', label: 'SDA', type: 'channel' },
-      FORMAT_FIELD
-    ],
-    spi: [
-      { key: 'clk', label: 'Clock', type: 'channel' },
-      { key: 'mosi', label: 'MOSI', type: 'channel?' },
-      { key: 'miso', label: 'MISO', type: 'channel?' },
-      { key: 'cs', label: 'Enable', type: 'channel?' },
-      { key: 'rowLayout', label: 'Group mode', type: 'select', options: [['grouped', 'Grouped'],['bySignal', 'By Signal']]},
-      { key: 'csActiveLow', label: 'Enable active low', type: 'bool' },
-      { key: 'cpol', label: 'CPOL', type: 'select', options: [[0, '0 · idle low'], [1, '1 · idle high']] },
-      { key: 'cpha', label: 'CPHA', type: 'select', options: [[0, '0 · leading edge'], [1, '1 · trailing edge']] },
-      { key: 'wordBits', label: 'Bits/word', type: 'number' },
-      { key: 'msbFirst', label: 'MSB first', type: 'bool' },
-      FORMAT_FIELD
-    ]
-  };
-
   function el(tag, className, html) { const e = document.createElement(tag); if (className) e.className = className; if (html !== undefined) e.innerHTML = html; return e; }
 
   let addDecoderMenu = null;
