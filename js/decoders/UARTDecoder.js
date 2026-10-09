@@ -35,6 +35,7 @@ class UARTDecoder extends Decoder {
         }
     }
 
+
     constructor(p) {
         super(p);
         this.signals = ['channel'];
@@ -44,16 +45,18 @@ class UARTDecoder extends Decoder {
     summary(channels) {
         const c = this.cfg;
         const name = (i) => typeof i === 'number' ? (channels[i]?.name ?? `D${i}`) : '—';
-        return `UART - ${name(c.channel)} · ${c.baud} baud`;
+        return `${name(c.channel)} · ${c.baud} baud`;
     }
 
     rows() { return [{id:'data', label:'DATA', anchor: { signal: 'channel' }, placement: 'after'}] }
 
     run(buf) {
-        const ANN = window.WS.theme;
-        const ch = this.cfg.channel;
-        const spb = buf.samplerate / this.cfg.baud; // samples per bit
-        const invert = !!this.cfg.invert;
+        const ANN = window.WS.theme.ANN;
+        console.log(ANN);
+        const cfg = this.cfg;
+        const ch = cfg.channel;
+        const spb = buf.samplerate / cfg.baud; // samples per bit
+        const invert = !!cfg.invert;
         const get = (n) => {
             const idx = Math.max(0, Math.min(buf.length - 1, Math.round(n)));
             const v = (buf.samples[idx] >> ch) & 1;
@@ -75,37 +78,37 @@ class UARTDecoder extends Decoder {
                 continue;
             }
             let byte = 0;
-            for (let b = 0; b < this.cfg.dataBits; b++) {
+            for (let b = 0; b < cfg.dataBits; b++) {
                 const v = get(mid(1 + b));
-                if (this.cfg.msbFirst) {
+                if (cfg.msbFirst) {
                     byte = (byte << 1) | v;
                 } else {
                     byte |= v << b;
                 }
             }
-            let bitIdx = 1 + this.cfg.dataBits;
+            let bitIdx = 1 + cfg.dataBits;
             let parityOk = true;
-            if (this.cfg.parity !== 'none') {
+            if (cfg.parity !== 'none') {
                 const p = get(mid(bitIdx)); bitIdx++;
-                let ones = 0; for (let b = 0; b < this.cfg.dataBits; b++) if ((byte >> b) & 1) ones++;
-                parityOk = p === (this.cfg.parity === 'even' ? ones % 2 : 1 - (ones % 2));
+                let ones = 0; for (let b = 0; b < cfg.dataBits; b++) if ((byte >> b) & 1) ones++;
+                parityOk = p === (cfg.parity === 'even' ? ones % 2 : 1 - (ones % 2));
             }
             let stopOk = true;
-            for (let s = 0; s < this.cfg.stopBits; s++) if (get(mid(bitIdx + s)) !== 1) stopOk = false;
-            const endSample = startSample + (bitIdx + this.cfg.stopBits) * spb;
-            const text = this.cfg.format === 'hex'
-                ? byte.toString(16).padStart(2, '0').toUpperCase()
-                : (byte >= 32 && byte < 127) ? String.fromCharCode(byte) : '\\x' + byte.toString(16).padStart(2, '0');
+            for (let s = 0; s < cfg.stopBits; s++) if (get(mid(bitIdx + s)) !== 1) stopOk = false;
+            const endSample = startSample + (bitIdx + cfg.stopBits) * spb;
+            const text = Decoder.AsFormat({type:cfg.format, word:byte, binPadding:cfg.dataBits});
+                
             anns.push({
-                start: startSample, end: endSample, row: 0,
+                start: startSample, 
+                end: endSample,
                 class: (!parityOk || !stopOk) ? ANN.ERROR : ANN.DATA,
                 text: (!parityOk ? 'PERR ' : '') + (!stopOk ? 'FERR ' : '') + text
             });
             i = Math.max(i + 1, Math.round(endSample));
         }
-        return {anns};
+        return {data:anns};
     }
 
 }
 
-window.WS.decoderregistry.push(UARTDecoder.Info);
+window.WS.decoders.registry.push(UARTDecoder.Info);

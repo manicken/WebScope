@@ -36,6 +36,8 @@
         appendNewElement(deviceSelect_el, 'option', {textContent:device.name, value:device.id});
         selectedDevice = device;
         deviceSelect_el.value = device.id;
+        deviceSelect_el.value = DemoSource.info().id; // development only
+        deviceSelected();
     }
 
     function deviceSelected(e) {

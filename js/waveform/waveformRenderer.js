@@ -1,7 +1,7 @@
 /**
  * draw.js — canvas frame rendering.
  * Ported 1:1 from edgewise's src/renderer/src/draw.ts. Takes a plain `Frame` object (see
- * drawFrame's f argument below) and a 2D context; no store/engine dependency.
+ * drawFrame's f argument below) and a 2D context; 
  *
  * f.wave is either:
  *   { kind:'lod', data: Uint32Array, spp }        — 2 words/column: [first, toggleMask]
@@ -72,10 +72,11 @@
 
     for (const r of f.rows) {
       if (r.y + r.h < f.scrollY || r.y > f.scrollY + h) continue;
-      if (r.kind === 'channel') drawChannel(ctx, w, dpr, r.ch.index, r.ch.color, r.y, r.h, f);
-      else {
+      if (r.kind === 'channel') {
+        drawChannel(ctx, w, dpr, r.ch.index, r.ch.color, r.y, r.h, f);
+      } else { // decoder
         const hl = f.highlight && f.highlight.decoder === r.dec.id && f.highlight.row === r.row ? f.highlight : null;
-        drawAnnotations(ctx, w, r.y, r.h, f.annotations.get(annKey(r.dec.id, r.row)) || [], r.dec.color, x, hl);
+        drawAnnotations(ctx, w, r.y, r.h, f.annotations.get(annKey(r)) || [], r.dec.color, x, hl);
       }
     }
     ctx.restore();
@@ -178,5 +179,5 @@
     if (busy.length) { ctx.fillStyle = color; for (const c of busy) ctx.fillRect(c * colW, hi, Math.max(colW, 1 / dpr), lo - hi); }
   }
 
-  WS.draw = { drawFrame };
+  WS.waveform = { ...WS.waveform, drawFrame };
 })(window.WS = window.WS || {});

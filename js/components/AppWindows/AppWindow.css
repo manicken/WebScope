@@ -1,0 +1,275 @@
+/* ---------- Generic AppWindow chrome (AppWindow.js) ---------- */
+
+:root {
+  --AppWindow-header-bg: #2b2f36;
+  --AppWindow-header-fg: #c0c0c0;
+  --AppWindow-border: #818181;
+  --AppWindow-shadow: 6px 6px 12px -3px rgba(141, 141, 141, 0.473);
+}
+
+.AppWindow {
+  position: fixed;
+  z-index: 1000;
+  background: #111318;
+  border: 2px solid var(--AppWindow-border);
+  border-radius: 8px;
+  box-shadow: var(--AppWindow-shadow);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 40px);
+  box-sizing: border-box;
+}
+
+.AppWindow.AppWindow--open {
+  display: flex;
+}
+
+.AppWindow--dragging {
+  user-select: none;
+}
+
+.AppWindow-header {
+  background: var(--AppWindow-header-bg);
+  color: var(--AppWindow-header-fg);
+  padding: 2px 2px 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: grab;
+  touch-action: none;
+  font-family: sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.AppWindow--dragging .AppWindow-header {
+  cursor: grabbing;
+}
+
+.AppWindow-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.AppWindow-controls {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+}
+
+.AppWindow-control {
+    background: transparent;
+    border: none;
+    color: var(--AppWindow-header-fg);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    padding: 0px;
+    margin: 0px;
+}
+
+.AppWindow-minimize:hover {
+    color: #6b81ff;
+}
+
+.AppWindow-close:hover {
+    color: #ff6b6b;
+}
+
+.AppWindow-body {
+  flex: 1 1 auto;
+	min-height: 0;
+  overflow: auto;
+  position: relative;
+}
+
+.AppWindow-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--AppWindow-border);
+  background: #181a1f;
+}
+
+.AppWindow-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+}
+
+.AppWindow-backdrop.AppWindow-backdrop--open {
+  display: block;
+}
+
+.AppWindow-resize-handle {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	width: 16px;
+	height: 16px;
+	cursor: nwse-resize;
+	touch-action: none;
+}
+.AppWindow-resize-handle.top-left {
+    left: 0;
+    top: 0;
+    cursor: nwse-resize;
+}
+
+.AppWindow-resize-handle.top-right {
+    right: 0;
+    top: 0;
+    width: 8px;
+	  height: 8px;
+    cursor: nesw-resize;
+}
+
+.AppWindow-resize-handle.bottom-left {
+    left: 0;
+    bottom: 0;
+    cursor: nesw-resize;
+}
+
+.AppWindow-resize-handle.bottom-right {
+    right: 0;
+    bottom: 0;
+    cursor: nwse-resize;
+}
+
+.reopen-btn {
+  font-size: 16px;
+  margin: 20px;
+  padding: 10px 16px;
+}
+
+/* ---------- Generic form primitives, for any AppWindow that hosts a form ---------- */
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  font-family: sans-serif;
+}
+
+.form-label {
+  font-size: 13px;
+  color: #a8adb5;
+}
+
+.form-input-wrap {
+  display: flex;
+  gap: 6px;
+}
+
+.form-input-wrap select,
+.form-input-wrap input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 14px;
+  background: #1c1f26;
+  color: #eaeaea;
+  border: 1px solid var(--AppWindow-border);
+  border-radius: 4px;
+}
+
+.form-status {
+  min-height: 1.2em;
+  font-family: sans-serif;
+  font-size: 13px;
+}
+
+.form-status.ok {
+  color: #4caf50;
+}
+
+.form-status.err {
+  color: #ff6b6b;
+}
+
+.form-status.info {
+  color: #8ab4f8;
+}
+
+.btn {
+  font-family: sans-serif;
+  font-size: 14px;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--AppWindow-border);
+  cursor: pointer;
+}
+
+.btn-secondary {
+  background: #2b2f36;
+  color: #eaeaea;
+}
+
+.btn-secondary:hover {
+  background: #363b44;
+}
+
+.btn-primary {
+  background: #3a7bd5;
+  color: #fff;
+  border-color: #3a7bd5;
+}
+
+.btn-primary:hover {
+  background: #4b8bec;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- Generic control panel (control-panel.js) ---------- */
+
+.control-panel {
+  position: relative;
+  background-size: cover;
+  background-position: center;
+}
+
+.control-panel > .control {
+  position: absolute;
+}
+
+.control-btn {
+  cursor: pointer;
+  background-color: rgba(255, 255, 255, 0.1); /* invisible but clickable, matches physical layout */
+  color: rgba(255, 255, 255, 0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.control-btn:hover {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+.control-image {
+  pointer-events: none;
+  user-select: none;
+}
+
+.control-sprite {
+  background-repeat: no-repeat;
+  user-select: none;
+}
+
+.control-text {
+  color: #d4def4;
+  font-family: monospace;
+}

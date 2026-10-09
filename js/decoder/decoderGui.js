@@ -13,8 +13,8 @@
 
   function init() {
     addDecoderMenu = new AddNewDecoderContextMenu({itemClickedCb: (item) => {addNewDecoder(item.class)}});
-    console.log(WS.decoderregistry);
-    addDecoderMenu.setItems(WS.decoderregistry);
+    console.log(WS.decoders.registry);
+    addDecoderMenu.setItems(WS.decoders.registry);
   }
 /* ============================== Analyzers ============================== */
   function renderAnalyzers(container) {
@@ -29,7 +29,7 @@
     });
     extra.appendChild(btn);
 
-    const sec = WS.ui.rightpanel.section('Analyzers', extra);
+    const sec = WS.rightpanel.section('Analyzers', extra);
     const decoders = store.get().decoders;
     if (decoders.length === 0) sec.appendChild(el('div', 'hint', 'Add a protocol analyzer to decode UART, I²C or SPI traffic.'));
     const cards = el('div', 'cards');
@@ -81,6 +81,42 @@
       } else if (f.type === 'bool') {
         input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(v);
         input.addEventListener('change', () => update(input.checked));
+      } else if (f.type === 'js_code_edit') {
+        input = createNewElement('div', {styles:{width:'100%'}});
+        let codeText = createNewElement('textarea', {styles:{width:'100%', minHeight:'200px', background:'#AAA'}, value:v, onchange:(e)=>{update(e.currentTarget.value)}});
+        let codeEditOpenBtn = createNewElement('button', {textContent:'edit', styles:{width:'100%', background:'#494949'},
+          onclick:()=>{ 
+            WS.customDecoderEditor.open({code:codeText.value,
+              onSave:(code) => { 
+                update(code);
+                //codeText.value = v; // not really necessary
+              },
+              onRunDecoder:(code) => {
+                update(code);
+                let res = d.compile();
+                if (res != true) {
+                    InfoDialog.Show({title:"Custom Code Error", message:res});
+                }
+                update(code);
+                //codeText.value = v; // not really necessary
+                
+              }
+            });
+            
+          }
+        });
+        let codeRunBtn = createNewElement('button', {textContent:'run', styles:{width:'100%', background:'#494949'},
+          onclick:()=>{
+            update(codeText.value);
+            let res = d.compile();
+            if (res != true) {
+                InfoDialog.Show({title:"Custom Code Error", message:res});
+            }
+            update(codeText.value);
+          }
+        });
+        input.append(codeText, codeEditOpenBtn, codeRunBtn);
+
       } else {
         input = document.createElement('input'); input.className = 'mono'; input.value = String(v);
         const commit = () => { const n = Number(input.value); if (isFinite(n) && n > 0 && n !== v) update(n); else input.value = String(v); };
@@ -94,8 +130,10 @@
     return card;
   }
 
-  WS.decoders = WS.decoders || {};
-  WS.decoders.ui = WS.decoders.ui || {};
-  Object.assign(WS.decoders.ui, { init, renderAnalyzers });
+  WS.decoders = WS.decoders ?? {};
+  WS.decoders.ui = Object.assign(WS.decoders.ui ?? {}, {
+    init,
+    renderAnalyzers
+  });
 
-})(window.WS = window.WS || {});
+})(window.WS = window.WS ?? {});

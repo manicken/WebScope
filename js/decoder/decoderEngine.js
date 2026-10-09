@@ -1,13 +1,14 @@
 /**
  * decoderEngine.js — runs decoders over the capture and keeps their results.
- * Adds decode()/decodedResult() to WS.engine. Annotation queries on top of the results live in
+ * 
  * annotations/annotationEngine.js.
  */
 (function (WS) {
     'use strict';
-    const { engine, store } = WS;
+    const { store } = WS;
 
     const decodedCache = new Map(); // decoder id -> { anns: Annotation[] }
+    const registry = [];
 
     function addNewDecoder(classItem) {
         const decoders = store.get().decoders;
@@ -39,23 +40,24 @@
     }
 
     function runRootDecoder(inst) {
-        return inst.run(WS.engine.getBuffer());
+        return inst.run(WS.capture.getBuffer());
     }
 
     function decode(id) {
-        console.log("decode ID:" + id);
-        if (!engine.hasData()) return;
+        //console.log("decode ID:" + id);
+        if (!WS.capture.hasData()) return;
         const inst = WS.store.get().decoders.find((d) => d.id === id);
         if (!inst) return;
 
-        decodedCache.set(id, runRootDecoder(inst));
+        let decRes = runRootDecoder(inst);
+        //console.log(decRes);
+        decodedCache.set(id, decRes);
         
         WS.store.set((s) => ({ status: { ...s.status, decodeGen: s.status.decodeGen + 1 } }));
     }
 
-    WS.decoders = WS.decoders??{};
-
-    Object.assign(WS.decoders, {
+    WS.decoders = Object.assign(WS.decoders ?? {}, {
+        registry,
         decode,
         addNewDecoder,
         removeDecoder,
@@ -64,4 +66,4 @@
         /** Result stored by the decode(id), or undefined. Annotations are in `.anns`. */
         decodedResult(id) { return decodedCache.get(id); }
     });
-})(window.WS = window.WS || {});
+})(window.WS = window.WS ?? {});

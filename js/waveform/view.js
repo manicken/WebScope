@@ -1,5 +1,5 @@
 /**
- * view.js — pure view maths, free of store/engine dependencies.
+ * view.js — pure view maths,
  * Ported 1:1 from edgewise's src/renderer/src/view.ts.
  */
 (function (WS) {

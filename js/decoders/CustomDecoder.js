@@ -1,43 +1,79 @@
+let CustomDecoderExampleCode = `
+({
+    /** in all functions context is the Decoder Instance */
+    /** runs directly after the compile is done */
+    init(context) {
+
+    },
+    /** called from custom decoder rows function*/
+    rows(context) {
+        return [
+            {id:'data', label: 'DATA' },
+            {id:'address', label: 'ADDRESS' }
+        ];
+    },
+    /** called from custom decoder run function */
+    run(input, context) {
+        // Decode input
+        return {};
+    }
+})
+`;
+
 class CustomDecoder extends Decoder {
     static Info = {
-        name: "I2C",
-        class: I2CDecoder
+        name: "Custom",
+        class: CustomDecoder
     };
 
     static GuiConfigData = {
-        code: {label:'code', type:'js_code_edit', default: ""},
+        code: {label:'code', type:'js_code_edit', default: CustomDecoderExampleCode},
         custom:{ label: 'custom', type: 'custom', default: []},
     }
-
-    #decodeFunc;
-
-    constructor(code) {
-        super();
-        this.compile(code);
+    
+    getCfgGui() {
+        return {...CustomDecoder.GuiConfigData, ...this.#decoder?.getCfgGui()};
     }
 
-    compile(code) {
+    #decoder = null;
+
+    constructor(p) {
+        super(p);
+    }
+
+    summary(channels) {
+        return '';
+    }
+
+    compile() {
         try {
-            this.#decodeFunc = eval(code);
+            const factory = new Function(`return (${this.cfg.code})`);
+            const decoder = factory();
+
+            if (typeof decoder !== 'object' || decoder === null) {
+                throw new TypeError('Custom decoder must return an object');
+            }
+            decoder?.init(this);
+            this.#decoder = decoder;
+
             return true;
         } catch (ex) {
-            console.log(ex);
-            // TODO custom emit here
-            return false;
+            console.error(ex);
+            return ex;
         }
     }
 
-    decode(input) {
-        return this.#decodeFunc(input, this);
+    rows() {
+        return this.#decoder?.rows?.(this) ?? [];
     }
 
-    /* custom decoder example:
+    run(input) {
+        return this.#decoder?.run?.(input, this);
+    }
 
-        (input, context) => {
-            
-        }
+/* custom decoder example:
 
-    */
+*/
 }
 
-window.WS.decoderregistry.push(CustomDecoder.Info);
+window.WS.decoders.registry.push(CustomDecoder.Info);

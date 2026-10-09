@@ -5,7 +5,6 @@
 (function (WS) {
   'use strict';
   const { store } = WS;
-  const { cycleTrigger, updateChannel, removeDecoder } = WS.actions;
   const TRIGGER_LABEL = { rising: '↗', falling: '↘', edge: '↕', high: '⬆', low: '⬇' };
 
   function init(gutterBodyEl, onScroll) {
@@ -24,7 +23,7 @@
         const btn = document.createElement('button');
         btn.textContent = `Show ${hidden.length} hidden`;
         btn.style.margin = '6px 8px';
-        btn.addEventListener('click', () => hidden.forEach((c) => updateChannel(c.index, { visible: true })));
+        btn.addEventListener('click', () => hidden.forEach((c) => WS.waveform.updateChannel(c.index, { visible: true })));
         gutterBodyEl.appendChild(btn);
       }
     }
@@ -42,14 +41,14 @@
           <button class="icon-btn trig ${ch.trigger ? 'on' : ''}" title="Cycle trigger">${ch.trigger ? TRIGGER_LABEL[ch.trigger] : '⚡'}</button>
           <button class="icon-btn hide" title="Hide channel">✕</button>
         </span>`;
-      row.querySelector('.trig').addEventListener('click', () => cycleTrigger(ch.index));
-      row.querySelector('.hide').addEventListener('click', () => updateChannel(ch.index, { visible: false }));
+      row.querySelector('.trig').addEventListener('click', () => WS.waveform.cycleTrigger(ch.index));
+      row.querySelector('.hide').addEventListener('click', () => WS.waveform.updateChannel(ch.index, { visible: false }));
       const nameEl = row.querySelector('.ch-name');
       nameEl.addEventListener('dblclick', () => {
         nameEl.innerHTML = `<input value="${ch.name}">`;
         const input = nameEl.querySelector('input');
         input.focus(); input.select();
-        const commit = () => updateChannel(ch.index, { name: input.value.trim() || `D${ch.index}` });
+        const commit = () => WS.waveform.updateChannel(ch.index, { name: input.value.trim() || `D${ch.index}` });
         input.addEventListener('blur', commit);
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') input.blur(); });
       });
@@ -64,7 +63,7 @@
         // only show the close button on the first decoder row
         const btn = document.createElement('button');
         btn.textContent = '✕'; btn.title = 'Remove decoder';
-        btn.addEventListener('click', () => removeDecoder(r.dec.id));
+        btn.addEventListener('click', () => WS.waveform.removeDecoder(r.dec.id));
         row.appendChild(btn);
       }
       return row;
@@ -75,6 +74,6 @@
     render(WS.uiRows.get());
   }
 
-  WS.ui = WS.ui || {};
-  WS.ui.gutter = { init };
+  WS.gutter = WS.gutter || {};
+  WS.gutter.ui = { init };
 })(window.WS = window.WS || {});

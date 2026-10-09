@@ -8,12 +8,11 @@
 (function (WS) {
   'use strict';
  
-  const { drawFrame } = WS.draw;
-  const { engine, store } = WS;
+
+  const { store, waveform, capture } = WS;
   const { annKey, annotationAt, annotationsAtRowInRange, annotationIndex } = WS.annotations;
   const { RULER_H } = WS.theme;
   const { fmtTime, fmtFreq } = WS.format;
-  const A = WS.actions;
 
   function init({ canvas, plotWrap, hoverTipEl, emptyStateEl }) {
     const size = { w: 0, h: 0, dpr: 1 };
@@ -43,9 +42,9 @@
       const row = rowAt(pointer.y);
       if (!row || row.kind !== 'decoder') return null;
       const { view } = store.get();
-      const anns = annotationsAtRowInRange(row.dec.id, row.row, view.start, view.start + size.w * view.spp, view.spp * 3, 4000);
+      const anns = annotationsAtRowInRange(row.dec.id, row.rowId, view.start, view.start + size.w * view.spp, view.spp * 3, 4000);
       const a = annotationAt(anns, view.start + pointer.x * view.spp, 2 * view.spp);
-      return a ? { decoder: row.dec.id, row: row.row, start: a.start, end: a.end } : null;
+      return a ? { decoder: row.dec.id, row: row.rowId, start: a.start, end: a.end } : null;
     }
 
     function burstTarget() {
@@ -58,7 +57,7 @@
     }
     function updateBurst() {
       const t = burstTarget();
-      const next = t ? (() => { const b = engine.burstAt(t.channel, t.sample, 8 * t.spp, 2 * t.spp); return b ? { channel: t.channel, ...b } : null; })() : null;
+      const next = t ? (() => { const b = capture.burstAt(t.channel, t.sample, 8 * t.spp, 2 * t.spp); return b ? { channel: t.channel, ...b } : null; })() : null;
       if (next && lastBurst && next.channel === lastBurst.channel && next.start === lastBurst.start && next.end === lastBurst.end) return;
       if (!next && !lastBurst) return;
       lastBurst = next;
@@ -75,10 +74,10 @@
       const cols = Math.ceil(w * dpr);
       let wave = null;
       if (st.status.samples > 0) {
-        if (st.view.spp >= 1) wave = { kind: 'lod', data: engine.render(st.view.start, st.view.spp / dpr, cols), spp: st.view.spp };
+        if (st.view.spp >= 1) wave = { kind: 'lod', data: WS.capture.render(st.view.start, st.view.spp / dpr, cols), spp: st.view.spp };
         else {
           const first = Math.max(0, Math.floor(st.view.start));
-          const { first: f0, data } = engine.samples(first, Math.ceil(w * st.view.spp) + 2);
+          const { first: f0, data } = capture.samples(first, Math.ceil(w * st.view.spp) + 2);
           wave = { kind: 'raw', data, first: f0 };
         }
       }
@@ -86,14 +85,14 @@
       const decRows = rows.filter((r) => r.kind === 'decoder');
       const end = st.view.start + w * st.view.spp;
       const annotationsMap = new Map();
-      for (const r of decRows) annotationsMap.set(annKey(r.dec.id, r.row), annotationsAtRowInRange(r.dec.id, r.row, st.view.start, end, st.view.spp * 3, 4000));
-
+      for (const r of decRows) annotationsMap.set(annKey(r), annotationsAtRowInRange(r.dec.id, r.rowId, st.view.start, end, st.view.spp * 3, 4000));
+      //console.log(annotationsMap);
       const hl = hitTestAnnotation();
       updateBurst();
 
       const ctx = canvas.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      drawFrame(ctx, w, h, dpr, {
+      WS.waveform.drawFrame(ctx, w, h, dpr, {
         view: st.view, samplerate: st.status.samplerate, samples: st.status.samples, trigger: st.status.trigger,
         rows, scrollY: scroll.y, wave, annotations:annotationsMap, markers: st.markers, hover: st.hover, measurement: st.measurement,
         hoverChannel: st.hover ? st.hover.channel : null, highlight: hl, burst: lastBurst
@@ -122,8 +121,8 @@
       const { view, markers } = store.get();
       pointer = { x, y }; modHeld = e[MOD_KEY];
       const row = y >= RULER_H ? rowAt(y) : undefined;
-      if (modHeld && row?.kind === 'decoder') { const hit = hitTestAnnotation(); if (hit) A.frameSpan(hit.start, hit.end); return; }
-      if (modHeld && row?.kind === 'channel') { const t = burstTarget(); if (t) { const b = engine.burstAt(t.channel, t.sample, 8 * t.spp, 2 * t.spp); if (b) A.frameSpan(b.start, b.end); } return; }
+      if (modHeld && row?.kind === 'decoder') { const hit = hitTestAnnotation(); if (hit) waveform.frameSpan(hit.start, hit.end); return; }
+      if (modHeld && row?.kind === 'channel') { const t = burstTarget(); if (t) { const b = capture.burstAt(t.channel, t.sample, 8 * t.spp, 2 * t.spp); if (b) waveform.frameSpan(b.start, b.end); } return; }
       canvas.setPointerCapture(e.pointerId);
       if (y < RULER_H) {
         const near = (s) => s !== null && Math.abs((s - view.start) / view.spp - x) < 8;
@@ -140,14 +139,14 @@
       pointer = { x, y }; modHeld = e[MOD_KEY];
       if (drag) {
         if (Math.abs(x - drag.x0) > 3) drag.moved = true;
-        if (drag.kind === 'pan') A.panBy(drag.last - x);
+        if (drag.kind === 'pan') waveform.panBy(drag.last - x);
         else store.set({ markers: { ...store.get().markers, [drag.marker]: sampleIndex } });
         drag.last = x; return;
       }
       const row = y >= RULER_H ? rowAt(y) : undefined;
       const channel = row?.kind === 'channel' ? row.ch.index : null;
       store.set({ hover: { sampleIndex, channel, x, y } });
-      if (channel !== null && engine.hasData()) store.set({ measurement: engine.measure(channel, Math.floor(sampleIndex)) });
+      if (channel !== null && WS.capture.hasData()) store.set({ measurement: WS.capture.measure(channel, Math.floor(sampleIndex)) });
       else if (store.get().measurement) store.set({ measurement: null });
     });
 
@@ -158,10 +157,10 @@
       // Plain click on a decoder row: focus that annotation in the data table.
       const { x, y } = local(e);
       const row = rowAt(y);
-      if (row?.kind === 'decoder' && engine.hasData()) {
+      if (row?.kind === 'decoder' && capture.hasData()) {
         const sampleIndex = store.get().view.start + x * store.get().view.spp; // spp = samples per pixel
-        const index = annotationIndex(row.dec.id, row.row, sampleIndex);
-        store.set({ table: { decoder: row.dec.id, row: row.row, focus: index } });
+        const index = annotationIndex(row.dec.id, row.rowId, sampleIndex);
+        store.set({ table: { decoder: row.dec.id, row: row.rowId, focus: index } });
       }
     });
 
@@ -172,8 +171,8 @@
       const { x } = local(e);
       if (store.get().measurement) store.set({ measurement: null });
       const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
-      if (horizontal || e.shiftKey) A.panBy(horizontal ? e.deltaX : e.deltaY);
-      else { const k = e.ctrlKey ? 0.012 : 0.0025; A.zoomAt(Math.exp(e.deltaY * k), x); }
+      if (horizontal || e.shiftKey) waveform.panBy(horizontal ? e.deltaX : e.deltaY);
+      else { const k = e.ctrlKey ? 0.012 : 0.0025; waveform.zoomAt(Math.exp(e.deltaY * k), x); }
     }, { passive: false });
 
     canvas.addEventListener('dblclick', (e) => { if (local(e).y < RULER_H) store.set({ markers: { a: null, b: null } }); });
@@ -190,7 +189,6 @@
 
     return { requestDraw, setScroll(y) { scroll.y = y; requestDraw(); } };
   }
+  WS.waveform.ui = { init };
 
-  WS.ui = WS.ui || {};
-  WS.ui.waveform = { init };
 })(window.WS = window.WS || {});

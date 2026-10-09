@@ -5,7 +5,7 @@
 (function (WS) {
   'use strict';
 
-  const { store, engine, actions } = WS;
+  const { store } = WS;
 
   const MOD = navigator.platform?.startsWith('Mac') ? '⌘' : 'Ctrl';
   const HELP_HTML =
@@ -17,9 +17,9 @@
     const ch = hover?.channel ?? channels.find((c) => c.visible)?.index;
     if (ch === undefined) return;
     const from = hover?.sample ?? view.start + (view.spp * plotWidth) / 2;
-    const edge = engine.findEdge(ch, Math.round(from), forward);
+    const edge = WS.capture.findEdge(ch, Math.round(from), forward);
     if (edge === null) return;
-    actions.centerOn(edge);
+    WS.waveform.centerOn(edge);
     const v = store.get().view;
     store.set({ hover: { sample: edge, channel: ch, x: (edge - v.start) / v.spp, y: hover?.y ?? 0 } });
   }
@@ -32,24 +32,24 @@
     switch (e.key) {
       case ' ':
         e.preventDefault();
-        WS.ui.topbar.toggleCapture();
+        WS.topbar.toggleCapture();
         break;
       case 'f':
         store.set({ follow: false });
-        actions.fit();
+        WS.waveform.fit();
         break;
       case '=':
       case '+':
-        actions.zoomAt(0.5, mid);
+        WS.waveform.zoomAt(0.5, mid);
         break;
       case '-':
-        actions.zoomAt(2, mid);
+        WS.waveform.zoomAt(2, mid);
         break;
       case 'ArrowLeft':
-        actions.panBy(-plotWidth * 0.2);
+        WS.waveform.panBy(-plotWidth * 0.2);
         break;
       case 'ArrowRight':
-        actions.panBy(plotWidth * 0.2);
+        WS.waveform.panBy(plotWidth * 0.2);
         break;
       case 'a':
       case 'b':
@@ -72,6 +72,5 @@
     if (helpEl) helpEl.innerHTML = HELP_HTML;
   }
 
-  WS.ui = WS.ui || {};
-  WS.ui.keymap = { init };
+  WS.keymap = { init };
 })(window.WS = window.WS || {});

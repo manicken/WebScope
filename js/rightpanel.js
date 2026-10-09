@@ -24,13 +24,12 @@
 
     function renderAll() {
       WS.decoders.ui.renderAnalyzers(analyzers);
-      WS.ui.measurements.render(measurements);
+      WS.measurements.render(measurements);
       WS.annotations.renderDataTable(dataTable);
     }
     store.subscribe(renderAll);
     renderAll();
   }
 
-  WS.ui = WS.ui || {};
-  WS.ui.rightpanel = { init, section };
+  WS.rightpanel = { init, section };
 })(window.WS = window.WS || {});

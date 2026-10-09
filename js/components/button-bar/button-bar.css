@@ -1,0 +1,33 @@
+.button-bar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+.button-bar button {
+    padding-top: 6px;
+    padding-bottom: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size:small;
+}
+
+.button-danger {
+    background: #b83a3a;
+    border: 1px solid #922f2f;
+    border-radius: 4px;
+    color: #fff;
+}
+
+.button-danger:hover {
+    background: #cf4545;
+    border-color: #a93636;
+}
+
+.button-danger:active {
+    background: #a83232;
+}
+
+.button-danger:disabled {
+    opacity: 0.5;
+    cursor: default;
+}

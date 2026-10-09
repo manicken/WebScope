@@ -1,7 +1,7 @@
 /**
  * layout.js — visible rows (channels + decoder rows), top to bottom.
- * Ported from edgewise's src/renderer/src/layout.ts (decoderChannels folded in from actions.ts
- * so this file has no dependency on capture/decoder actions).
+ * Ported from edgewise's src/renderer/src/layout.ts
+ * so this file has no dependency on capture/decoder
  * Rows are arranged per decoder, see layoutRows.
  */
 (function (WS) {
@@ -9,10 +9,10 @@
   const { CH_H, DEC_H } = WS.theme;
 
   /** Channel indexes a decoder reads, taken from the config fields named in cfg.signals. */
-  function decoderChannels(cfg) {
-    console.log(cfg);
-    const keys = cfg.signals || [];
-    return keys.map((k) => cfg[k]).filter((v) => typeof v === 'number');
+  function decoderChannels(decoder) {
+    //console.log(decoder);
+    const keys = decoder.signals || [];
+    return keys.map((k) => decoder[k]).filter((v) => typeof v === 'number');
   }
 
   /**
@@ -39,7 +39,7 @@
     const visibleDecoders = decoders.filter((d) => d.visible);
 
     // Visible channels a decoder reads: unique and in ascending channel order.
-    const readBy = (d) => [...new Set(decoderChannels(d.config).filter((i) => channels[i]?.visible))].sort((p, q) => p - q);
+    const readBy = (d) => [...new Set(decoderChannels(d).filter((i) => channels[i]?.visible))].sort((p, q) => p - q);
 
     // ---- Step 1: decide the order of the channel rows ------------------------------------
     // Channels normally keep their index order. The exception: when we reach a channel that a
@@ -74,16 +74,16 @@
     const rowNode = new Map();                 // 'decoderId:rowIndex' -> node
     const rowKey = (d, row) => `${d.id}:${row}`;
     for (const d of visibleDecoders) {
-      d.rows.forEach((_, row) => rowNode.set(rowKey(d, row), { dec: d, row, before: [], after: [] }));
+      d.rows().forEach((_, row) => rowNode.set(rowKey(d, row), { dec: d, row, before: [], after: [] }));
     }
 
     // The node an anchor points at, or undefined if it cannot be resolved.
     const anchorNode = (d, anchor) => {
       if (!anchor) return undefined;
-      if (anchor.signal !== undefined) return channelNode.get(d.config[anchor.signal]);
+      if (anchor.signal !== undefined) return channelNode.get(d.cfg[anchor.signal]);
 
       if (anchor.decoder !== undefined) {
-        const target = visibleDecoders.find((x) => x.id === d.config[anchor.decoder]);
+        const target = visibleDecoders.find((x) => x.id === d.cfg[anchor.decoder]);
         if (!target) return undefined;
         const row = anchor.row === undefined ? target.rows.length - 1 : target.rows.findIndex((r) => r.id === anchor.row);
         return rowNode.get(rowKey(target, row));
@@ -105,7 +105,7 @@
       const fallback = channelNode.get(chans.length ? blockEnd.get(lowest) : lastChannel);
 
       // Visiting decoders in list order and rows in row order keeps rows hanging on one node ordered.
-      d.rows.forEach((def, row) => {
+      d.rows().forEach((def, row) => {
         const me = rowNode.get(rowKey(d, row));
         const target = anchorNode(d, def.anchor);
 
@@ -131,7 +131,8 @@
 
       node.before.forEach(emit);
       if (node.dec) {
-        out.push({ kind: 'decoder', dec: node.dec, row: node.row, label: node.dec.rows[node.row].label, y, h: DEC_H });
+        console.log(node.row);
+        out.push({ kind: 'decoder', dec: node.dec, row: node.row,gutter: node.dec.rows()[node.row], y, h: DEC_H });
         y += DEC_H;
       } else {
         out.push({ kind: 'channel', ch: channels[node.channel], y, h: CH_H });
@@ -146,5 +147,5 @@
     return out;
   }
 
-  WS.layout = { decoderChannels, layoutRows };
+  WS.uiRowsLayout = { decoderChannels, layoutRows };
 })(window.WS = window.WS || {});

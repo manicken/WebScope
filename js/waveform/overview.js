@@ -1,7 +1,6 @@
 /**
  * ui/overview.js — whole-capture activity strip with the visible window highlighted.
- * Click/drag jumps the main view. Ported from edgewise's components/Overview.tsx; the
- * engine.render() call is synchronous here (it was an IPC round-trip in the original).
+ * Click/drag jumps the main view. Ported from edgewise's components/Overview.tsx;
  */
 (function (WS) {
   'use strict';
@@ -45,10 +44,10 @@
     function refresh() {
       const { status } = store.get();
       //const key = `${status.captureId}:${status.samples}:${canvas.width}`;
-      const key = `${status.captureId}:${status.samples}:${canvas.width}:${WS.engine.hasData()}`;
+      const key = `${status.captureId}:${status.samples}:${canvas.width}:${WS.capture.hasData()}`;
       if (key !== cache.key && status.samples > 0) {
         cache.key = key;
-        cache.cols = WS.engine.render(0, status.samples / Math.max(canvas.width, 1), Math.max(canvas.width, 1));
+        cache.cols = WS.capture.render(0, status.samples / Math.max(canvas.width, 1), Math.max(canvas.width, 1));
       }
       paint();
     }
@@ -59,7 +58,7 @@
       const { status, view, plotWidth } = store.get();
       if (status.samples === 0) return;
       const center = ((e.clientX - r.left) / r.width) * status.samples;
-      store.set({ view: WS.actions.clampView(center - (view.spp * plotWidth) / 2, view.spp), follow: false });
+      store.set({ view: WS.waveform.clampView(center - (view.spp * plotWidth) / 2, view.spp), follow: false });
     }
     canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); jump(e); });
     canvas.addEventListener('pointermove', jump);
@@ -69,6 +68,5 @@
     refresh();
   }
 
-  WS.ui = WS.ui || {};
-  WS.ui.overview = { init };
+  WS.overview = { init };
 })(window.WS = window.WS || {});

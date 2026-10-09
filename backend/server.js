@@ -1,14 +1,80 @@
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { extname, resolve, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { DemoDevice } from './DemoDevice.js'
 import { scanSigrok } from './SigrokDevice.js';
 
 import { WebSocketServer, WebSocket } from 'ws';
 
-const WEBSOCKET_PORT = 8080;
+const PORT = 8080;
 
-const server = new WebSocketServer({ port: WEBSOCKET_PORT });
+const PUBLIC_DIR = fileURLToPath(new URL('../', import.meta.url));
+
+const MIME_TYPES = {
+    '.html': 'text/html; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.ico': 'image/x-icon',
+    '.wasm': 'application/wasm'
+};
+
+const httpServer = createServer(async (req, res) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+        res.writeHead(405);
+        return res.end('Method Not Allowed');
+    }
+
+    try {
+        const url = new URL(req.url, 'http://localhost');
+        const pathname = decodeURIComponent(url.pathname);
+        const requestedPath = pathname === '/'
+            ? 'index.html'
+            : pathname.slice(1);
+
+        const filePath = resolve(PUBLIC_DIR, requestedPath);
+        const relPath = relative(PUBLIC_DIR, filePath);
+
+        // Prevent requests outside the public directory.
+        if (relPath === '..' ||
+            relPath.startsWith('..' + sep) ||
+            resolve(filePath) === resolve(PUBLIC_DIR)) {
+            res.writeHead(403);
+            return res.end('Forbidden');
+        }
+
+        const content = await readFile(filePath);
+        res.writeHead(200, {
+            'Content-Type':
+                MIME_TYPES[extname(filePath).toLowerCase()]
+                ?? 'application/octet-stream',
+            'Content-Length': content.length
+        });
+
+        res.end(req.method === 'HEAD' ? undefined : content);
+    } catch (err) {
+        const status = err.code === 'ENOENT' ? 404 : 500;
+        res.writeHead(status, {
+            'Content-Type': 'text/plain; charset=utf-8'
+        });
+        res.end(status === 404 ? 'Not Found' : 'Internal Server Error');
+    }
+});
+
+// HTTP and WebSocket share the same server and port.
+const server = new WebSocketServer({ server: httpServer });
+
+httpServer.listen(PORT, () => {
+    console.log(`WebScope: http://localhost:${PORT}`);
+    console.log(`WebSocket: ws://localhost:${PORT}`);
+});
 
 server.on('listening', () => {
-    console.log("Websocket started on port: " + WEBSOCKET_PORT);
+    console.log("Websocket started on port: " + PORT);
 });
 
 const devices = new Map();

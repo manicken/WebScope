@@ -6,6 +6,8 @@
 <title>WebScope — logic analyzer</title>
 <link rel="stylesheet" href="styles.css" />
 <link rel="stylesheet" href="js/components/ContextMenu.css" />
+<link rel="stylesheet" href="js/components/AppWindows/AppWindow.css" />
+<link rel="stylesheet" href="js/components/button-bar/button-bar.css" />
 </head>
 <body>
 <div class="app">
@@ -65,40 +67,62 @@
   double-click-to-run work. If you'd rather use real ES modules with import/export, switch
   these to type="module" and serve the folder with any static server, e.g. `python3 -m http.server`.
 -->
+<script src="js/libs/ace.js"></script>
+<script src="js/libs/mode-javascript.js"></script>
+<script src="js/libs/jszip.js"></script>
+
 <script src="js/components/dom_helpers.js"></script>
 <script src="js/components/ContextMenu.js"></script>
 <script src="js/components/AddNewDecoderContextMenu.js"></script>
+<script src="js/components/AppWindows/AppWindow.js"></script>
+<script src="js/components/AppWindows/AppWindows.js"></script>
+<script src="js/components/AppWindows/AceEditor.js"></script>
+<script src="js/components/AppWindows/CustomDecoderEditor.js"></script>
+<script src="js/components/AppWindows/InfoDialog.js"></script>
+<script src="js/components/AppWindows/InputDialog.js"></script>
+<script src="js/components/AppWindows/ConfirmDialog.js"></script>
+<script src="js/components/button-bar/button-bar.js"></script>
+
 <script src="js/core/format.js"></script>
 <script src="js/core/theme.js"></script>
 <script src="js/core/store.js"></script>
+
+<script src="js/capture/CaptureBuffer.js"></script>
 <script src="js/capture/captureEngine.js"></script>
-<script src="js/decoders/Decoder.js"></script>
-<script src="js/decoders/DecoderRegistry.js"></script>
+
+
+<script src="js/decoder/Decoder.js"></script>
+<script src="js/decoder/decoderEngine.js"></script>
+<script src="js/decoder/decoderGui.js"></script>
+
+<script src="js/decoders/CustomDecoder.js"></script>
 <script src="js/decoders/UARTDecoder.js"></script>
 <script src="js/decoders/I2CDecoder.js"></script>
 <script src="js/decoders/SPIDecoder.js"></script>
-<script src="js/decoders/decoderEngine.js"></script>
+
+
 <script src="js/annotations/annotationEngine.js"></script>
 <script src="js/annotations/annotationGui.js"></script>
-<script src="js/waveform/view.js"></script>
-<script src="js/waveform/rowslayout.js"></script>
-<script src="js/waveform/waveformRenderer.js"></script>
+
 <script src="js/capture/sources/WebSocketSource.js"></script>
 <script src="js/capture/sources/DemoWave.js"></script>
 <script src="js/capture/sources/DemoSource.js"></script>
 <script src="js/capture/sources/sources.js"></script>
+
+<script src="js/waveform/view.js"></script>
+<script src="js/waveform/rowslayout.js"></script>
+<script src="js/waveform/waveformRenderer.js"></script>
 <script src="js/waveform/waveformActions.js"></script>
-<script src="js/capture/captureActions.js"></script>
 <script src="js/waveform/rows.js"></script>
 <script src="js/waveform/gutter.js"></script>
 <script src="js/waveform/waveformGui.js"></script>
-<script src="js/decoders/decoderGui.js"></script>
 <script src="js/waveform/measurements.js"></script>
-<script src="js/app/rightpanel.js"></script>
-<script src="js/capture/captureGui.js"></script>
-<script src="js/app/statusbar.js"></script>
 <script src="js/waveform/overview.js"></script>
-<script src="js/app/keymap.js"></script>
-<script src="js/app/main.js"></script>
+
+<script src="js/topbar.js"></script>
+<script src="js/rightpanel.js"></script>
+<script src="js/statusbar.js"></script>
+<script src="js/keymap.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>

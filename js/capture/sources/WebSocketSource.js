@@ -75,7 +75,7 @@ class WebSocketSource {
                 }
             } else {
                 let data = new Uint8Array(ev.data);
-                console.log(data.length);
+                //console.log(data.length);
                 WebSocketSource.#onData(data, WebSocketSource.#offset);
                 WebSocketSource.#offset += data.length;
             }

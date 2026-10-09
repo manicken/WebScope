@@ -34,11 +34,12 @@ class SPIDecoder extends Decoder {
     summary(channels) {
         const c = this.cfg;
         const name = (i) => typeof i === 'number' ? (channels[i]?.name ?? `D${i}`) : '—';
-        return `SPI - CLK ${name(c.clk)} · mode ${Number(c.cpol) * 2 + Number(c.cpha)}`
+        return `CLK ${name(c.clk)} · mode ${Number(c.cpol) * 2 + Number(c.cpha)}`
     }
 
     rows() {
         return [
+            {id:'data', label:'DATA', anchor: { signal: 'mosi' }, placement: 'after'},
             {id:'mosi', label:'MOSI', anchor: { signal: 'mosi' }, placement: 'after'},
             {id:'miso', label:'MISO', anchor: { signal: 'miso' }, placement: 'after'}
         ];
@@ -57,7 +58,9 @@ class SPIDecoder extends Decoder {
         const sampleRising = sampleOnLeading ? leadingRising : !leadingRising;
         const csActive = (word) => csBit === null ? true : (cfg.csActiveLow ? !(word & csBit) : !!(word & csBit));
 
-        const anns = [];
+        const dataAnns = [];
+        const mosiAnns = [];
+        const misoAnns = [];
         let mosiWord = 0, misoWord = 0, bitCount = 0, wordStart = 0, active = false;
 
         for (let i = 1; i < buf.length; i++) {
@@ -92,16 +95,20 @@ class SPIDecoder extends Decoder {
                 bitCount++;
                 if (bitCount >= cfg.wordBits) {
                     const digits = Math.ceil(cfg.wordBits / 4);
-                    const fmt = (v) => cfg.format === 'hex' ? '0x' + v.toString(16).padStart(digits, '0').toUpperCase() : String(v);
-                    let text = mosiBit !== null ? fmt(mosiWord) : '';
-                    if (misoBit !== null) text += (text ? ' / ' : '') + 'MISO ' + fmt(misoWord);
-                    anns.push({ start: wordStart, end: i, row: 0, class: ANN.DATA, text });
+                    let mosiText = mosiBit !== null ? Decoder.AsFormat({word:mosiWord, type:cfg.format, hexPadding:digits, binPadding:cfg.wordBits}) : '';
+                    let misoText = misoBit !== null ? Decoder.AsFormat({word:misoWord, type:cfg.format, hexPadding:digits, binPadding:cfg.wordBits}) : '';
+                    let text = mosiText;
+                    if (misoBit !== null) text += (text ? ' / ' : '') + 'MISO ' + misoText;
+                    dataAnns.push({ start: wordStart, end: i, class: ANN.DATA, text });
+
+                    mosiAnns.push({ start: wordStart, end: i, class: ANN.DATA, text:mosiText });
+                    misoAnns.push({ start: wordStart, end: i, class: ANN.DATA, text:misoText });
                     mosiWord = 0; misoWord = 0; bitCount = 0;
                 }
             }
         }
-        return {anns};
+        return {data:dataAnns, mosi:mosiAnns, miso:misoAnns};
     }
 }
 
-window.WS.decoderregistry.push(SPIDecoder.Info);
+window.WS.decoders.registry.push(SPIDecoder.Info);

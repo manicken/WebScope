@@ -71,7 +71,7 @@
         extra.appendChild(tab);
       });
     }
-    const sec = WS.ui.rightpanel.section('Decoded data', extra, true);
+    const sec = WS.rightpanel.section('Decoded data', extra, true);
 
     if (!dec) {
       sec.appendChild(el('div', 'hint', 'Decoded frames appear here.'));
@@ -111,7 +111,7 @@
           node.style.height = ROW_H + 'px';
           node.addEventListener('click', () => {
             store.set({ table: { ...store.get().table, decoder: dec.id, focus: idx } });
-            WS.actions.centerOn((a.start + a.end) / 2, a.end - a.start);
+            WS.waveform.centerOn((a.start + a.end) / 2, a.end - a.start);
           });
           spacer.appendChild(node);
           rowsById.set(idx, node);
@@ -138,5 +138,8 @@
     }
   }
 
-  WS.annotations = Object.assign(WS.annotations || {}, { drawAnnotations, renderDataTable });
+  WS.annotations = Object.assign(WS.annotations ?? {}, {
+    drawAnnotations,
+    renderDataTable
+  });
 })(window.WS = window.WS || {});

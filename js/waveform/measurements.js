@@ -2,9 +2,7 @@
   'use strict';
 
   const { fmtTime, fmtFreq } = WS.format;
-  const { engine, store } = WS;
-  const A = WS.actions;
-  const ROW_H = 26;
+  const { store } = WS;
 
   function el(tag, className, html) { const e = document.createElement(tag); if (className) e.className = className; if (html !== undefined) e.innerHTML = html; return e; }
 
@@ -21,7 +19,7 @@
       extra = el('button', 'link', 'Clear');
       extra.addEventListener('click', () => store.set({ markers: { a: null, b: null } }));
     }
-    const sec = WS.ui.rightpanel.section('Timing', extra);
+    const sec = WS.rightpanel.section('Timing', extra);
     const metrics = el('div', 'metrics');
     const metric = (label, value, color, strong) => {
       const m = el('div', 'metric' + (strong ? ' strong' : ''));
@@ -40,6 +38,5 @@
     container.appendChild(sec);
   }
 
-  WS.ui = WS.ui || {};
-  WS.ui.measurements = { render };
+  WS.measurements = { render };
 })(window.WS = window.WS || {});

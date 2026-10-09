@@ -18,6 +18,5 @@
     render();
   }
 
-  WS.ui = WS.ui || {};
-  WS.ui.statusbar = { init };
+  WS.statusbar = { init };
 })(window.WS = window.WS || {});

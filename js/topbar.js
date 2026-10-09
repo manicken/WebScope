@@ -1,11 +1,9 @@
 (function (WS) {
   'use strict';
-  const { get, set, toast } = WS.store;
-  const A = WS.actions;
+  const { store } = WS;
 
   function init(ids) {
 
-    const wsUrl = document.getElementById(ids.wsUrl);
     const rateIn = document.getElementById(ids.samplerate);
     const durIn = document.getElementById(ids.duration);
     const captureBtn = document.getElementById(ids.captureBtn);
@@ -14,24 +12,23 @@
 
 
     captureBtn.addEventListener('click', () => {
-      if (get().status.state === 'running') { A.stopCapture(); captureBtn.textContent = 'Start'; }
+      if (store.get().status.state === 'running') { WS.capture.stopCapture(); captureBtn.textContent = 'Start'; }
       else {
         const samplerate = Number(rateIn.value) || 8_000_000;
         const duration = Number(durIn.value) || 0.02;
         const device = WS.sources.getSelectedInfo();
-        A.startCapture(device.sourceKind, {samplerate, duration, channels:device.channels});
+        WS.capture.startCapture(device.sourceKind, {samplerate, duration, channels:device.channels});
         captureBtn.textContent = 'Stop';
       }
     });
-    fitBtn.addEventListener('click', A.fit);
+    fitBtn.addEventListener('click', () => {WS.waveform.fit(); });
     
     WS.store.store.subscribe((s) => {
       pill.textContent = s.status.state; pill.className = 'status-pill ' + s.status.state;
       if (s.status.state !== 'running' && captureBtn.textContent === 'Stop') captureBtn.textContent = 'Start';
     });
-    WS.ui.topbar.toggleCapture = () => captureBtn.click();
+    WS.topbar.toggleCapture = () => captureBtn.click();
   }
 
-  WS.ui = WS.ui || {};
-  WS.ui.topbar = { init };
+  WS.topbar = { init };
 })(window.WS = window.WS || {});

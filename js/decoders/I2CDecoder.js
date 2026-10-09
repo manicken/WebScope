@@ -34,7 +34,7 @@ class I2CDecoder extends Decoder {
     summary(channels) {
         const c = this.cfg;
         const name = (i) => typeof i === 'number' ? (channels[i]?.name ?? `D${i}`) : '—';
-        return `I2C - ${name(c.scl)} / ${name(c.sda)}`;
+        return `${name(c.scl)} / ${name(c.sda)}`;
     }
 
     rows() {
@@ -85,14 +85,14 @@ class I2CDecoder extends Decoder {
                         frame.bufferIndex = byteStart;
                         frame.address = addr;
                     } else {
-                        text = cfg.format === 'hex' ? '0x' + bitBuf.toString(16).padStart(2, '0').toUpperCase() : String(bitBuf);
+                        text = Decoder.AsFormat({type:cfg.format, word:bitBuf});
                         frame.payload.push(bitBuf);
                     }
                     let end = i + 1;
                     while ( end < buf.length && sclHigh(end)) { end++; }
                     while ( end < buf.length && sclHigh(end) == false) { end++; }
-                    anns.push({ start: byteStart, end: i, row: 0, class: ANN.DATA , text });
-                    anns.push({ start: i, end, row: 0, class: ack ? ANN.ACK : ANN.NACK, text: ack ? 'ACK' : ' NACK' });
+                    anns.push({ start: byteStart, end: i, class: ANN.DATA , text });
+                    anns.push({ start: i, end, class: ack ? ANN.ACK : ANN.NACK, text: ack ? 'ACK' : ' NACK' });
                     bitBuf = 0; bitCount = 0;
                 }
             }
@@ -105,8 +105,8 @@ class I2CDecoder extends Decoder {
             }
             row++;
         }
-        return {anns};
+        return {data:anns};
     }
 }
 
-window.WS.decoderregistry.push(I2CDecoder.Info);
+window.WS.decoders.registry.push(I2CDecoder.Info);

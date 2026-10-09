@@ -1,11 +1,10 @@
 /**
- * waveformActions.js — view (zoom/pan/fit/frame) and channel (trigger, name, visibility) actions.
+ * waveformActions.js — view (zoom/pan/fit/frame) and channel (trigger, name, visibility)
  */
 (function (WS) {
   'use strict';
   const { store } = WS;
   const { clampViewTo, frameRange } = WS.view;
-  const A = (WS.actions = WS.actions || {});
 
   /* ---- view ---- */
   function fit() {
@@ -48,5 +47,6 @@
     store.set({ channels: store.get().channels.map((c) => c.index === index ? { ...c, ...patch } : c) });
   }
 
-  Object.assign(A, { fit, clampView, zoomAt, panBy, frameSpan, centerOn, cycleTrigger, updateChannel });
+  WS.waveform = WS.waveform ?? {};
+  Object.assign(WS.waveform, { fit, clampView, zoomAt, panBy, frameSpan, centerOn, cycleTrigger, updateChannel });
 })(window.WS = window.WS || {});
