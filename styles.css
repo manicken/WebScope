@@ -100,10 +100,19 @@ kbd { background: var(--panel-2); border: 1px solid var(--border); border-radius
 .card-title { font-weight: 600; font-size: 12px; }
 .card-sub { color: var(--muted); font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-body { display: grid; grid-template-columns: 1fr; gap: 5px; padding: 4px 10px 10px; border-top: 1px solid var(--border); }
+.card-body.hidden { display: none !important; }
 .form-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; }
 .form-row.bool { justify-content: flex-start; }
 .form-row.bool input { order: -1; margin-right: 4px; }
 .form-row select, .form-row input { max-width: 140px; }
+
+.form-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  font-family: sans-serif;
+}
 
 .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .metric { display: flex; flex-direction: column; gap: 2px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }

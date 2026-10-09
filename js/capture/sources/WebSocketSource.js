@@ -24,6 +24,7 @@ class WebSocketSource {
             return;
         }
 
+      
         const ws = new WebSocket(WebSocketSource.#wsUrlInput_el.value);
         WebSocketSource.#ws = ws;
         ws.binaryType = 'arraybuffer';
@@ -33,12 +34,20 @@ class WebSocketSource {
         };
 
         ws.onclose = () => {
-            console.log('WebSocket disconnected');
+            //console.log('WebSocket disconnected');
             WebSocketSource.ws = null;
+
+            setTimeout(() => {
+                WebSocketSource.connect();
+            }, 2000);
         };
 
         ws.onerror = () => {
-            console.error('WebSocket error');
+            /*if (ws.readyState === WebSocket.CONNECTING) {
+                console.warn('Unable to connect to WebSocket server');
+            } else {
+                console.error('WebSocket error');
+            }*/
         };
 
         ws.onmessage = (ev) => {
@@ -80,7 +89,7 @@ class WebSocketSource {
                 WebSocketSource.#offset += data.length;
             }
         };
-
+  
         
     }
 

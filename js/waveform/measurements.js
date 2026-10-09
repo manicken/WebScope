@@ -19,7 +19,9 @@
       extra = el('button', 'link', 'Clear');
       extra.addEventListener('click', () => store.set({ markers: { a: null, b: null } }));
     }
-    const sec = WS.rightpanel.section('Timing', extra);
+    const spacer = createNewElement('div', {className:'spacer'});
+    //const sec = WS.rightpanel.section('Timing', extra);
+    const sec = MinimizeCard({title:'Measurements', headItems:[spacer, extra??''], open:false})
     const metrics = el('div', 'metrics');
     const metric = (label, value, color, strong) => {
       const m = el('div', 'metric' + (strong ? ' strong' : ''));
@@ -33,9 +35,9 @@
     metrics.appendChild(metric('B', markers.b !== null ? t(markers.b) : '—', 'var(--marker-b)'));
     metrics.appendChild(metric('Δ A→B', dt !== null ? fmtTime(dt, 6) : '—', null, true));
     metrics.appendChild(metric('1 / Δ', dt ? fmtFreq(1 / dt) : '—'));
-    sec.appendChild(metrics);
-    if (markers.a === null) sec.appendChild(el('div', 'hint', 'Click the time ruler to drop markers A and B. Drag to move, double-click to clear.'));
-    container.appendChild(sec);
+    sec.bodyAppendChild(metrics);
+    if (markers.a === null) sec.bodyAppendChild(el('div', 'hint', 'Click the time ruler to drop markers A and B. Drag to move, double-click to clear.'));
+    container.appendChild(sec.card);
   }
 
   WS.measurements = { render };

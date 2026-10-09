@@ -151,7 +151,7 @@
 }
 
 /* ---------- Generic form primitives, for any AppWindow that hosts a form ---------- */
-
+/*
 .form-row {
   display: flex;
   flex-direction: column;
@@ -232,7 +232,7 @@
   opacity: 0.5;
   cursor: default;
 }
-
+*/
 /* ---------- Generic control panel (control-panel.js) ---------- */
 
 .control-panel {

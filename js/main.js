@@ -1,3 +1,45 @@
+let mainMenuItems = [
+    {
+        label: "File",
+        items: [
+            {
+                label: "New Project",
+                action: () => { NotImplementedMessageDialog.Show(); }
+            },
+            {
+                label: "Import",
+                submenu:  [
+                    {
+                        label: 'From Logic2',
+                        action:() => {
+                            SelectFile({filter:'.sal', onRead: async(data, file)=>{
+                                const zip = await JSZip.loadAsync(data);
+
+                                for (const [name, entry] of Object.entries(zip.files)) {
+                                    if (entry.dir) continue;
+
+                                    const content = await entry.async('uint8array');
+
+                                    console.log(name, content);
+
+                                    // Här har du filens innehåll i en Uint8Array
+                                }
+                            }});
+                            
+                            
+                        }
+                    },
+                    {
+                        label: 'From Sigrok',
+                        action:() => {NotImplementedMessageDialog.Show();}
+                    }
+                ]
+                
+            },
+          ]
+    }
+];
+
 (function (WS) {
   'use strict';
 
@@ -30,6 +72,8 @@
 
     WS.customDecoderEditor = new CustomDecoderEditor();
     //WS.customDecoderEditor.open(); // dev test
-    
+
+    let menu = createMenu(document.getElementById('mainMenu'), mainMenuItems);
+
   });
 })(window.WS = window.WS || {});

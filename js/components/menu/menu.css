@@ -1,0 +1,164 @@
+:root {
+    --menu-background: #2b2f36;
+    --menu-hover: #3a3f47;
+    --border-color: #818181;
+}
+
+/* =========================================================
+   Main menu
+   ========================================================= */
+
+.main-menu {
+    display: flex;
+    align-items: stretch;
+    height: 24px;
+    user-select: none;
+}
+
+
+/* =========================================================
+   Menu level
+   ========================================================= */
+
+.menu {
+    position: relative;
+}
+
+
+/* =========================================================
+   Menu buttons
+   ========================================================= */
+
+.menu-button {
+    height: 100%;
+    padding: 0 12px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
+.menu-button:hover,
+.menu.open > .menu-button {
+    background: var(--menu-hover);
+}
+
+
+/* =========================================================
+   Dropdown
+   ========================================================= */
+
+.dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    display: none;
+    min-width: 180px;
+    padding: 4px 0;
+    background: var(--menu-background);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+}
+
+.menu.open > .dropdown {
+    display: block;
+}
+
+
+/* =========================================================
+   Dropdown item
+   ========================================================= */
+
+.menu-item {
+    position: relative;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 28px;
+    padding: 4px 10px;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.dropdown-item:hover {
+    background: var(--menu-hover);
+}
+
+
+/* =========================================================
+   Submenu
+   ========================================================= */
+
+.submenu {
+    position: absolute;
+    top: -5px;
+    left: 100%;
+    display: none;
+    min-width: 180px;
+    padding: 4px 0;
+    background: var(--menu-background);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
+}
+
+.menu-item:hover > .submenu {
+    display: block;
+}
+
+
+/* =========================================================
+   Submenu arrow
+   ========================================================= */
+
+.menu-arrow {
+    margin-left: auto;
+    padding-left: 20px;
+    font-size: 14px;
+}
+
+
+/* =========================================================
+   Separator
+   ========================================================= */
+
+.menu-separator {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--border-color);
+}
+
+
+/* =========================================================
+   Disabled item
+   ========================================================= */
+
+.dropdown-item.disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.dropdown-item.disabled:hover {
+    background: transparent;
+}
+
+
+/* =========================================================
+   Optional keyboard shortcut
+   ========================================================= */
+
+.menu-shortcut {
+    margin-left: auto;
+    padding-left: 24px;
+    opacity: 0.6;
+    font-size: 0.9em;
+}

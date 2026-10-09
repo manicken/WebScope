@@ -71,23 +71,25 @@
         extra.appendChild(tab);
       });
     }
-    const sec = WS.rightpanel.section('Decoded data', extra, true);
+    const headspacer = createNewElement('div', {className:'spacer'});
+    //const sec = WS.rightpanel.section('Decoded data', extra, true);
+    const sec = MinimizeCard({title:'Decoded data', headItems:[headspacer, extra??''], open:false});
 
     if (!dec) {
-      sec.appendChild(el('div', 'hint', 'Decoded frames appear here.'));
-      container.appendChild(sec);
+      sec.bodyAppendChild(el('div', 'hint', 'Decoded frames appear here.'));
+      container.appendChild(sec.getRoot());
       return;
     }
     //console.log(table);
     const page = annotationPage(dec.id, table.rowId, 0, 1); // just for total, cheap
     const head = el('div', 'table-head', `<span>#</span><span>Time</span><span>Value</span><span class="muted">${page.total.toLocaleString()} rows</span>`);
-    sec.appendChild(head);
+    sec.bodyAppendChild(head);
 
     const tableEl = el('div', 'table');
     const spacer = el('div', null); spacer.style.position = 'relative';
     tableEl.appendChild(spacer);
-    sec.appendChild(tableEl);
-    container.appendChild(sec);
+    sec.bodyAppendChild(tableEl);
+    container.appendChild(sec.getRoot());
 
     const origin = status.trigger ?? 0;
     let rowsById = new Map();

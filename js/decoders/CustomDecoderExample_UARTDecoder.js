@@ -13,7 +13,7 @@
 				default: 'none',
 				options: ['none', 'even', 'odd']
 			},
-			 format:{ ...Decoder.FORMAT_FIELD, default:'ascii'},
+			format:{ ...Decoder.FORMAT_FIELD, default:'ascii'},
 		};
 	},
 	/** in all functions context is the Decoder Instance */
