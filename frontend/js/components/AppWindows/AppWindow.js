@@ -164,7 +164,7 @@ class AppWindow extends EventTarget{
 		/** when singleton is true canBeDestroyed is automatically set to false */
 		singleton = false,
 		closable = true,
-		minimizable = true,
+		minimizable = false,
 		draggable = true,
 		backdrop = false,
 		resizable = false,

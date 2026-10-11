@@ -3,35 +3,49 @@ let mainMenuItems = [
         label: "File",
         items: [
             {
-                label: "New Project",
-                action: () => { NotImplementedMessageDialog.Show(); }
+                label: "Open",
+                action: () => {
+                    FileDialog.Show({onConfirm: async ({data, name, ext})=>{
+                        console.log("Selected the file:", {data, name, ext, size:data.byteLength});
+                    }});
+                    /*
+                    SelectFile({filters:['.ws.zip','.sr','.vcd','.bin'], onRead: async({data, name, ext})=>{
+                        console.log({data, name, ext});
+                    }});*/
+                }
             },
             {
-                label: "Import",
+                label: "Save",
+                action: () => {
+                    FileDialog.Show({mode: FileDialog.FDModes.Save, onConfirm: async (filePath)=>{
+                        console.log("file to save selected:", filePath);
+                    }});
+                }
+            },
+            {
+                label: "List Files root",
+                action: async () => {
+                    const files = await fetch('/api/fs').then(r => r.json());
+                    console.log(files);
+                        //
+                }
+            },
+            {
+                label: "List Files testdir",
+                action: async () => {
+                    const files = await fetch('/api/fs/testdir').then(r => r.json());
+                    console.log(files);
+                        //
+                }
+            },
+            {
+                label: "Export",
                 submenu:  [
                     {
-                        label: 'From Logic2',
+                        label: 'Sigrok',
                         action:() => {
-                            SelectFile({filter:'.sal', onRead: async(data, file)=>{
-                                const zip = await JSZip.loadAsync(data);
-
-                                for (const [name, entry] of Object.entries(zip.files)) {
-                                    if (entry.dir) continue;
-
-                                    const content = await entry.async('uint8array');
-
-                                    console.log(name, content);
-
-                                    // Här har du filens innehåll i en Uint8Array
-                                }
-                            }});
-                            
                             
                         }
-                    },
-                    {
-                        label: 'From Sigrok',
-                        action:() => {NotImplementedMessageDialog.Show();}
                     }
                 ]
                 

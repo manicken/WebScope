@@ -1,6 +1,23 @@
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { extname, resolve, relative, sep } from 'node:path';
+import {
+    readFile,
+    writeFile,
+    unlink,
+    realpath,
+    readdir,
+    stat
+} from 'node:fs/promises';
+
+import {
+    join,
+    resolve,
+    relative,
+    dirname,
+    basename,
+    extname,
+    sep,
+    isAbsolute
+} from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DemoDevice } from './DemoDevice.js'
@@ -10,7 +27,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 
 const PORT = 8080;
 
-const PUBLIC_DIR = fileURLToPath(new URL('../', import.meta.url));
+const PUBLIC_DIR = fileURLToPath(new URL('../frontend', import.meta.url));
+const DATA_DIR = fileURLToPath(new URL('../user_data_fs', import.meta.url));
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
@@ -23,6 +41,56 @@ const MIME_TYPES = {
     '.wasm': 'application/wasm'
 };
 
+async function resolveVirtualPath(virtualPath) {
+    const filePath = resolve(DATA_DIR, virtualPath);
+    const relPath = relative(DATA_DIR, filePath);
+    console.log({filePath, relPath});
+    // Prevent directory traversal.
+    if (
+        relPath === '..' ||
+        relPath.startsWith('..' + sep) ||
+        isAbsolute(relPath)
+    ) {
+        throw Object.assign(new Error('Forbidden'), { status: 403 });
+    }
+
+    // Root directory is allowed.
+    const checkPath = relPath
+        ? dirname(filePath)
+        : filePath;
+
+    const parentPath = await realpath(checkPath);
+    const parentRel = relative(DATA_DIR, parentPath);
+    console.log({parentPath, parentRel});
+    if (
+        parentRel === '..' ||
+        parentRel.startsWith('..' + sep) ||
+        isAbsolute(parentRel)
+    ) {
+        throw Object.assign(new Error('Forbidden'), { status: 403 });
+    }
+
+    // If the target exists, verify its real location.
+    if (relPath) {
+        try {
+            const targetPath = await realpath(filePath);
+            const targetRel = relative(DATA_DIR, targetPath);
+
+            if (
+                targetRel === '..' ||
+                targetRel.startsWith('..' + sep) ||
+                isAbsolute(targetRel)
+            ) {
+                throw Object.assign(new Error('Forbidden'), { status: 403 });
+            }
+        } catch (err) {
+            if (err.code !== 'ENOENT') throw err;
+        }
+    }
+
+    return filePath;
+}
+/*
 const httpServer = createServer(async (req, res) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
         res.writeHead(405);
@@ -38,6 +106,8 @@ const httpServer = createServer(async (req, res) => {
 
         const filePath = resolve(PUBLIC_DIR, requestedPath);
         const relPath = relative(PUBLIC_DIR, filePath);
+
+        console.log("Request:", {url, filePath, relPath});
 
         // Prevent requests outside the public directory.
         if (relPath === '..' ||
@@ -61,7 +131,141 @@ const httpServer = createServer(async (req, res) => {
         res.writeHead(status, {
             'Content-Type': 'text/plain; charset=utf-8'
         });
-        res.end(status === 404 ? 'Not Found' : 'Internal Server Error');
+        res.end(status === 404 ? 'Not Found ' + err : 'Internal Server Error ' + err);
+    }
+});*/
+
+const httpServer = createServer(async (req, res) => {
+    try {
+        const url = new URL(req.url, 'http://localhost');
+        const pathname = decodeURIComponent(url.pathname);
+
+        // -------------------------------
+        // Virtual filesystem API
+        // -------------------------------
+        
+        if (pathname.startsWith('/api/fs')) {
+            console.log("FS Request: ", {url});
+            if (!['GET', 'HEAD', 'PUT', 'DELETE'].includes(req.method)) {
+                res.writeHead(405);
+                return res.end('Method Not Allowed');
+            }
+
+            const requestedPath = pathname.slice('/api/fs/'.length);
+
+            const filePath = await resolveVirtualPath(requestedPath);
+
+            console.log('FS Request:', req.method, requestedPath);
+
+            switch (req.method) {
+                case 'GET':
+                case 'HEAD': {
+                    const info = await stat(filePath);
+
+                    if (info.isDirectory()) {
+                        const files = await readdir(filePath, { withFileTypes: true });
+
+                        const result = await Promise.all(files.map(async file => {
+                            const fullPath = join(filePath, file.name);
+                            const info = await stat(fullPath);
+
+                            return {
+                                name: file.name,
+                                isDir: file.isDirectory() || undefined, // short for file.isDirectory()?true:undefined
+                                size: (file.isDirectory()==false)?info.size:undefined
+                            };
+                        }));
+
+                        res.writeHead(200, {
+                            'Content-Type': 'application/json'
+                        });
+
+                        return res.end(JSON.stringify(result));
+                    }
+
+                    const content = await readFile(filePath);
+
+                    res.writeHead(200, {
+                        'Content-Type':
+                            MIME_TYPES[extname(filePath).toLowerCase()]
+                            ?? 'application/octet-stream',
+                        'Content-Length': content.length
+                    });
+
+                    return res.end(req.method === 'HEAD' ? undefined : content);
+                }
+
+                case 'PUT': {
+                    await writeFile(filePath, req);
+
+                    res.writeHead(204);
+                    return res.end();
+                }
+
+                case 'DELETE': {
+                    await unlink(filePath);
+
+                    res.writeHead(204);
+                    return res.end();
+                }
+            }
+        }
+
+        // -------------------------------
+        // Static file server
+        // -------------------------------
+
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            res.writeHead(405);
+            return res.end('Method Not Allowed');
+        }
+
+        const requestedPath = pathname === '/'
+            ? 'index.html'
+            : pathname.slice(1);
+
+        const filePath = resolve(PUBLIC_DIR, requestedPath);
+        const relPath = relative(PUBLIC_DIR, filePath);
+
+        if (
+            relPath === '..' ||
+            relPath.startsWith('..' + sep) ||
+            isAbsolute(relPath) ||
+            !relPath
+        ) {
+            res.writeHead(403);
+            return res.end('Forbidden');
+        }
+
+        const content = await readFile(filePath);
+
+        res.writeHead(200, {
+            'Content-Type':
+                MIME_TYPES[extname(filePath).toLowerCase()]
+                ?? 'application/octet-stream',
+            'Content-Length': content.length
+        });
+
+        res.end(req.method === 'HEAD' ? undefined : content);
+
+    } catch (err) {
+        console.error('HTTP error:', err);
+
+        const status =
+            err.status ??
+            (err.code === 'ENOENT' ? 404 :
+             err.code === 'EISDIR' ? 400 : 500);
+
+        res.writeHead(status, {
+            'Content-Type': 'text/plain; charset=utf-8'
+        });
+
+        res.end(
+            status === 403 ? 'Forbidden' :
+            status === 404 ? 'Not Found' :
+            status === 400 ? 'Invalid file operation' :
+            'Internal Server Error'
+        );
     }
 });
 
