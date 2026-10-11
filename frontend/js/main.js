@@ -5,20 +5,20 @@ let mainMenuItems = [
             {
                 label: "Open",
                 action: () => {
-                    FileDialog.Show({onConfirm: async ({data, name, ext})=>{
-                        console.log("Selected the file:", {data, name, ext, size:data.byteLength});
+                    FileDialog.Show({extensions:['.ws.zip', '.sr', '.vcd', '.bin'], onConfirm: async ({data, name, ext, source})=>{
+                        console.log("Selected the file:", {data, name, ext, size:data.byteLength, source:FileDialog.FDSourceToString(source)});
                     }});
-                    /*
-                    SelectFile({filters:['.ws.zip','.sr','.vcd','.bin'], onRead: async({data, name, ext})=>{
-                        console.log({data, name, ext});
-                    }});*/
+
                 }
             },
             {
                 label: "Save",
                 action: () => {
-                    FileDialog.Show({mode: FileDialog.FDModes.Save, onConfirm: async (filePath)=>{
-                        console.log("file to save selected:", filePath);
+                    FileDialog.Show({extensions:['.ws.zip'], mode: FileDialog.FDModes.Save, onConfirm: async ({name, source})=>{
+                        console.log("file to save selected:", {name, source:FileDialog.FDSourceToString(source)});
+                        // special note here data to save is not provided to the FD
+                        // and even if it where there is no point returning it here
+                        // this would then instead be the 
                     }});
                 }
             },

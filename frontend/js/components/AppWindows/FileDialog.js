@@ -5,6 +5,16 @@ class FileDialog extends AppWindow {
         Save:1
     };
 
+    static FDSources = {
+        Local:0,
+        Backend:1
+    }
+    static FDSourceToString(src) {
+        if (src == FileDialog.FDSources.Local) return 'Local';
+        else if (src == FileDialog.FDSources.Backend) return 'Backend';
+        else return 'unknown';
+    }
+
     #cwd = '';            // virtual path relative to user_data_fs, e.g. "captures/2026"
     #entries = [];
     #selected = null;     // selected file name
@@ -17,8 +27,6 @@ class FileDialog extends AppWindow {
         path = '',                // start directory
         fileName = '',            // default name in save mode
         extensions = null,        // e.g. ['.sr', '.json'] - filters files, dirs always shown
-        confirmText = null,
-        confirmClass = '',
         onConfirm = (path) => {}  // receives the virtual path, e.g. "captures/test.sr"
     } = {}) {
         super({
@@ -71,13 +79,13 @@ class FileDialog extends AppWindow {
         this.setBody(body_el);
         this.setFooter(createButtonBar([
             {
-                text: confirmText ?? (mode === FileDialog.FDModes.Save ? 'Save Anywhere' : 'Open Any File'),
-                className: confirmClass,
+                text: (mode === FileDialog.FDModes.Save ? 'Save Anywhere' : 'Open Any File'),
+                className: '',
                 onClick: () => this.#openSaveAny()
             },
             {
-                text: confirmText ?? (mode === FileDialog.FDModes.Save ? 'Save' : 'Open'),
-                className: confirmClass,
+                text: (mode === FileDialog.FDModes.Save ? 'Save' : 'Open'),
+                className: '',
                 onClick: () => this.#confirm()
             },
             {
@@ -198,8 +206,6 @@ class FileDialog extends AppWindow {
         return row;
     }
 
-    
-
     #select(name, row) {
         for (const r of this.list_el.children) r.style.background = '';
         row.style.background = 'rgba(80,140,255,0.35)';
@@ -209,26 +215,43 @@ class FileDialog extends AppWindow {
         if (this.fdmode === FileDialog.FDModes.Save) this.name_el.value = name;
     }
 
+    #getSaveName() {
+        let name = this.name_el.value.trim();
+        if (!name) { this.#showError('Enter a file name.'); return null; }
+        if (/[\\/]/.test(name) || name === '.' || name === '..') {
+            this.#showError('Invalid file name.'); return null;
+        }
+        if (this.extensions?.length && !this.#matches(name) && !name.includes('.')) {
+            name += this.extensions[0];
+            this.name_el.value = name;
+        }
+        return name;
+    }
+
     #openSaveAny() {
         if (this.fdmode === FileDialog.FDModes.Open) {
-            SelectFile({filters:['.ws.zip','.sr','.vcd','.bin'], onRead: async({data, name, ext})=>{
-                console.log({data, name, ext});
-                this.onConfirm({data, name, ext});
+            SelectFile({filters:['.ws.zip','.sr','.vcd','.bin'], onRead: async({data, name})=>{
+                this.onConfirm({data, name, source: FileDialog.FDSources.Local});
                 this.destroy();
             }});
         } else {
-            let name = this.name_el.value.trim();
-            if (!name) return this.#showError('Enter a file name.');
-            if (/[\\/]/.test(name) || name === '.' || name === '..') {
-                return this.#showError('Invalid file name.');
-            }
+            const name = this.#getSaveName();
+            if (!name) return;
 
-            this.onConfirm({name});
+            this.onConfirm({name, source: FileDialog.FDSources.Local});
             this.destroy();
         }
     }
 
     // ---------- confirm ----------
+
+    static #extOf(name, extensions) {
+        const lower = name.toLowerCase();
+        const hit = extensions?.find(e => lower.endsWith(e));
+        if (hit) return hit.slice(1);
+        const i = lower.lastIndexOf('.');
+        return i >= 0 ? lower.slice(i + 1) : '';
+    }
 
     async #confirm() {
         let name;
@@ -237,38 +260,31 @@ class FileDialog extends AppWindow {
             name = this.#selected;
             if (!name) return this.#showError('Select a file first.');
         } else {
-            name = this.name_el.value.trim();
-            if (!name) return this.#showError('Enter a file name.');
-            if (/[\\/]/.test(name) || name === '.' || name === '..') {
-                return this.#showError('Invalid file name.');
-            }
-            // Add default extension if the user didn't type one.
-            if (this.extensions?.length && !this.#matches(name) && !name.includes('.')) {
-                name += this.extensions[0];
-                this.name_el.value = name;
-            }
+            name = this.#getSaveName();
+            if (!name) return;
+
             const exists = this.#entries.some(e => !e.isDir && e.name === name);
             if (exists && !this.#overwriteArmed) {
                 this.#overwriteArmed = true;
                 return this.#showError(`"${name}" already exists. Press ${this.fdmode === FileDialog.FDModes.Save ? 'Save' : 'OK'} again to overwrite.`);
             }
         }
-
+        const filePath = this.#join(name);
         if (this.fdmode === FileDialog.FDModes.Open) {
-            const filePath = this.#join(name);
-            const response = await fetch('/api/fs/' + filePath);
-
-            if (!response.ok)
-                throw new Error(`Failed to read file: ${response.status}`);
-
-            const file = await response.arrayBuffer();
-
-            this.onConfirm({data:file, name:filePath, ext:name.substring(name.lastIndexOf('.')+1)});
+            try {
+                const response = await fetch(FileDialog.#url(filePath));
+                if (!response.ok) throw new Error(`${response.status}`);
+                const data = await response.arrayBuffer();
+                this.onConfirm({ data, name: filePath, ext: FileDialog.#extOf(name, this.extensions), source: FileDialog.FDSources.Backend });
+                this.destroy();
+            } catch (err) {
+                this.#showError('Failed to read file: ' + err.message);
+            }
         } else {
-
-            this.onConfirm({name:filePath, ext:name.substring(name.lastIndexOf('.')+1)});
+            this.onConfirm({name:filePath, source: FileDialog.FDSources.Backend});
+            this.destroy();
         }
-        this.destroy();
+
     }
 
     open() {

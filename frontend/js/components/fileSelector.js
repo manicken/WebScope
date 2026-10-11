@@ -9,7 +9,7 @@ function SelectFile({filters=['*/*'], onRead=()=>{}}={}) {
         const file = input.files[0];
         if (!file) return;
 
-        console.log(file.name, file.size);
+        //console.log(file.name, file.size);
         
         let index = -1;
         let extension = ""
@@ -28,7 +28,7 @@ function SelectFile({filters=['*/*'], onRead=()=>{}}={}) {
         
         reader.onload = () => onRead({data:reader.result, name:filename, ext:extension});
         reader.onerror = () => console.error('Failed to read file:', reader.error);
-        console.log("trying to read:",{name:filename, ext:extension});
+        //console.log("trying to read:",{name:filename, ext:extension});
         reader.readAsArrayBuffer(file);
     };
 
