@@ -29,7 +29,7 @@ class SPIDecoder extends Decoder {
         wordBits:{ label: 'Bits/word', type: 'number', default:8 },
         msbFirst:{ label: 'MSB first', type: 'bool', default:true },
         format:{ ...Decoder.FORMAT_FIELD, default: 'hex'},
-        subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
+        subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
     };
 
     getCfgGui() {

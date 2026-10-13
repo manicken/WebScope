@@ -28,7 +28,7 @@ class CustomDecoder extends Decoder {
 
     static GuiConfigData = {
         code: {label:'code', type:'js_code_edit', default: CustomDecoderExampleCode},
-        subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
+        subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
     }
     
     getCfgGui() {

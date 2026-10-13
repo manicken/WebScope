@@ -12,27 +12,30 @@
   let addDecoderMenu = null;
 
   function init() {
-    addDecoderMenu = new AddNewDecoderContextMenu({itemClickedCb: (item) => {addNewDecoder(item.class)}});
+    addDecoderMenu = new AddNewDecoderContextMenu({itemClickedCb: (p) => {addNewDecoder(p)}});
     console.log(WS.decoders.registry);
     
   }
 /* ============================== Analyzers ============================== */
-  function renderAnalyzers(container) {
+  function renderAnalyzers({container, title = 'Analyzers', decoders = store.get().decoders, parent=null}={}) {
     //console.trace();
     container.innerHTML = '';
 
     const btn = el('button', '', '➕');
     btn.addEventListener('click', (e) => {
       const rect  = e.currentTarget.getBoundingClientRect();
-      addDecoderMenu.setItems({items:WS.decoders.registry, decoder:null});
+      addDecoderMenu.setItems({items:WS.decoders.registry, parentDecoder:parent});
       addDecoderMenu.toggleContextMenu(e, {x:rect.left, y:(rect.top+rect.height+2)});
     });
     const spacer = createNewElement('div', {className:'spacer'});
-    const sec = MinimizeCard({ title:'Analyzers', headItems:[spacer, btn]})
-    const decoders = store.get().decoders;
-    if (decoders.length === 0) sec.bodyAppendChild(el('div', 'hint', 'Add a protocol analyzer to decode UART, I²C or SPI traffic.'));
+    const sec = MinimizeCard({ title, headItems:[spacer, btn]})
+    //const decoders = store.get().decoders;
+    if (decoders.length === 0) sec.bodyAppendChild(el('div', 'hint', 'Add a protocol analyzer to decode the captured data'));
     const cards = el('div', 'cards');
-    for (const d of decoders) cards.appendChild(analyzerCard(d));
+    for (const d of decoders) {
+        if (d.parent != parent) continue; // dont render subdecoders that do not belong to this parent
+        cards.appendChild(analyzerCard(d));
+    }
     sec.bodyAppendChild(cards);
     container.appendChild(sec.getRoot());
   }
@@ -54,7 +57,9 @@ function analyzerCard(d) {
 
     for (const [key, f] of Object.entries(d.getCfgGui())) {
         const row = el('label', 'form-row' + (f.type === 'bool' ? ' bool' : ''));
-        row.appendChild(el('span', null, f.label));
+        if (f.type != 'subDecoders') {
+            row.appendChild(el('span', null, f.label));
+        }
 
         const v = d.cfg[key];
         const update = (val) => updateDecoder(d.id, { [key]: val });
@@ -121,14 +126,9 @@ function analyzerCard(d) {
             input.append(codeText, buttons);
 
         } else if (f.type === 'subDecoders') {
+            row.className = 'form-col';
             input = createNewElement('div', { styles: { width: '100%' } });
-            const btn = el('button', '', '➕');
-            btn.addEventListener('click', (e) => {
-              const rect  = e.currentTarget.getBoundingClientRect();
-              addDecoderMenu.setItems({items:WS.decoders.registry, decoder:d});
-              addDecoderMenu.toggleContextMenu(e, {x:rect.left, y:(rect.top+rect.height+2)});
-            }); 
-            input.append(btn);
+            renderAnalyzers({container:input, decoders:d.subDecoders, parent:d, title:f.label});
         } else {
             input = document.createElement('input'); input.className = 'mono'; input.value = String(v);
             const commit = () => { const n = Number(input.value); if (isFinite(n) && n > 0 && n !== v) update(n); else input.value = String(v); };
@@ -142,105 +142,6 @@ function analyzerCard(d) {
     return card.card;
 }
 
-
-  /*function analyzerCard(d) {
-    //console.log(d);
-    const channels = store.get().channels;
-    const card = el('div', 'card');
-    const head = el('div', 'card-head');
-    const toggleBtn = el('button', 'icon-btn', '▾');
-    const body = el('div', 'card-body');
-    let open = true;
-    toggleBtn.addEventListener('click', () => {
-      open = !open;
-      toggleBtn.textContent = open ? '▾' : '▸';
-      body.style.display = open ? 'grid' : 'none';
-    });
-    head.appendChild(toggleBtn);
-    head.appendChild(el('span', 'dot', '')); head.lastChild.style.background = d.color;
-    head.appendChild(el('span', 'card-title', d.name));
-    head.appendChild(el('span', 'card-sub', d.summary(channels)));
-    const eyeBtn = el('button', 'icon-btn', d.visible ? '👁' : '🚫');
-    eyeBtn.title = d.visible ? 'Hide rows' : 'Show rows';
-    eyeBtn.addEventListener('click', () => toggleDecoderVisible(d.id));
-    head.appendChild(eyeBtn);
-    const delBtn = el('button', 'icon-btn danger', '✕');
-    delBtn.title = 'Remove';
-    delBtn.addEventListener('click', () => removeDecoder(d.id));
-    head.appendChild(delBtn);
-    card.appendChild(head);
-
-    for (const [key, f] of Object.entries(d.getCfgGui())) {
-      const row = el('label', 'form-row' + (f.type === 'bool' ? ' bool' : ''));
-      row.appendChild(el('span', null, f.label));
-      const v = d.cfg[key];
-      const update = (val) => updateDecoder(d.id, { [key]: val });
-      let input;
-      if (f.type === 'channel' || f.type === 'channel?') {
-        input = document.createElement('select');
-        if (f.type === 'channel?') input.appendChild(new Option('None', ''));
-        for (const ch of channels) input.appendChild(new Option(ch.name, String(ch.index)));
-        input.value = v === null || v === undefined ? '' : String(v);
-        input.addEventListener('change', () => update(input.value === '' ? null : Number(input.value)));
-      } else if (f.type === 'select') {
-        input = document.createElement('select');
-        for (const [k, label] of f.options) input.appendChild(new Option(label, String(k)));
-        input.value = String(v);
-        input.addEventListener('change', () => { const opt = f.options.find(([k]) => String(k) === input.value); update(opt[0]); });
-      } else if (f.type === 'bool') {
-        input = document.createElement('input'); input.type = 'checkbox'; input.checked = Boolean(v);
-        input.addEventListener('change', () => update(input.checked));
-      } else if (f.type === 'js_code_edit') {
-        row.className = 'form-col';
-        input = createNewElement('div', {styles:{width:'100%'}});
-        let codeText = createNewElement('textarea', {styles:{width:'100%', minHeight:'200px', background:'#AAA'}, value:v, onchange:(e)=>{update(e.currentTarget.value)}});
-        let codeEditOpenBtn = createNewElement('button', {textContent:'edit', styles:{width:'100%', background:'#494949'},
-          onclick:()=>{ 
-            WS.customDecoderEditor.open({code:codeText.value,
-              onSave:(code) => { 
-                update(code);
-                //codeText.value = v; // not really necessary
-              },
-              onRunDecoder:(code) => {
-                update(code);
-                let res = d.compile();
-                if (res != true) {
-                    InfoDialog.Show({title:"Custom Code Error", message:res});
-                }
-                update(code);
-                //codeText.value = v; // not really necessary
-                
-              }
-            });
-            
-          }
-        });
-        let codeRunBtn = createNewElement('button', {textContent:'run', styles:{width:'100%', background:'#494949'},
-          onclick:()=>{
-            update(codeText.value);
-            let res = d.compile();
-            if (res != true) {
-                InfoDialog.Show({title:"Custom Code Error", message:res});
-            }
-            update(codeText.value);
-          }
-        });
-        let buttons = createNewElement('div', {className:'form-row'});
-        buttons.append(codeEditOpenBtn, codeRunBtn)
-        input.append(codeText, buttons);
-
-      } else {
-        input = document.createElement('input'); input.className = 'mono'; input.value = String(v);
-        const commit = () => { const n = Number(input.value); if (isFinite(n) && n > 0 && n !== v) update(n); else input.value = String(v); };
-        input.addEventListener('blur', commit);
-        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
-      }
-      row.appendChild(input);
-      body.appendChild(row);
-    }
-    card.appendChild(body);
-    return card;
-  }*/
 
   WS.decoders = WS.decoders ?? {};
   WS.decoders.ui = Object.assign(WS.decoders.ui ?? {}, {

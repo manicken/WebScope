@@ -10,11 +10,14 @@
     const decodedCache = new Map(); // decoder id -> { anns: Annotation[] }
     const registry = [];
 
-    function addNewDecoder(classItem) {
+    function addNewDecoder({item, parentDecoder=null}) {
         const decoders = store.get().decoders;
         const id = decoders.reduce((m, d) => Math.max(m, d.id), 0) + 1; // find the last used id and add 1
         const color = WS.theme.DECODER_COLORS[decoders.length % WS.theme.DECODER_COLORS.length];
-        const newDec = new classItem({ id, color });
+        const newDec = new item.class({ id, color, parentDecoder });
+        if (parentDecoder != null) {
+            parentDecoder.addSubDecoder(newDec);
+        }
         store.set({ decoders: [...decoders, newDec], table: { decoder: id, row: 0, focus: null } });
         console.log(newDec);
         decode(id);

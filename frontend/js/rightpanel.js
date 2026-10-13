@@ -23,7 +23,7 @@
     rightPanelEl.appendChild(analyzers); rightPanelEl.appendChild(measurements); rightPanelEl.appendChild(dataTable);
 
     function renderAll() {
-      WS.decoders.ui.renderAnalyzers(analyzers);
+      WS.decoders.ui.renderAnalyzers({container:analyzers});
       WS.measurements.render(measurements);
       WS.annotations.renderDataTable(dataTable);
     }

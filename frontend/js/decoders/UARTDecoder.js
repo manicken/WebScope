@@ -15,7 +15,7 @@ class UARTDecoder extends Decoder {
         msbFirst:{ label: 'MSB first', type: 'bool', default: false },
         invert:{ label: 'Inverted', type: 'bool', default:false },
         format:{ ...Decoder.FORMAT_FIELD, default:'ascii'},
-        subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
+        subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
     };
 
     getCfgGui() {

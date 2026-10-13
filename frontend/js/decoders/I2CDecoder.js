@@ -18,7 +18,7 @@ class I2CDecoder extends Decoder {
         scl:{ label: 'SCL', type: 'channel', default: 1},
         sda:{ label: 'SDA', type: 'channel', default: 2},
         format: { ...Decoder.FORMAT_FIELD, default: 'hex'},
-        subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
+        subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
     }
 
     getCfgGui() {

@@ -1,17 +1,18 @@
 class AddNewDecoderContextMenu extends ContextMenu {
 
-    constructor({itemClickedCb = (item) => {console.warn("itemClickedCb not set");}}={}) {
+    constructor({itemClickedCb = () => {console.warn("itemClickedCb not set");}}={}) {
         super({width:256, height:400});
         this.itemClickedCb = itemClickedCb;
     }
 
-    setItems({items=[], decoder=null}={}) {
+    setItems({items=[], parentDecoder=null}={}) {
+        this.parentDecoder = parentDecoder;
         this.items = items.filter(item => {
-            if (decoder == null) return true;
+            if (parentDecoder == null) return true;
             //console.log(decoder.GetConsumers);
-            const consumerTypes = decoder.GetConsumers?.() ?? item.class.GetConsumers();
+            const consumerTypes = parentDecoder.GetConsumers?.() ?? item.class.GetConsumers();
             if (consumerTypes.length === 0) return true;
-            return consumerTypes.some(type => decoder.constructor.TYPE === type);
+            return consumerTypes.some(type => parentDecoder.constructor.TYPE === type);
         });
 
         this.searchInput_el = createNewElement("input", {
@@ -57,7 +58,7 @@ class AddNewDecoderContextMenu extends ContextMenu {
             const el = createNewElement("div", {
                 className: "context-menu-item",
                 textContent: item.name,
-                onclick: () => this.itemClickedCb(item)
+                onclick: () => this.itemClickedCb({item, parentDecoder:this.parentDecoder})
             });
 
             this.list_el.appendChild(el);

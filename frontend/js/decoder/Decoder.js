@@ -23,7 +23,7 @@ class Decoder {
 
     }
 
-    constructor({id=null, color='#FFF', onGetSource=null}={}) {
+    constructor({id=null, color='#FFF', parentDecoder=null}={}) {
         if (id == null) {
             throw Error("decoder ID must be provided");
         }
@@ -39,12 +39,16 @@ class Decoder {
          *  so that when a subdecoder is removed 
          *  it can also be removed from the parent
          */
-        this.parent = null;
+        this.parent = parentDecoder;
         /** contains a list of subdecoders that consume this decoder:s output */
         this.subDecoders = [];
         /** used to get the source, default is the raw capture buffer  */
-        this.getSource = onGetSource ?? this.getSourceFunction();
+        this.getSource = parentDecoder?.getSourceFunction?.() ?? this.getSourceFunction();
         this.loadDefaultConfig(this.constructor.GuiConfigData, this.cfg);
+    }
+
+    addSubDecoder(decoder) {
+        this.subDecoders.push(decoder);
     }
 
     getSourceFunction() {
