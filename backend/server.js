@@ -90,50 +90,6 @@ async function resolveVirtualPath(virtualPath) {
 
     return filePath;
 }
-/*
-const httpServer = createServer(async (req, res) => {
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-        res.writeHead(405);
-        return res.end('Method Not Allowed');
-    }
-
-    try {
-        const url = new URL(req.url, 'http://localhost');
-        const pathname = decodeURIComponent(url.pathname);
-        const requestedPath = pathname === '/'
-            ? 'index.html'
-            : pathname.slice(1);
-
-        const filePath = resolve(PUBLIC_DIR, requestedPath);
-        const relPath = relative(PUBLIC_DIR, filePath);
-
-        console.log("Request:", {url, filePath, relPath});
-
-        // Prevent requests outside the public directory.
-        if (relPath === '..' ||
-            relPath.startsWith('..' + sep) ||
-            resolve(filePath) === resolve(PUBLIC_DIR)) {
-            res.writeHead(403);
-            return res.end('Forbidden');
-        }
-
-        const content = await readFile(filePath);
-        res.writeHead(200, {
-            'Content-Type':
-                MIME_TYPES[extname(filePath).toLowerCase()]
-                ?? 'application/octet-stream',
-            'Content-Length': content.length
-        });
-
-        res.end(req.method === 'HEAD' ? undefined : content);
-    } catch (err) {
-        const status = err.code === 'ENOENT' ? 404 : 500;
-        res.writeHead(status, {
-            'Content-Type': 'text/plain; charset=utf-8'
-        });
-        res.end(status === 404 ? 'Not Found ' + err : 'Internal Server Error ' + err);
-    }
-});*/
 
 const httpServer = createServer(async (req, res) => {
     try {
@@ -283,14 +239,23 @@ server.on('listening', () => {
 
 const devices = new Map();
 
-async function sendDevices() {
+async function sendDevices(ws) {
     let _devices = await scanSigrok();
     for (const info of _devices) devices.set(info.id, info);
     const arr = [...devices.values()];
-    sendToAll({
+    sendTo(ws, {
         type: 'devices',
         devices: arr
     });
+}
+
+function sendTo(ws, data) {
+    if (typeof data !== "string") {
+        data = JSON.stringify(data);
+    }
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+    }
 }
 
 function sendToAll(data) {
@@ -304,7 +269,7 @@ function sendToAll(data) {
     }
 }
 
-function refreshDevices() {
+function refreshDevices(ws) {
     devices.clear();
     let ddInfo = DemoDevice.info();
     devices.set(ddInfo.id, ddInfo);
@@ -314,13 +279,13 @@ function refreshDevices() {
     // which will when finished send the whole package
     // actually it's possible to send devices in parts
     // so first we can at least send the demo device(s)
-    sendDevices();
+    sendDevices(ws);
 }
 
 server.on('connection', (ws) => {
     console.log('Client connected');
 
-    refreshDevices();
+    refreshDevices(ws);
 
     ws.on('message', (data) => {
         try {
@@ -339,10 +304,10 @@ server.on('connection', (ws) => {
                     },
                     /* onDone */
                     (info) => {
-                        sendToAll({type:"done", ...info});
+                        sendTo(ws, {type:"done", ...info});
                     },
                     (msg) => { 
-                        sendToAll({type:"error", message:msg});
+                        sendTo(ws, {type:"error", message:msg});
                         console.log("Error: " + msg);
                     }
                 );
@@ -355,7 +320,7 @@ server.on('connection', (ws) => {
             }
 
             if (msg.type === "refreshdevices") {
-                refreshDevices();
+                refreshDevices(ws);
             }
         } catch (ex) {
             console.error(ex);

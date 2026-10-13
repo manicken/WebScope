@@ -29,11 +29,11 @@
     },
     /** called from custom decoder rows function*/
     rows(context) {
-        return [{id:'data', label:'DATA', anchor: { signal: 'channel' }, placement: 'after'}];
+        return {data:{label:'DATA', anchor: { signal: 'channel' }, placement: 'after'}};
     },
     /** called from custom decoder run function */
-    run(input, context) {
-        const buf = input;
+    run(context) {
+        const buf = context.getSource();
         const cfg = context.cfg;
         const ANN = window.WS.theme;
         const ch = cfg.channel;

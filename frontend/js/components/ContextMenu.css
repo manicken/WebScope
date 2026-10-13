@@ -1,6 +1,7 @@
 .context-menu {
     position: fixed !important;
-    display: none;
+    display: flex;
+    flex-direction: column;
     z-index: 10000;
 
     min-width: 10px;
@@ -15,6 +16,12 @@
 
     font-family: ui-monospace, Menlo, Consolas, monospace;
     font-size: 12px;
+
+    box-sizing: border-box;
+}
+
+.context-menu.hidden{
+    display: none !important;
 }
 
 .context-menu-item {

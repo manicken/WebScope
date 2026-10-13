@@ -28,17 +28,28 @@ class CustomDecoder extends Decoder {
 
     static GuiConfigData = {
         code: {label:'code', type:'js_code_edit', default: CustomDecoderExampleCode},
-        custom:{ label: 'custom', type: 'custom', default: []},
+        subDecoders:{ label: 'subDecoders', type: 'subDecoders', default: []},
     }
     
     getCfgGui() {
         return {...CustomDecoder.GuiConfigData, ...this.#decoder?.getCfgGui()};
     }
 
+    /** static method, no filter */
+    static GetConsumers() {
+        return [];
+    }
+
+    /** instance method, gets it's filter from custom code or defaults to filter that includes nothing */
+    GetConsumers() {
+        return this.#decoder?.GetConsumers?.() ?? [null];
+    }
+
     #decoder = null;
 
     constructor(p) {
         super(p);
+        console.log(this.constructor.TYPE);
     }
 
     summary(channels) {
@@ -53,12 +64,15 @@ class CustomDecoder extends Decoder {
             if (typeof decoder !== 'object' || decoder === null) {
                 throw new TypeError('Custom decoder must return an object');
             }
+            if (typeof decoder.run !== 'function') {
+                throw new TypeError('Custom decoder must implement a run(input, context) function');
+            }
             decoder?.init(this);
             this.#decoder = decoder;
 
             return true;
         } catch (ex) {
-            console.error(ex);
+            console.error("Compile error in CustomDecoder:", ex);
             return ex;
         }
     }

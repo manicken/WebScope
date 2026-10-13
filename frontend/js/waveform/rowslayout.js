@@ -56,10 +56,11 @@
     const rowNode = new Map();                 // 'decoderId:rowId' -> node
     const rowKey = (d, rowId) => `${d.id}:${rowId}`;
 
-    // Registrera alla noder baserat på radens ID istället för dess index
+    // Register all nodes based on the row id
     for (const d of visibleDecoders) {
-      d.rows().forEach((rowDef) => {
-        rowNode.set(rowKey(d, rowDef.id), { dec: d, rowDef, before: [], after: [] });
+      const rows = d.rows();
+      Object.entries(rows).forEach(([key, rowDef], i) => {
+        rowNode.set(rowKey(d, key), { dec: d, rowDef, rowDefId:key, before: [], after: [] });
       });
     }
 
@@ -72,11 +73,12 @@
         const target = visibleDecoders.find((x) => x.id === d.cfg[anchor.decoder]);
         if (!target) return undefined;
         
-        // Om inget specifikt row-id angetts, ta ID:t från sista raden i mål-dekodern
+        // If no specific row ID is provided, use the ID of the last row in the target decoder.
+
         const targetRows = target.rows();
-        const targetRowId = anchor.row === undefined 
-          ? targetRows[targetRows.length - 1]?.id 
-          : anchor.row;
+        const targetRowId = anchor.row === undefined
+            ? Object.keys(targetRows).at(-1)
+            : anchor.row;
           
         return rowNode.get(rowKey(target, targetRowId));
       }
@@ -94,8 +96,9 @@
       const lowest = chans.length ? chans.reduce((a, b) => (position.get(b) > position.get(a) ? b : a)) : undefined;
       const fallback = channelNode.get(chans.length ? blockEnd.get(lowest) : lastChannel);
 
-      d.rows().forEach((def) => {
-        const me = rowNode.get(rowKey(d, def.id));
+      const rows = d.rows();
+      Object.entries(rows).forEach(([key, def], i) => {
+        const me = rowNode.get(rowKey(d, key));
         const target = anchorNode(d, def.anchor);
 
         if (target && target !== me) {
@@ -122,7 +125,7 @@
         out.push({ 
           kind: 'decoder', 
           dec: node.dec, 
-          rowId: node.rowDef.id, // Skickar med ID istället för index-nummer
+          rowId: node.rowDefId,
           gutter: node.rowDef, 
           y, 
           h: DEC_H 

@@ -64,10 +64,11 @@
         sel.addEventListener('change', () => store.set({ table: { decoder: Number(sel.value), rowId: r.id, focus: null } }));
         extra.appendChild(sel);
       }
-      dec.rows().forEach((r, i) => {
-        const tab = el('button', 'tab' + (i === table.row ? ' on' : ''), r);
+      const rows = dec.rows();
+      Object.entries(rows).forEach(([key, r], i) => {
+        const tab = el('button', 'tab' + (i === table.row ? ' on' : ''), r.label);
         //console.log(r);
-        tab.addEventListener('click', () => store.set({ table: { decoder: dec.id, rowId: r.id, focus: null } }));
+        tab.addEventListener('click', () => store.set({ table: { decoder: dec.id, rowId: key, focus: null } }));
         extra.appendChild(tab);
       });
     }

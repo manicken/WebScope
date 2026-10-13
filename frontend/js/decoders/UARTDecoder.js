@@ -35,7 +35,6 @@ class UARTDecoder extends Decoder {
         }
     }
 
-
     constructor(p) {
         super(p);
         this.signals = ['channel'];
@@ -48,9 +47,14 @@ class UARTDecoder extends Decoder {
         return `${name(c.channel)} · ${c.baud} baud`;
     }
 
-    rows() { return [{id:'data', label:'DATA', anchor: { signal: 'channel' }, placement: 'after'}] }
+    rows() {
+        return {
+            data:{label:'DATA', anchor: { signal: 'channel' }, placement: 'after'}
+        };
+    }
 
-    run(buf) {
+    run() {
+        const buf = this.getSource();
         const ANN = window.WS.theme.ANN;
         console.log(ANN);
         const cfg = this.cfg;

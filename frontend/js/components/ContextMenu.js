@@ -12,11 +12,11 @@ class ContextMenu {
         this.height = height;
 
         document.addEventListener("click", () => {
-            this.hideContextMenu();
+            this.#hide();
         });
         this.#updateBoundingBox();
         document.body.appendChild(this.contextMenu_el);
-        this.hideContextMenu();
+        this.#hide();
     }
 
     clearItems() {
@@ -34,18 +34,28 @@ class ContextMenu {
 
     toggleContextMenu(event, {x=null, y=null, width=null, height=null}={}) {
         if (this.visible) {
-            this.hideContextMenu(); // sets this.visible = false
+            this.#hide(); // sets this.visible = false
         } else {
             this.showContextMenu(event, {x,y,width,height}); // sets this.visible = true
         }
     }
 
-    showContextMenu(event, {x=null, y=null, width=null, height=null}={}) {
+    #show() {
         this.visible = true;
+        this.contextMenu_el.classList.toggle('hidden', false);
+    }
+
+    #hide() {
+        this.visible = false;
+        this.contextMenu_el.classList.toggle('hidden', true);
+    }
+
+    showContextMenu(event, {x=null, y=null, width=null, height=null}={}) {
+        this.#show();
+
         //event.preventDefault();
         event.stopPropagation();
         //console.log(x,y,height,width, this);
-        this.contextMenu_el.style.display = "block";
 
         this.x = x ?? this.x;
         this.y = y ?? this.y;
@@ -72,11 +82,6 @@ class ContextMenu {
         menu.style.top = `${this.y}px`;
         menu.style.width = `${this.width}px`;
         menu.style.height = `${this.height}px`;
-    }
-
-    hideContextMenu() {
-        this.visible = false;
-        this.contextMenu_el.style.display = "none";
     }
 
 }

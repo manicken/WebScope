@@ -7,6 +7,12 @@ class SPIDecoder extends Decoder {
         class: SPIDecoder
     };
 
+    static DisplayModes = {
+        Combined:0,
+        Separate:1,
+        Both:2
+    };
+
     static GuiConfigData = {
         clk:{ label: 'Clock', type: 'channel', default:3 },
         mosi:{ label: 'MOSI', type: 'channel?', default:4 },
@@ -15,6 +21,11 @@ class SPIDecoder extends Decoder {
         csActiveLow:{ label: 'Enable active low', type: 'bool', default:true },
         cpol:{ label: 'CPOL', type: 'select', options: [[0, '0 · idle low'], [1, '1 · idle high']], default:0 },
         cpha:{ label: 'CPHA', type: 'select', options: [[0, '0 · leading edge'], [1, '1 · trailing edge']], default:0 },
+        displayMode:{ label: 'Display Mode', type: 'select', options: [
+            [SPIDecoder.DisplayModes.Combined, 'Combined'],
+            [SPIDecoder.DisplayModes.Separate, 'Separate'],
+            [SPIDecoder.DisplayModes.Both, 'Both']
+        ], default:SPIDecoder.DisplayModes.Separate },
         wordBits:{ label: 'Bits/word', type: 'number', default:8 },
         msbFirst:{ label: 'MSB first', type: 'bool', default:true },
         format:{ ...Decoder.FORMAT_FIELD, default: 'hex'},
@@ -37,16 +48,37 @@ class SPIDecoder extends Decoder {
         return `CLK ${name(c.clk)} · mode ${Number(c.cpol) * 2 + Number(c.cpha)}`
     }
 
-    rows() {
-        return [
-            {id:'data', label:'DATA', anchor: { signal: 'mosi' }, placement: 'after'},
-            {id:'mosi', label:'MOSI', anchor: { signal: 'mosi' }, placement: 'after'},
-            {id:'miso', label:'MISO', anchor: { signal: 'miso' }, placement: 'after'}
-        ];
+    useCombined() {
+        // Include Combined and Both modes
+        return this.cfg.displayMode !== SPIDecoder.DisplayModes.Separate;
     }
 
-    run(buf) {
+    useSeparate() {
+        // Include Separate and Both modes
+        return this.cfg.displayMode !== SPIDecoder.DisplayModes.Combined;
+    }
+
+    rows() {
+        let ret = {};
+        if (this.useCombined()) {
+            ret.data = {label:'DATA', anchor: { signal: 'clk' }, placement: 'after'};
+        }
+        if (this.useSeparate()) {
+            ret.mosi = {label:'MOSI', anchor: { signal: 'mosi' }, placement: 'after'},
+            ret.miso = {label:'MISO', anchor: { signal: 'miso' }, placement: 'after'}
+        }
+        return ret;
+    }
+
+    
+// ['mosi', 'data', 'miso']
+
+    run() {
+        console.log(Object.keys(this.rows()));
+        const buf = this.getSource();
         const cfg = this.cfg;
+        const useCombined = this.useCombined();
+        const useSeparate = this.useSeparate();
         const ANN = window.WS.theme;
         const clkBit = 1 << cfg.clk;
         const mosiBit = cfg.mosi != null ? 1 << cfg.mosi : null;
@@ -58,6 +90,7 @@ class SPIDecoder extends Decoder {
         const sampleRising = sampleOnLeading ? leadingRising : !leadingRising;
         const csActive = (word) => csBit === null ? true : (cfg.csActiveLow ? !(word & csBit) : !!(word & csBit));
 
+        
         const dataAnns = [];
         const mosiAnns = [];
         const misoAnns = [];
@@ -99,15 +132,27 @@ class SPIDecoder extends Decoder {
                     let misoText = misoBit !== null ? Decoder.AsFormat({word:misoWord, type:cfg.format, hexPadding:digits, binPadding:cfg.wordBits}) : '';
                     let text = mosiText;
                     if (misoBit !== null) text += (text ? ' / ' : '') + 'MISO ' + misoText;
-                    dataAnns.push({ start: wordStart, end: i, class: ANN.DATA, text });
 
-                    mosiAnns.push({ start: wordStart, end: i, class: ANN.DATA, text:mosiText });
-                    misoAnns.push({ start: wordStart, end: i, class: ANN.DATA, text:misoText });
+                    if (useCombined) {
+                        dataAnns.push({ start: wordStart, end: i, class: ANN.DATA, text });
+                    } 
+                    if (useSeparate) {
+                        mosiAnns.push({ start: wordStart, end: i, class: ANN.DATA, text:mosiText });
+                        misoAnns.push({ start: wordStart, end: i, class: ANN.DATA, text:misoText });
+                    }
                     mosiWord = 0; misoWord = 0; bitCount = 0;
                 }
             }
         }
-        return {data:dataAnns, mosi:mosiAnns, miso:misoAnns};
+        let ret = {};
+        if (useCombined) {
+            ret.data = dataAnns;
+        }
+        if (useSeparate) {
+            ret.mosi = mosiAnns;
+            ret.miso = misoAnns;
+        }
+        return ret;
     }
 }
 

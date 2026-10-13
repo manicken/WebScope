@@ -28,7 +28,7 @@
     growing = new Uint32Array(total);
     store.set({
       follow: true, markers: { a: null, b: null }, measurement: null,
-      status: { ...store.get().status, state: 'running', samples: 0, samplerate, captureId: store.get().status.captureId + 1 }
+      status: { ...store.get().status, state: 'running', sampleCount: 0, samplerate, captureId: store.get().status.captureId + 1 }
     });
     activeSource = source;
     activeSource.start(
@@ -76,12 +76,12 @@
 
   function stopCapture() {
     activeSource?.stop();
-    if (growing && store.get().status.samples > 0) {
-      const n = store.get().status.samples;
+    if (growing && store.get().status.sampleCount > 0) {
+      const n = store.get().status.sampleCount;
       WS.capture.setBuffer(new WS.CaptureBuffer(growing.slice(0, n), store.get().status.samplerate, store.get().channels.length));
       for (const d of store.get().decoders) decoders.decode(d.id);
     }
-    store.set((s) => ({ status: { ...s.status, state: s.status.samples > 0 ? 'done' : 'idle' } }));
+    store.set((s) => ({ status: { ...s.status, state: s.status.sampleCount > 0 ? 'done' : 'idle' } }));
   }
 
   WS.capture = WS.capture ?? {};

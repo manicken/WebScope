@@ -38,10 +38,13 @@ class I2CDecoder extends Decoder {
     }
 
     rows() {
-        return [{id:'data', label:'DATA', anchor: { signal: 'sda' }, placement: 'after'}];
+        return {
+            data:{label:'DATA', anchor: { signal: 'sda' }, placement: 'after'}
+        };
     }
 
-    run(buf) {
+    run() {
+        const buf = this.getSource();
         const cfg = this.cfg;
         this.frames = [];
         const ANN = window.WS.theme;
@@ -97,14 +100,7 @@ class I2CDecoder extends Decoder {
                 }
             }
         }
-        let row = 1;
-        for (let sub of this.subDecoders) {
-            let result  = sub.decode(this.frames);
-            for (const ann of result.anns) {
-                anns.push({ ...ann, row });
-            }
-            row++;
-        }
+        
         return {data:anns};
     }
 }

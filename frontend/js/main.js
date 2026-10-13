@@ -47,7 +47,7 @@ let mainMenuItems = [
                             WS.capture.setBuffer(new CaptureBuffer(samples, samplerate, channels));
                             const store = WS.store;
                             if (store.get().channels.length !== channels) store.set({ channels: store.makeChannels(channels) });
-                            store.set((s) => ({ status: { ...s.status, state: 'done', samples:samples.length, samplerate, channels, trigger: null } }));
+                            store.set((s) => ({ status: { ...s.status, state: 'done', sampleCount:samples.length, samplerate, channels, trigger: null } }));
                             for (const d of store.get().decoders) WS.decoders.decode(d.id);
                             if (store.get().follow) WS.waveform.fit();
                             

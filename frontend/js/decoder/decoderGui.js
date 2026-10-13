@@ -14,7 +14,7 @@
   function init() {
     addDecoderMenu = new AddNewDecoderContextMenu({itemClickedCb: (item) => {addNewDecoder(item.class)}});
     console.log(WS.decoders.registry);
-    addDecoderMenu.setItems(WS.decoders.registry);
+    
   }
 /* ============================== Analyzers ============================== */
   function renderAnalyzers(container) {
@@ -24,7 +24,8 @@
     const btn = el('button', '', '➕');
     btn.addEventListener('click', (e) => {
       const rect  = e.currentTarget.getBoundingClientRect();
-      addDecoderMenu.toggleContextMenu(e, {x:rect.left, y:(rect.top+rect.height)});
+      addDecoderMenu.setItems({items:WS.decoders.registry, decoder:null});
+      addDecoderMenu.toggleContextMenu(e, {x:rect.left, y:(rect.top+rect.height+2)});
     });
     const spacer = createNewElement('div', {className:'spacer'});
     const sec = MinimizeCard({ title:'Analyzers', headItems:[spacer, btn]})
@@ -119,6 +120,15 @@ function analyzerCard(d) {
             buttons.append(codeEditOpenBtn, codeRunBtn);
             input.append(codeText, buttons);
 
+        } else if (f.type === 'subDecoders') {
+            input = createNewElement('div', { styles: { width: '100%' } });
+            const btn = el('button', '', '➕');
+            btn.addEventListener('click', (e) => {
+              const rect  = e.currentTarget.getBoundingClientRect();
+              addDecoderMenu.setItems({items:WS.decoders.registry, decoder:d});
+              addDecoderMenu.toggleContextMenu(e, {x:rect.left, y:(rect.top+rect.height+2)});
+            }); 
+            input.append(btn);
         } else {
             input = document.createElement('input'); input.className = 'mono'; input.value = String(v);
             const commit = () => { const n = Number(input.value); if (isFinite(n) && n > 0 && n !== v) update(n); else input.value = String(v); };
@@ -235,7 +245,8 @@ function analyzerCard(d) {
   WS.decoders = WS.decoders ?? {};
   WS.decoders.ui = Object.assign(WS.decoders.ui ?? {}, {
     init,
-    renderAnalyzers
+    renderAnalyzers,
+    addDecoderMenu,
   });
 
 })(window.WS = window.WS ?? {});

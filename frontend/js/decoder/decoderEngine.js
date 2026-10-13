@@ -39,17 +39,13 @@
         decode(id);
     }
 
-    function runRootDecoder(inst) {
-        return inst.run(WS.capture.getBuffer());
-    }
-
     function decode(id) {
         //console.log("decode ID:" + id);
         if (!WS.capture.hasData()) return;
         const inst = WS.store.get().decoders.find((d) => d.id === id);
         if (!inst) return;
 
-        let decRes = runRootDecoder(inst);
+        let decRes = inst.run(WS.capture.getBuffer());
         //console.log(decRes);
         decodedCache.set(id, decRes);
         
