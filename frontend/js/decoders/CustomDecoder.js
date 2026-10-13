@@ -77,6 +77,10 @@ class CustomDecoder extends Decoder {
         }
     }
 
+    getSourceFunction() {
+        return this.#decoder?.getSourceFunction ?? (() => { return null; })
+    }
+
     rows() {
         return this.#decoder?.rows?.(this) ?? [];
     }
