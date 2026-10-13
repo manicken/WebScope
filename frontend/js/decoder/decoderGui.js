@@ -142,7 +142,6 @@ function analyzerCard(d) {
     return card.card;
 }
 
-
   WS.decoders = WS.decoders ?? {};
   WS.decoders.ui = Object.assign(WS.decoders.ui ?? {}, {
     init,

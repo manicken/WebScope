@@ -53,6 +53,10 @@ class UARTDecoder extends Decoder {
         };
     }
 
+    getSourceFunction() {
+        return () => { return this.frames; }
+    }
+
     run() {
         const buf = this.getSource();
         const ANN = window.WS.theme.ANN;

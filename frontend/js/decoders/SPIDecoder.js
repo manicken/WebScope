@@ -42,6 +42,10 @@ class SPIDecoder extends Decoder {
         this.frames = [];
     }
 
+    getSourceFunction() {
+        return () => { return this.frames; }
+    }
+
     summary(channels) {
         const c = this.cfg;
         const name = (i) => typeof i === 'number' ? (channels[i]?.name ?? `D${i}`) : '—';
