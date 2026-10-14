@@ -12,89 +12,103 @@
  * way to keep render() sublinear at any zoom.
  */
 (function (WS) {
-  'use strict';
+    'use strict';
 
-  const { makeChannels, toast } = WS.store;
-  const { store } = WS;
+    const { makeChannels, toast } = WS.store;
+    const { store } = WS;
 
-  let buffer = null;
+    let buffer = null;
 
-  /* ---- capture orchestration ---- */
-  let activeSource = null;
-  let growing = null; // Uint32Array being filled while a capture streams in
+    /* ---- capture orchestration ---- */
+    let activeSource = null;
+    let growing = null; // Uint32Array being filled while a capture streams in
 
-  function startCapture(source, {samplerate, duration, channels} = {}) {
-    const total = Math.max(64, Math.round(samplerate * duration));
-    growing = new Uint32Array(total);
-    store.set({
-      follow: true, markers: { a: null, b: null }, measurement: null,
-      status: { ...store.get().status, state: 'running', sampleCount: 0, samplerate, captureId: store.get().status.captureId + 1 }
-    });
-    activeSource = source;
-    activeSource.start(
-      { samplerate, samplecount:total, channels },
-      /* onData */
-      (chunk, offset) => {
-        const available = growing.length - offset;
-        if (chunk.length > available) {
-          console.warn(
-              `capture overflow: ` +
-              `offset=${offset}, ` +
-              `chunk=${chunk.length}, ` +
-              `available=${available}, ` +
-              `diff=${chunk.length - available}, ` +
-              `total=${total}`
-          );
+    function startCapture(source, {samplerate, duration, channels} = {}) {
+        const total = Math.max(64, Math.round(samplerate * duration));
+        growing = new Uint32Array(total);
+        store.set({
+        follow: true, markers: { a: null, b: null }, measurement: null,
+        status: { ...store.get().status, state: 'running', sampleCount: 0, samplerate, captureId: store.get().status.captureId + 1 }
+        });
+        activeSource = source;
+        const sampleType = channels <= 8 ? Uint8Array :
+                    channels <= 16 ? Uint16Array :
+                    Uint32Array; // cap at 32 channels
+        if (channels > 32) {
+            console.warn("channel count capped at 32");
         }
-        const count = Math.min(chunk.length, available);
+        activeSource.start(
+            { samplerate, samplecount:total, channels },
+            /* onData */
+            (chunk, offset) => {
+                const available = growing.length - offset;
+                if (chunk.length > available) {
+                    console.warn(
+                        `capture overflow: ` +
+                        `offset=${offset}, ` +
+                        `chunk=${chunk.length}, ` +
+                        `available=${available}, ` +
+                        `diff=${chunk.length - available}, ` +
+                        `total=${total}`
+                    );
+                }
+                const count = Math.min(chunk.length, available);
 
-        if (count > 0) {
-            // this is a failsafe in cases where the received amount exceed the expected amount
-            growing.set(chunk.subarray(0, count), offset); 
-        }
+                if (count > 0) {
+                    // this is a failsafe in cases where the received amount exceed the expected amount
+                    //growing.set(chunk.subarray(0, count), offset); 
 
-        const samples = Math.min(total, offset + count); // sample count
+                    const samples = new sampleType(
+                        chunk.buffer,
+                        chunk.byteOffset,
+                        chunk.byteLength / sampleType.BYTES_PER_ELEMENT
+                    );
 
-        store.set((s) => ({
-            status: { ...s.status, samples }
-        }));
+                    growing.set(samples, offset);
+                }
 
-        if (store.get().follow) WS.waveform.fit();
-      },
-      /* onDone */
-      (info) => {
-        WS.capture.setBuffer(new CaptureBuffer(growing.slice(0, info.samples), info.samplerate, info.channels));
-        if (store.get().channels.length !== info.channels) store.set({ channels: makeChannels(info.channels) });
-        store.set((s) => ({ status: { ...s.status, state: 'done', samples: info.samples, samplerate: info.samplerate, channels: info.channels, trigger: null } }));
-        for (const d of store.get().decoders) WS.decoders.decode(d.id);
-        if (store.get().follow) WS.waveform.fit();
-      },
-      /* onError */
-      (msg) => { store.set((s) => ({ status: { ...s.status, state: 'error', message: msg } })); toast(msg); }
-    );
-  }
+                const samples = Math.min(total, offset + count); // sample count
 
-  function stopCapture() {
-    activeSource?.stop();
-    if (growing && store.get().status.sampleCount > 0) {
-      const n = store.get().status.sampleCount;
-      WS.capture.setBuffer(new WS.CaptureBuffer(growing.slice(0, n), store.get().status.samplerate, store.get().channels.length));
-      for (const d of store.get().decoders) decoders.decode(d.id);
+                store.set((s) => ({
+                    status: { ...s.status, samples }
+                }));
+
+                if (store.get().follow) WS.waveform.fit();
+            },
+            /* onDone */
+            (info) => {
+                    WS.capture.setBuffer(new CaptureBuffer(growing.slice(0, info.samples), info.samplerate, info.channels));
+                    if (store.get().channels.length !== info.channels) store.set({ channels: makeChannels(info.channels) });
+                    store.set((s) => ({ status: { ...s.status, state: 'done', samples: info.samples, samplerate: info.samplerate, channels: info.channels, trigger: null } }));
+                    for (const d of store.get().decoders) WS.decoders.decode(d.id);
+                    if (store.get().follow) WS.waveform.fit();
+            },
+            /* onError */
+            (msg) => { store.set((s) => ({ status: { ...s.status, state: 'error', message: msg } })); toast(msg); }
+        );
     }
-    store.set((s) => ({ status: { ...s.status, state: s.status.sampleCount > 0 ? 'done' : 'idle' } }));
-  }
 
-  WS.capture = WS.capture ?? {};
-  Object.assign(WS.capture, {
-    startCapture, 
-    stopCapture,
-    hasData: () => !!buffer,
-    setBuffer(b) { buffer = b; },
-    render(start, spp, width) { return buffer ? buffer.render(start, spp, width) : new Uint32Array(width * 2); },
-    samples(start, count) { return buffer ? buffer.rawSlice(start, count) : { first: 0, data: new Uint32Array(0) }; },
-    measure(channel, sample) { return buffer ? buffer.measure(channel, sample) : null; },
-    findEdge(channel, from, forward) { return buffer ? buffer.findEdge(channel, from, forward) : null; },
-    burstAt(channel, sample, maxGap, tol) { return buffer ? buffer.burstAt(channel, sample, maxGap, tol) : null; },
-    getBuffer: () => buffer
-  });
+    function stopCapture() {
+        activeSource?.stop();
+        if (growing && store.get().status.sampleCount > 0) {
+            const n = store.get().status.sampleCount;
+            WS.capture.setBuffer(new WS.CaptureBuffer(growing.slice(0, n), store.get().status.samplerate, store.get().channels.length));
+            for (const d of store.get().decoders) decoders.decode(d.id);
+        }
+        store.set((s) => ({ status: { ...s.status, state: s.status.sampleCount > 0 ? 'done' : 'idle' } }));
+    }
+
+    WS.capture = WS.capture ?? {};
+    Object.assign(WS.capture, {
+        startCapture, 
+        stopCapture,
+        hasData: () => !!buffer,
+        setBuffer(b) { buffer = b; },
+        render(start, spp, width) { return buffer ? buffer.render(start, spp, width) : new Uint32Array(width * 2); },
+        samples(start, count) { return buffer ? buffer.rawSlice(start, count) : { first: 0, data: new Uint32Array(0) }; },
+        measure(channel, sample) { return buffer ? buffer.measure(channel, sample) : null; },
+        findEdge(channel, from, forward) { return buffer ? buffer.findEdge(channel, from, forward) : null; },
+        burstAt(channel, sample, maxGap, tol) { return buffer ? buffer.burstAt(channel, sample, maxGap, tol) : null; },
+        getBuffer: () => buffer
+    });
 })(window.WS = window.WS || {});
