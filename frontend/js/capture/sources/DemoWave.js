@@ -155,16 +155,17 @@ class DemoWave {
     this.set(cs, t + h, true);
   }
 
-  pwm({ch, hz, dutyStart = 0.1, dutyEnd = 0.9, duration = 0.02}) {
-    const period = 1/hz;
+  pwm({ch, hz, t = 0, dutyStart = 0.1, dutyEnd = 0.9, duration = 0.02}) {
+    const period = 1 / hz;
     const periods = Math.floor(duration / period);
 
     for (let i = 0; i < periods; i++) {
-        const t = i * period;
-        const duty = dutyStart + (dutyEnd - dutyStart) * (i / periods);
+        const _t = t + i * period;
+        const duty = dutyStart + (dutyEnd - dutyStart) *
+            (periods > 1 ? i / (periods - 1) : 0);
 
-        this.set(ch, t, true);
-        this.set(ch, t + period * duty, false);
+        this.set(ch, _t, true);
+        this.set(ch, _t + period * duty, false);
     }
   }
 

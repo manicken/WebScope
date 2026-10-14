@@ -1,3 +1,87 @@
+let testRestoreState = [
+    {
+        "type": "UARTDecoder",
+        "cfg": {
+            "channel": 0,
+            "baud": 115200,
+            "dataBits": 8,
+            "parity": "none",
+            "stopBits": 1,
+            "msbFirst": false,
+            "invert": false,
+            "format": "ascii"
+        },
+        "color": "#7c6cff",
+        "id": 1,
+        "parent": null,
+        "subDecoders": [
+            5
+        ],
+        "visible": true
+    },
+    {
+        "type": "I2CDecoder",
+        "cfg": {
+            "scl": 1,
+            "sda": 2,
+            "format": "hex",
+            "subDecoders": []
+        },
+        "color": "#22d3ee",
+        "id": 2,
+        "parent": null,
+        "subDecoders": [],
+        "visible": true
+    },
+    {
+        "type": "SPIDecoder",
+        "cfg": {
+            "clk": 3,
+            "mosi": 4,
+            "miso": 5,
+            "cs": 6,
+            "csActiveLow": true,
+            "cpol": 0,
+            "cpha": 0,
+            "displayMode": 1,
+            "wordBits": 8,
+            "msbFirst": true,
+            "format": "hex",
+            "subDecoders": []
+        },
+        "color": "#ff9f43",
+        "id": 3,
+        "parent": null,
+        "subDecoders": [],
+        "visible": true
+    },
+    {
+        "type": "WS281xDecoder",
+        "cfg": {
+            "channel": 0,
+            "wireorder": "GRB",
+            "textorder": "RGB[W]"
+        },
+        "color": "#51cf66",
+        "id": 4,
+        "parent": null,
+        "subDecoders": [],
+        "visible": true
+    },
+    {
+        "type": "CustomDecoder",
+        "cfg": {
+            "code": "\n({\n    /** in all functions context is the Decoder Instance */\n    /** runs directly after the compile is done */\n    init(context) {\n\n    },\n    /** called from custom decoder rows function*/\n    rows(context) {\n        return [\n            {id:'data', label: 'DATA' },\n            {id:'address', label: 'ADDRESS' }\n        ];\n    },\n    /** called from custom decoder run function */\n    run(input, context) {\n        // Decode input\n        return {};\n    }\n})\n",
+            "subDecoders": []
+        },
+        "color": "#ff6b9a",
+        "id": 5,
+        "parent": 1,
+        "subDecoders": [],
+        "visible": true
+    }
+];
+
 function downloadFile(filename, content, mimeType = 'application/octet-stream') {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -66,6 +150,46 @@ let mainMenuItems = [
                         
                     }});
                 }
+            },
+            {
+                label: "SaveTest",
+                action: () => {
+                    let decoders =  window.WS.store.get().decoders;
+                    console.log(decoders);
+                    let save = [];
+                    for (let d of decoders) {
+                        save.push(d.getState());
+                    }
+                    console.log(JSON.stringify(save, null, 4));
+
+                }
+            },
+            {
+                label: "LoadTest",
+                action: () => {
+                    const findByType = (t) => WS.decoders.registry.find(d => d.class.TYPE === t);
+                    let decoders = [];
+                    // First pass: instantiate all decoders.
+                    for (const d of testRestoreState) {
+                        const entry = findByType(d.type);
+
+                        if (!entry)
+                            throw new Error(`Unknown decoder type: ${d.type}`);
+
+                        decoders.push(new entry.class({
+                            id: d.id,
+                            color: d.color
+                        }));
+                    }
+                    
+                    const findById = (id) => decoders.find(d => d.id === id);
+                    for (let d of testRestoreState) {
+                        findById(d.id).setState(d, decoders);
+                    }
+                    window.WS.store.set({ decoders });
+                    console.log(decoders);
+
+                }//testRestoreState
             },
             {
                 label: "Save As Sigrok",

@@ -87,6 +87,36 @@ class Decoder {
         return '';
     }
 
+    getState() {
+        return {
+            type:this.constructor.TYPE, 
+            cfg:this.cfg, 
+            color:this.color, 
+            id:this.id, 
+            parent:this.parent?.id??null, 
+            subDecoders:this.subDecoders.map((d)=>d.id), 
+            visible:this.visible 
+        };
+    }
+
+    /** very important this function need to be run after all decoders have been instantiated  */
+    setState(v, decoders =  window.WS.store.get().decoders) {
+        const dFind = (id) => decoders.find((d) => d.id === id);
+        this.cfg = v.cfg;
+        //this.color = v.color; set by the constructor
+        //this.id = v.id; set by the constructor
+        this.parent = v.parent != null ? dFind(v.parent) : null;
+        this.subDecoders = (v.subDecoders ?? []).map(id => {
+            const decoder = dFind(id);
+            if (!decoder)
+                throw new Error(`Decoder ${id} not found`);
+
+            return decoder;
+        });
+        this.visible = v.visible;
+        
+    }
+
     destroy() {
         console.log(`Städar upp decoder instans: ${this.id} (${this.name})`);
 

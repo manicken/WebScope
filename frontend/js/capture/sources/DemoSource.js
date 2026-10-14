@@ -46,13 +46,15 @@ class DemoSource {
         w.spi({clk:3, mosi:4, miso:5, cs:6, t:0.005+tOffset, hz:2_000_000, tx:[0x03, 0x00, 0x10, 0x00, 0, 0], rx:[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]});
 
         // PWM
-        w.pwm({ch:7, hz:10_000, dutyStart:0.1, dutyEnd:0.9});
+        w.pwm({ch:7, t:0/*+tOffset*/, hz:10_000, dutyStart:0.1, dutyEnd:0.9});
 
         // 1-Wire: Skip ROM + Read Scratchpad
         w.onewire({ch:8, t:0+tOffset, tx:[0xCC, 0xBE], rx:[0x50, 0x05, 0x4B, 0x46, 0x7F, 0xFF, 0x0C, 0x10, 0x1C]});
 
         // WS2812: röd, grön, blå
         w.ws2812({ch:9, t:0+tOffset, pixels:[[255, 0, 0], [0, 255, 0], [0, 0, 255]], order:'RGB'});
+        w.ws2812({ch:9, t:0.001+tOffset, pixels:[[0x55, 0, 0], [0, 0x55, 0], [0, 0, 0x55]], order:'RGB'});
+        w.ws2812({ch:9, t:0.002+tOffset, pixels:[[0xAA, 0, 0], [0, 0xAA, 0], [0, 0, 0xAA]], order:'RGB'});
 
         // CAN
         w.can({ch:10, t:0+tOffset, id:0x123, data:[0xDE, 0xAD, 0xBE, 0xEF]});
