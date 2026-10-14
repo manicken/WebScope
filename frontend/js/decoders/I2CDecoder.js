@@ -31,8 +31,8 @@ class I2CDecoder extends Decoder {
         this.frames = [];
     }
 
-    getSourceFunction() {
-        return () => { return this.frames; }
+    getOutput() {
+        return this.frames;
     }
 
     summary(channels) {

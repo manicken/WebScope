@@ -76,6 +76,9 @@
         drawChannel(ctx, w, dpr, r.ch.index, r.ch.color, r.y, r.h, f);
       } else { // decoder
         const hl = f.highlight && f.highlight.decoder === r.dec.id && f.highlight.row === r.row ? f.highlight : null;
+        
+       // console.log(f.annotations, f.annotations.get(annKey(r)));
+        
         drawAnnotations(ctx, w, r.y, r.h, f.annotations.get(annKey(r)) || [], r.dec.color, x, hl);
       }
     }

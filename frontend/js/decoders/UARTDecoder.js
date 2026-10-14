@@ -53,8 +53,8 @@ class UARTDecoder extends Decoder {
         };
     }
 
-    getSourceFunction() {
-        return () => { return this.frames; }
+    getOutput() {
+        return this.frames;
     }
 
     run() {

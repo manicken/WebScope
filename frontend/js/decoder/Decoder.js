@@ -1,11 +1,12 @@
+'use strict';
 
 class Decoder {
-
+    
     static get TYPE() {
         return this.name;
     }
 
-    static GetConsumers() {
+    static GetSourceTypes() {
         return [CustomDecoder.TYPE];
     }
 
@@ -42,8 +43,7 @@ class Decoder {
         this.parent = parentDecoder;
         /** contains a list of subdecoders that consume this decoder:s output */
         this.subDecoders = [];
-        /** used to get the source, default is the raw capture buffer  */
-        this.getSource = parentDecoder?.getSourceFunction?.() ?? this.getSourceFunction();
+
         this.loadDefaultConfig(this.constructor.GuiConfigData, this.cfg);
     }
 
@@ -51,8 +51,18 @@ class Decoder {
         this.subDecoders.push(decoder);
     }
 
-    getSourceFunction() {
-        return () => { return window.WS.capture.getBuffer(); }
+    getSource() {
+        if (!this.parent)
+            return window.WS.capture.getBuffer();
+
+        if (typeof this.parent.getOutput !== 'function')
+            throw new Error('Parent decoder does not implement getOutput()');
+
+        let src = this.parent.getOutput();
+        if (src == null) {
+            throw new Error('Decoder getOutput() returned null');
+        }
+        return src;
     }
 
     get name() {

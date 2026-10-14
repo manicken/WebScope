@@ -1,7 +1,7 @@
 
 
 class SPIDecoder extends Decoder {
-
+    'use strict';
     static Info = {
         name: "SPI",
         class: SPIDecoder
@@ -42,8 +42,8 @@ class SPIDecoder extends Decoder {
         this.frames = [];
     }
 
-    getSourceFunction() {
-        return () => { return this.frames; }
+    getOutput() {
+        return this.frames;
     }
 
     summary(channels) {
@@ -74,15 +74,14 @@ class SPIDecoder extends Decoder {
         return ret;
     }
 
-    
-// ['mosi', 'data', 'miso']
-
     run() {
         console.log(Object.keys(this.rows()));
         const buf = this.getSource();
+
         const cfg = this.cfg;
         const useCombined = this.useCombined();
         const useSeparate = this.useSeparate();
+        
         const ANN = window.WS.theme;
         const clkBit = 1 << cfg.clk;
         const mosiBit = cfg.mosi != null ? 1 << cfg.mosi : null;

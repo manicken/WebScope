@@ -8,11 +8,11 @@ class AddNewDecoderContextMenu extends ContextMenu {
     setItems({items=[], parentDecoder=null}={}) {
         this.parentDecoder = parentDecoder;
         this.items = items.filter(item => {
-            if (parentDecoder == null) return true;
-            //console.log(decoder.GetConsumers);
-            const consumerTypes = parentDecoder.GetConsumers?.() ?? item.class.GetConsumers();
-            if (consumerTypes.length === 0) return true;
-            return consumerTypes.some(type => parentDecoder.constructor.TYPE === type);
+            if (parentDecoder == null) return true; 
+            //console.log(decoder.GetSourceTypes);
+            const sourceTypes = parentDecoder.GetSourceTypes?.() ?? item.class.GetSourceTypes();
+            if (sourceTypes.length === 0) return true;
+            return sourceTypes.some(type => parentDecoder.constructor.TYPE === type);
         });
 
         this.searchInput_el = createNewElement("input", {

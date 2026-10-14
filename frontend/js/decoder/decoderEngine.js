@@ -24,7 +24,13 @@
     }
 
     function removeDecoder(id) {
+        console.log("removed decoder:" + id);
+        const d = store.get().decoders.find((x) => x.id === id);
+        if (d) {
+            d.destroy();
+        }
         const remaining = store.get().decoders.filter((d) => d.id !== id);
+        console.log(remaining);
         const table = store.get().table;
         store.set({ decoders: remaining, table: table.decoder === id ? { decoder: remaining[0]?.id ?? null, row: 0, focus: null } : table });
     }

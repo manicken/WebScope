@@ -36,13 +36,13 @@ class CustomDecoder extends Decoder {
     }
 
     /** static method, no filter */
-    static GetConsumers() {
+    static GetSourceTypes() {
         return [];
     }
 
     /** instance method, gets it's filter from custom code or defaults to filter that includes nothing */
-    GetConsumers() {
-        return this.#decoder?.GetConsumers?.() ?? [null];
+    GetSourceTypes() {
+        return this.#decoder?.GetSourceTypes?.() ?? [null];
     }
 
     #decoder = null;
@@ -65,7 +65,10 @@ class CustomDecoder extends Decoder {
                 throw new TypeError('Custom decoder must return an object');
             }
             if (typeof decoder.run !== 'function') {
-                throw new TypeError('Custom decoder must implement a run(input, context) function');
+                throw new TypeError('Custom decoder must implement a run(context) function');
+            }
+             if (typeof decoder.rows !== 'function') {
+                throw new TypeError('Custom decoder must implement a rows(context) function');
             }
             decoder?.init(this);
             this.#decoder = decoder;
@@ -77,15 +80,21 @@ class CustomDecoder extends Decoder {
         }
     }
 
-    getSourceFunction() {
-        return this.#decoder?.getSourceFunction ?? (() => { return null; })
+    getOutput() {
+        if (!this.#decoder) { console.warn("@ getOutput - CustomDecoder not initialized yet!"); }
+        if (typeof this.#decoder?.getOutput !== 'function')
+            throw new Error('Custom decoder does not implement getOutput()');
+
+        return this.#decoder.getOutput();
     }
 
     rows() {
-        return this.#decoder?.rows?.(this) ?? [];
+        //if (!this.#decoder) { console.warn("@ rows - CustomDecoder not initialized yet!"); }
+        return this.#decoder?.rows?.(this) ?? {};
     }
 
     run(input) {
+        if (!this.#decoder) { console.warn("@ run - CustomDecoder not initialized yet!"); }
         return this.#decoder?.run?.(input, this);
     }
 

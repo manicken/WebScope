@@ -25,6 +25,7 @@
   function drawAnnotations(ctx, w, y, h, anns, color, x, highlight) {
     const top = y + 4, bh = h - 8;
     ctx.font = THEME.mono; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    //console.trace(anns);
     for (const a of anns) {
       const x0 = Math.max(x(a.start), -10), x1 = Math.min(x(a.end), w + 10);
       const bw = Math.max(x1 - x0, 1);
@@ -35,6 +36,7 @@
         if (lit) { ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.strokeRect(x0 + 0.75, top + 3.75, Math.max(bw - 1.5, 0), bh - 7.5); }
         continue;
       }
+      //console.log(a);
       const c = CLASS_COLORS[a.class] ?? color;
       ctx.fillStyle = hexA(c, lit ? 0.42 : 0.22);
       ctx.strokeStyle = lit ? c : hexA(c, 0.85);
@@ -61,7 +63,7 @@
         const sel = document.createElement('select');
         for (const d of decoders) sel.appendChild(new Option(d.name, String(d.id)));
         sel.value = String(dec.id);
-        sel.addEventListener('change', () => store.set({ table: { decoder: Number(sel.value), rowId: r.id, focus: null } }));
+        sel.addEventListener('change', () => store.set({ table: { decoder: Number(sel.value), /*rowId: r.id,*/ focus: null } }));
         extra.appendChild(sel);
       }
       const rows = dec.rows();
