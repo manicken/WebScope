@@ -18,9 +18,16 @@
 
   /* ============================== boot ============================== */
   function init(rightPanelEl) {
-    const analyzers = el('div'); const measurements = el('div'); const dataTable = el('div');
-    dataTable.style.display = 'flex'; dataTable.style.flex = '1'; dataTable.style.minHeight = '0'; dataTable.style.flexDirection = 'column';
-    rightPanelEl.appendChild(analyzers); rightPanelEl.appendChild(measurements); rightPanelEl.appendChild(dataTable);
+    const analyzers = el('div'); 
+    const measurements = el('div'); 
+    const dataTable = el('div');
+    dataTable.style.display = 'flex'; 
+    dataTable.style.flex = '1'; 
+    dataTable.style.minHeight = '0'; 
+    dataTable.style.flexDirection = 'column';
+    rightPanelEl.appendChild(analyzers); 
+    rightPanelEl.appendChild(measurements); 
+    rightPanelEl.appendChild(dataTable);
 
     function renderAll() {
       WS.decoders.ui.renderAnalyzers({container:analyzers});
