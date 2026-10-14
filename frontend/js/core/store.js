@@ -13,6 +13,7 @@
       get: () => state,
       set: (patch) => {
         state = { ...state, ...(typeof patch === 'function' ? patch(state) : patch) };
+        //console.log("store changed");
         subs.forEach((fn) => fn(state));
       },
       subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); }

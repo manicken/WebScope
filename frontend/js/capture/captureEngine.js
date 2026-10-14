@@ -67,10 +67,10 @@
                     growing.set(samples, offset);
                 }
 
-                const samples = Math.min(total, offset + count); // sample count
+                const sampleCount = Math.min(total, offset + count); // sample count
 
                 store.set((s) => ({
-                    status: { ...s.status, samples }
+                    status: { ...s.status, sampleCount }
                 }));
 
                 if (store.get().follow) WS.waveform.fit();
@@ -79,7 +79,7 @@
             (info) => {
                     WS.capture.setBuffer(new CaptureBuffer(growing.slice(0, info.samples), info.samplerate, info.channels));
                     if (store.get().channels.length !== info.channels) store.set({ channels: makeChannels(info.channels) });
-                    store.set((s) => ({ status: { ...s.status, state: 'done', samples: info.samples, samplerate: info.samplerate, channels: info.channels, trigger: null } }));
+                    store.set((s) => ({ status: { ...s.status, state: 'done', sampleCount: info.samples, samplerate: info.samplerate, channels: info.channels, trigger: null } }));
                     for (const d of store.get().decoders) WS.decoders.decode(d.id);
                     if (store.get().follow) WS.waveform.fit();
             },
@@ -103,7 +103,7 @@
         startCapture, 
         stopCapture,
         hasData: () => !!buffer,
-        setBuffer(b) { buffer = b; },
+        setBuffer(b) { buffer = b; /*console.trace(b);*/},
         render(start, spp, width) { return buffer ? buffer.render(start, spp, width) : new Uint32Array(width * 2); },
         samples(start, count) { return buffer ? buffer.rawSlice(start, count) : { first: 0, data: new Uint32Array(0) }; },
         measure(channel, sample) { return buffer ? buffer.measure(channel, sample) : null; },

@@ -60,7 +60,7 @@ class UARTDecoder extends Decoder {
     run() {
         const buf = this.getSource();
         const ANN = window.WS.theme.ANN;
-        console.log(ANN);
+
         const cfg = this.cfg;
         const ch = cfg.channel;
         const spb = buf.samplerate / cfg.baud; // samples per bit

@@ -70,10 +70,10 @@
       const { w, h, dpr } = size;
       if (w === 0) return;
       const st = store.get();
-      emptyStateEl.style.display = st.status.samples > 0 || st.status.state === 'running' ? 'none' : 'flex';
+      emptyStateEl.style.display = st.status.sampleCount > 0 || st.status.state === 'running' ? 'none' : 'flex';
       const cols = Math.ceil(w * dpr);
       let wave = null;
-      if (st.status.samples > 0) {
+      if (st.status.sampleCount > 0) {
         if (st.view.spp >= 1) wave = { kind: 'lod', data: WS.capture.render(st.view.start, st.view.spp / dpr, cols), spp: st.view.spp };
         else {
           const first = Math.max(0, Math.floor(st.view.start));
@@ -93,7 +93,7 @@
       const ctx = canvas.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       WS.waveform.drawFrame(ctx, w, h, dpr, {
-        view: st.view, samplerate: st.status.samplerate, samples: st.status.samples, trigger: st.status.trigger,
+        view: st.view, samplerate: st.status.samplerate, sampleCount: st.status.sampleCount, trigger: st.status.trigger,
         rows, scrollY: scroll.y, wave, annotations:annotationsMap, markers: st.markers, hover: st.hover, measurement: st.measurement,
         hoverChannel: st.hover ? st.hover.channel : null, highlight: hl, burst: lastBurst
       });

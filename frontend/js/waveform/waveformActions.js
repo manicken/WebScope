@@ -9,12 +9,12 @@
   /* ---- view ---- */
   function fit() {
     const { status, plotWidth } = store.get();
-    const n = Math.max(status.samples, 1);
+    const n = Math.max(status.sampleCount, 1);
     store.set({ view: { start: 0, spp: n / Math.max(plotWidth, 1) } });
   }
   function clampView(start, spp) {
     const { status, plotWidth } = store.get();
-    return clampViewTo(start, spp, status.samples, plotWidth);
+    return clampViewTo(start, spp, status.sampleCount, plotWidth);
   }
   function zoomAt(factor, x) {
     const { view } = store.get();

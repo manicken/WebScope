@@ -9,7 +9,7 @@
 
   function init(gutterBodyEl, onScroll) {
     function render(rows) {
-      console.log(rows);
+      //console.log(rows);
       gutterBodyEl.innerHTML = '';
       for (const r of rows) {
         if (r.kind === 'channel') {

@@ -9,7 +9,7 @@
     const viewEl = document.getElementById(ids.view);
     function render() {
       const { status, view } = WS.store.get();
-      samplesEl.textContent = fmtCount(status.samples);
+      samplesEl.textContent = fmtCount(status.sampleCount);
       rateEl.textContent = fmtRate(status.samplerate);
       sampleResolutionEl.textContent = fmtSampleResolution(status.samplerate);
       viewEl.textContent = `${fmtTime(view.spp / status.samplerate)}/px`;

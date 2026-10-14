@@ -14,6 +14,7 @@
   const { fmtTick, niceStep } = WS.format;
 
   function drawFrame(ctx, w, h, dpr, f) {
+   //console.trace(f);
     const view = f.view;
     const x = (s) => (s - view.start) / view.spp;
     ctx.fillStyle = THEME.bg;
@@ -46,7 +47,7 @@
       }
     }
 
-    const endX = x(f.samples);
+    const endX = x(f.sampleCount);
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     if (x(0) > 0) ctx.fillRect(0, f.scrollY, x(0), contentH);
     if (endX < w) ctx.fillRect(endX, f.scrollY, w - endX, contentH);
@@ -157,7 +158,7 @@
     const cols = data.length / 2;
     const colW = 1 / dpr;
     const firstCol = Math.max(0, Math.floor((-f.view.start / f.view.spp) * dpr));
-    const lastCol = Math.min(cols, Math.ceil(((f.samples - f.view.start) / f.view.spp) * dpr));
+    const lastCol = Math.min(cols, Math.ceil(((f.sampleCount - f.view.start) / f.view.spp) * dpr));
     if (lastCol <= firstCol) return;
 
     ctx.fillStyle = hexA(color, 0.09);

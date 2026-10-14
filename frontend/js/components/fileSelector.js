@@ -18,7 +18,7 @@ function SelectFile({filters=['*/*'], onRead=()=>{}}={}) {
         if (index == -1) {
             index = file.name.lastIndexOf('.');
         }
-        extension = file.name.substring(index);
+        extension = file.name.substring(index+1);
         filename = file.name.substring(0, index);
          
 

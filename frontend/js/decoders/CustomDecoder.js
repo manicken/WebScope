@@ -49,7 +49,6 @@ class CustomDecoder extends Decoder {
 
     constructor(p) {
         super(p);
-        console.log(this.constructor.TYPE);
     }
 
     summary(channels) {

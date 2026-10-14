@@ -230,8 +230,8 @@ class FileDialog extends AppWindow {
 
     #openSaveAny() {
         if (this.fdmode === FileDialog.FDModes.Open) {
-            SelectFile({filters:['.ws.zip','.sr','.vcd','.bin'], onRead: async({data, name})=>{
-                this.onConfirm({data, name, source: FileDialog.FDSources.Local});
+            SelectFile({filters:['.ws.zip','.sr','.vcd','.bin'], onRead: async({data, name, ext})=>{
+                this.onConfirm({data, name, ext, source: FileDialog.FDSources.Local});
                 this.destroy();
             }});
         } else {
@@ -246,6 +246,7 @@ class FileDialog extends AppWindow {
     // ---------- confirm ----------
 
     static #extOf(name, extensions) {
+        console.log({name, extensions});
         const lower = name.toLowerCase();
         const hit = extensions?.find(e => lower.endsWith(e));
         if (hit) return hit.slice(1);

@@ -75,7 +75,7 @@ class SPIDecoder extends Decoder {
     }
 
     run() {
-        console.log(Object.keys(this.rows()));
+        //console.log(Object.keys(this.rows()));
         const buf = this.getSource();
 
         const cfg = this.cfg;

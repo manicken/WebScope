@@ -17,7 +17,7 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
       const { status, view, plotWidth, channels } = store.get();
-      const n = status.samples;
+      const n = status.sampleCount;
       const cols = cache.cols;
       if (n > 0 && cols) {
         const mask = channels.filter((c) => c.visible).reduce((m, c) => m | (1 << c.index), 0);
@@ -43,11 +43,11 @@
 
     function refresh() {
       const { status } = store.get();
-      //const key = `${status.captureId}:${status.samples}:${canvas.width}`;
-      const key = `${status.captureId}:${status.samples}:${canvas.width}:${WS.capture.hasData()}`;
-      if (key !== cache.key && status.samples > 0) {
+      //const key = `${status.captureId}:${status.sampleCount}:${canvas.width}`;
+      const key = `${status.captureId}:${status.sampleCount}:${canvas.width}:${WS.capture.hasData()}`;
+      if (key !== cache.key && status.sampleCount > 0) {
         cache.key = key;
-        cache.cols = WS.capture.render(0, status.samples / Math.max(canvas.width, 1), Math.max(canvas.width, 1));
+        cache.cols = WS.capture.render(0, status.sampleCount / Math.max(canvas.width, 1), Math.max(canvas.width, 1));
       }
       paint();
     }
@@ -56,8 +56,8 @@
       if (e.buttons !== 1) return;
       const r = canvas.getBoundingClientRect();
       const { status, view, plotWidth } = store.get();
-      if (status.samples === 0) return;
-      const center = ((e.clientX - r.left) / r.width) * status.samples;
+      if (status.sampleCount === 0) return;
+      const center = ((e.clientX - r.left) / r.width) * status.sampleCount;
       store.set({ view: WS.waveform.clampView(center - (view.spp * plotWidth) / 2, view.spp), follow: false });
     }
     canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); jump(e); });
