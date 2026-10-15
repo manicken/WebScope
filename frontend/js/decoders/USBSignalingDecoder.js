@@ -1,14 +1,19 @@
-// WS281x RGB LED decoder
-
-// Ported from libsigrokdecode (usb_signaling)
-
+// USB (LS/FS) signalling decoder
+// Ported from libsigrokdecode (usb_signalling)
+//
 // Copyright (C) 2011 Gareth McMullin <gareth@blacksphere.co.nz>
 // Copyright (C) 2012-2020 Uwe Hermann <uwe@hermann-uwe.de>
-
+//
 // License: GPLv3+
+//
+// Decoding strategy:
+//   Instead of sampling on a fixed bit grid (which drifts during long
+//   J/K runs with no edges), the signal is split into "runs" of constant
+//   D+/D- state. For each run the number of bits is n = round(d / bitwidth)
+//   and they are spread evenly over the *real* run length (w = d / n).
+//   The timing error is therefore reset at every edge, like a real DPLL.
 
 class USBSignallingDecoder extends Decoder {
-    'use strict';
 
     static Info = {
         name: 'USB Signalling',
@@ -30,7 +35,7 @@ class USBSignallingDecoder extends Decoder {
             ],
             default: 'automatic'
         },
-        subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
+        subDecoders: { label: 'Sub-Analyzers', type: 'subDecoders', default: [] },
     };
 
     static Symbols = {
@@ -73,6 +78,9 @@ class USBSignallingDecoder extends Decoder {
         SE0: ['SE0', '0'],
         SE1: ['SE1', '1']
     };
+
+    // Sync (00000001) + PRE PID (0011 1100), NRZI-decoded.
+    static PreambleBits = '0000000100111100';
 
     constructor(p) {
         super(p);
@@ -123,6 +131,7 @@ class USBSignallingDecoder extends Decoder {
 
         const dpBit = 1 << cfg.dp;
         const dmBit = 1 << cfg.dm;
+        const pinMask = dpBit | dmBit;
 
         const length = buf.length;
         const samplerate = buf.samplerate;
@@ -153,7 +162,12 @@ class USBSignallingDecoder extends Decoder {
         const frames = [];
 
         const addFrame = (type, start, end, data = null) => {
-            frames.push({ type, start, end, data });
+            frames.push({
+                type,
+                start: Math.floor(start),
+                end: Math.floor(end),
+                data
+            });
         };
 
         const addAnn = (target, start, end, cls, text) => {
@@ -228,13 +242,24 @@ class USBSignallingDecoder extends Decoder {
 
         const isSE0 = pins => !pins[0] && !pins[1];
 
+        // Index of the first sample after `from` where D+/D- differ.
+        const findRunEnd = from => {
+            const w0 = samples[from] & pinMask;
+            let j = from + 1;
+
+            while (j < length && (samples[j] & pinMask) === w0)
+                j++;
+
+            return j;
+        };
+
         // -------------------------------------------------
         // Decoder state
         // -------------------------------------------------
 
         let signalling = signallingOption;
 
-        let samplerateHz = samplerate;
+        const samplerateHz = samplerate;
         let bitrate = null;
         let bitwidth = 0;
 
@@ -242,67 +267,24 @@ class USBSignallingDecoder extends Decoder {
 
         let state = 'IDLE';
 
-        let samplepos = 0;
-        let target = 0;
-
-        let edge = 0;
         let lastEdge = 0;
+        let se0Start = -1;
 
-        let edgePins = null;
-        let ssBlock = 0;
+        // Set by decodePacket when it ends on a long SE0 (bus reset)
+        // that must be classified by the idle logic.
+        let handoffSe0Start = -1;
 
         let consecutiveOnes = 0;
         let packetBits = '';
 
         const updateBitrate = () => {
             bitrate = USBSignallingDecoder.Bitrates[signalling];
-
-            if (bitrate)
-                bitwidth = samplerateHz / bitrate;
+            bitwidth = bitrate ? samplerateHz / bitrate : 0;
         };
 
         // -------------------------------------------------
-        // Bit timing
-        // -------------------------------------------------
-
-        const setNewTarget = () => {
-            samplepos += bitwidth;
-
-            target = Math.trunc(samplepos);
-
-            lastEdge = edge;
-            edge = Math.trunc(samplepos - bitwidth / 2);
-        };
-
-        // -------------------------------------------------
-        // SOP
-        // -------------------------------------------------
-
-        const waitForSop = (sym, sampleNum) => {
-            if (sym !== 'K' || oldsym !== 'J')
-                return false;
-
-            consecutiveOnes = 0;
-            packetBits = '';
-
-            updateBitrate();
-
-            if (!bitwidth)
-                return false;
-
-            samplepos = sampleNum - (bitwidth / 2) + 0.5;
-
-            setNewTarget();
-
-            addEvent(edge, edge, 'SOP', ['SOP', 'S']);
-
-            state = 'GET_BIT';
-
-            return true;
-        };
-
-        // -------------------------------------------------
-        // Bit decoding / NRZI / bit stuffing
+        // Bit decoding / bit stuffing
+        // Returns false on bit-stuff error.
         // -------------------------------------------------
 
         const handleBit = (bit, start, end) => {
@@ -310,133 +292,246 @@ class USBSignallingDecoder extends Decoder {
                 if (bit === '0') {
                     addStuffBit(start, end);
                     consecutiveOnes = 0;
-                } else {
-                    addEvent(
-                        start,
-                        end,
-                        'ERR',
-                        ['Bit stuff error', 'BS ERR', 'B'],
-                        true
-                    );
-
-                    state = 'IDLE';
+                    return true;
                 }
 
-                return;
-            }
-
-            addBit(start, end, bit);
-
-            if (bit === '1')
-                consecutiveOnes++;
-            else
-                consecutiveOnes = 0;
-        };
-
-        // -------------------------------------------------
-        // GET_BIT
-        // -------------------------------------------------
-
-        const getBit = sym => {
-            setNewTarget();
-
-            // NRZI:
-            // No transition = 1
-            // Transition = 0
-
-            const bit = oldsym !== sym ? '0' : '1';
-
-            oldsym = sym;
-
-            if (sym === 'SE0') {
-                state = 'GET_EOP';
-                ssBlock = lastEdge;
-            } else {
-                handleBit(bit, lastEdge, edge);
-            }
-
-            addSymbol(lastEdge, edge, sym);
-
-            if (packetBits.length <= 16)
-                packetBits += bit;
-
-            // Low-speed PRE-amble PID.
-            if (
-                packetBits.length === 16 &&
-                packetBits === '0000000100111100'
-            ) {
                 addEvent(
-                    edge,
-                    edge,
-                    'PREAMBLE',
-                    ['PREAMBLE', 'PRE']
-                );
-
-                state = 'IDLE';
-
-                signalling = 'low-speed-rp';
-                updateBitrate();
-
-                oldsym = 'J';
-            }
-
-            // Clock recovery.
-            if (bit === '0' && edgePins) {
-                const edgeSym = getSymbol(edgePins, signalling);
-
-                if (edgeSym !== 'SE0' && edgeSym !== 'SE1') {
-                    if (edgeSym === sym) {
-                        bitwidth -= 0.001 * bitwidth;
-                        samplepos -= 0.01 * bitwidth;
-                    } else {
-                        bitwidth += 0.001 * bitwidth;
-                        samplepos += 0.01 * bitwidth;
-                    }
-                }
-            }
-        };
-
-        // -------------------------------------------------
-        // GET_EOP
-        // -------------------------------------------------
-
-        const getEop = sym => {
-            setNewTarget();
-
-            addSymbol(lastEdge, edge, sym);
-
-            oldsym = sym;
-
-            if (sym === 'SE0')
-                return;
-
-            if (sym === 'J') {
-                addEvent(ssBlock, edge, 'EOP', ['EOP', 'E']);
-
-                state = 'WAIT_IDLE';
-            } else {
-                addEvent(
-                    ssBlock,
-                    edge,
+                    start,
+                    end,
                     'ERR',
-                    ['EOP Error', 'EErr', 'E'],
+                    ['Bit stuff error', 'BS ERR', 'B'],
                     true
                 );
 
-                state = 'IDLE';
+                return false;
             }
+
+            addBit(start, end, bit);
+            consecutiveOnes = bit === '1' ? consecutiveOnes + 1 : 0;
+
+            return true;
+        };
+
+        const switchToPreambleSpeed = () => {
+            signalling = 'low-speed-rp';
+            updateBitrate();
         };
 
         // -------------------------------------------------
-        // IDLE handling
+        // Packet decoding (run based)
+        //
+        // Decodes one packet starting at the first K edge p0.
+        // Returns the sample index where the main loop should
+        // continue.
         // -------------------------------------------------
 
-        const handleIdle = (sym, sampleNum, se0Start) => {
-            const se0Length = (sampleNum - se0Start) / samplerateHz;
+        const decodePacket = p0 => {
+            updateBitrate();
+
+            if (!bitwidth)
+                return p0 + 1;
+
+            const nominal = bitwidth;
+
+            consecutiveOnes = 0;
+            packetBits = '';
+            oldsym = 'J';
+
+            addEvent(p0, p0, 'SOP', ['SOP', 'S']);
+
+            let p = p0;
+
+            while (p < length) {
+                const e = findRunEnd(p);
+                const d = e - p;
+                const truncated = e >= length;
+                const sym = getSymbol(getPins(p), signalling);
+
+                // Number of bits in this run, and their real width.
+                const n = Math.max(
+                    1,
+                    truncated
+                        ? Math.floor(d / bitwidth)
+                        : Math.round(d / bitwidth)
+                );
+                const w = truncated ? bitwidth : d / n;
+
+                // ---------- SE0: EOP (SE0 SE0 J) or reset ----------
+                if (sym === 'SE0') {
+                    if (truncated) {
+                        for (let k = 0; k < n; k++)
+                            addSymbol(p + k * w, p + (k + 1) * w, 'SE0');
+
+                        return length;
+                    }
+
+                    // Far too long for an EOP: bus reset. Let the idle
+                    // logic annotate it and re-detect the speed.
+                    if (d / samplerateHz > 2.5e-6) {
+                        addSymbol(p, e, 'SE0');
+                        handoffSe0Start = p;
+
+                        return e;
+                    }
+
+                    for (let k = 0; k < n; k++)
+                        addSymbol(p + k * w, p + (k + 1) * w, 'SE0');
+
+                    const e2 = findRunEnd(e);
+                    const jEnd = Math.min(e + bitwidth, e2);
+                    const nextSym = getSymbol(getPins(e), signalling);
+
+                    addSymbol(e, jEnd, nextSym);
+
+                    if (nextSym === 'J') {
+                        addEvent(p, jEnd, 'EOP', ['EOP', 'E']);
+                    } else {
+                        addEvent(
+                            p,
+                            jEnd,
+                            'ERR',
+                            ['EOP Error', 'EErr', 'E'],
+                            true
+                        );
+                    }
+
+                    return e;
+                }
+
+                // ---------- SE1: illegal ----------
+                if (sym === 'SE1') {
+                    addSymbol(p, e, 'SE1');
+                    addEvent(
+                        p,
+                        e,
+                        'ERR',
+                        ['Invalid SE1', 'SE1 ERR', 'E'],
+                        true
+                    );
+
+                    return e;
+                }
+
+                // ---------- too long to be data: idle / missing EOP ----------
+                // Bit stuffing limits a run to 7 bits (6 ones + transition).
+                if (n > 7) {
+                    // The PRE PID ends in a transition bit that is followed
+                    // by hub idle, so its last bit lives in a long run.
+                    if (
+                        packetBits.length === 15 &&
+                        sym !== oldsym &&
+                        packetBits + '0' === USBSignallingDecoder.PreambleBits
+                    ) {
+                        const t = p + bitwidth;
+
+                        addSymbol(p, t, sym);
+                        handleBit('0', p, t);
+                        addEvent(t, t, 'PREAMBLE', ['PREAMBLE', 'PRE']);
+
+                        switchToPreambleSpeed();
+
+                        return e;
+                    }
+
+                    addAnn(
+                        symbolAnns,
+                        p,
+                        e,
+                        ANN.DATA,
+                        [`${sym} (idle)`, sym]
+                    );
+                    addFrame('SYM', p, e, sym);
+
+                    if (!truncated) {
+                        addEvent(
+                            p,
+                            e,
+                            'ERR',
+                            ['Missing EOP', 'No EOP'],
+                            true
+                        );
+                    }
+
+                    return e;
+                }
+
+                // ---------- data run: n bits spread over the real length ----------
+                for (let k = 0; k < n; k++) {
+                    const s = p + k * w;
+                    const t = p + (k + 1) * w;
+
+                    // NRZI: the first bit of a run is a transition (0),
+                    // the rest of the run are 1s.
+                    const bit = (k === 0 && sym !== oldsym) ? '0' : '1';
+
+                    addSymbol(s, t, sym);
+
+                    if (packetBits.length < 16)
+                        packetBits += bit;
+
+                    if (!handleBit(bit, s, t))
+                        return e;
+
+                    // Low-speed PRE-amble PID.
+                    if (packetBits === USBSignallingDecoder.PreambleBits) {
+                        addEvent(t, t, 'PREAMBLE', ['PREAMBLE', 'PRE']);
+
+                        switchToPreambleSpeed();
+
+                        return e;
+                    }
+                }
+
+                oldsym = sym;
+
+                // Soft bit-clock tracking (only trust sane measurements).
+                if (!truncated && Math.abs(w - bitwidth) < 0.25 * bitwidth) {
+                    bitwidth += 0.2 * (w - bitwidth);
+                    bitwidth = Math.min(
+                        nominal * 1.1,
+                        Math.max(nominal * 0.9, bitwidth)
+                    );
+                }
+
+                p = e;
+            }
+
+            return length;
+        };
+
+        // Starts packet decoding if `sym` at sample `i` is a valid SOP.
+        // Returns the index to continue from, or -1 if no packet started.
+        const tryPacket = (sym, i) => {
+            if (sym !== 'K' || oldsym !== 'J')
+                return -1;
+
+            handoffSe0Start = -1;
+
+            const next = Math.max(decodePacket(i), i + 1);
+
+            oldsym = 'J';
+
+            if (handoffSe0Start >= 0) {
+                state = 'WAIT_IDLE';
+                se0Start = handoffSe0Start;
+                lastEdge = handoffSe0Start;
+            } else {
+                state = 'IDLE';
+            }
+
+            return next;
+        };
+
+        // -------------------------------------------------
+        // IDLE handling (reset / keep-alive / speed detection)
+        // -------------------------------------------------
+
+        const handleIdle = (sym, sampleNum, se0StartSample) => {
+            const se0Length = (sampleNum - se0StartSample) / samplerateHz;
 
             if (se0Length > 2.5e-6) {
                 addEvent(
-                    se0Start,
+                    se0StartSample,
                     sampleNum,
                     'RESET',
                     ['Reset', 'Res', 'R']
@@ -451,7 +546,7 @@ class USBSignallingDecoder extends Decoder {
                 signalling === 'low-speed'
             ) {
                 addEvent(
-                    se0Start,
+                    se0StartSample,
                     sampleNum,
                     'KEEP ALIVE',
                     ['Keep-alive', 'KA', 'A']
@@ -485,7 +580,6 @@ class USBSignallingDecoder extends Decoder {
         }
 
         let previousPins = initialPins;
-        let se0Start = -1;
 
         // -------------------------------------------------
         // Main decoder loop
@@ -494,58 +588,6 @@ class USBSignallingDecoder extends Decoder {
         let i = 1;
 
         while (i < length) {
-
-            // =============================================
-            // GET_BIT / GET_EOP
-            // =============================================
-
-            if (state === 'GET_BIT' || state === 'GET_EOP') {
-
-                if (i < target) {
-                    i++;
-                    continue;
-                }
-
-                if (target >= length)
-                    break;
-
-                const sampleNum = target;
-                const pins = getPins(sampleNum);
-                const sym = getSymbol(pins, signalling);
-
-                if (state === 'GET_BIT')
-                    getBit(sym);
-                else
-                    getEop(sym);
-
-                // The current sample is also the next bit's
-                // timing reference edge.
-                edgePins = pins;
-
-                previousPins = pins;
-                i = sampleNum + 1;
-
-                // EOP may already have returned the bus to J.
-                // This corresponds to sigrok's immediate wait()
-                // in WAIT_IDLE.
-                if (state === 'WAIT_IDLE' && !isSE0(pins)) {
-                    const idleSym = getSymbol(
-                        pins,
-                        signallingOption
-                    );
-
-                    if (sampleNum - lastEdge > 1) {
-                        handleIdle(idleSym, sampleNum, ssBlock);
-                    } else {
-                        waitForSop(
-                            getSymbol(pins, signalling),
-                            sampleNum
-                        );
-                    }
-                }
-
-                continue;
-            }
 
             // =============================================
             // IDLE
@@ -567,10 +609,14 @@ class USBSignallingDecoder extends Decoder {
                         se0Start = i;
                         state = 'WAIT_IDLE';
                     } else {
-                        waitForSop(sym, i);
-                    }
+                        const nx = tryPacket(sym, i);
 
-                    edgePins = pins;
+                        if (nx >= 0) {
+                            i = nx;
+                            previousPins = getPins(i - 1);
+                            continue;
+                        }
+                    }
                 }
 
                 previousPins = pins;
@@ -593,23 +639,26 @@ class USBSignallingDecoder extends Decoder {
                     continue;
                 }
 
-                const idleSym = getSymbol(
-                    pins,
-                    signallingOption
-                );
-
                 if (i - lastEdge > 1) {
-                    handleIdle(idleSym, i, se0Start);
+                    handleIdle(
+                        getSymbol(pins, signallingOption),
+                        i,
+                        se0Start
+                    );
                 } else {
-                    waitForSop(
+                    const nx = tryPacket(
                         getSymbol(pins, signalling),
                         i
                     );
+
+                    if (nx >= 0) {
+                        i = nx;
+                        previousPins = getPins(i - 1);
+                        continue;
+                    }
                 }
 
-                edgePins = pins;
                 previousPins = pins;
-
                 i++;
 
                 continue;
@@ -619,15 +668,15 @@ class USBSignallingDecoder extends Decoder {
         }
 
         // -------------------------------------------------
-        // Sort annotations
+        // Sort output
         // -------------------------------------------------
 
-        for (const row of [symbolAnns, bitAnns, eventAnns]) {
+        for (const row of [symbolAnns, bitAnns, eventAnns])
             row.sort((a, b) => a.start - b.start);
-        }
+
+        frames.sort((a, b) => a.start - b.start);
 
         this.frames = frames;
-        console.log(frames);
 
         return {
             symbols: symbolAnns,

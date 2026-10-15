@@ -1,2 +1,3 @@
 node_modules/
 /externalTools/
+/backend_rust/target/
