@@ -70,7 +70,7 @@
       if (anchor.signal !== undefined) return channelNode.get(d.cfg[anchor.signal]);
 
       if (anchor.decoder !== undefined) {
-        const target = visibleDecoders.find((x) => x.id === d.cfg[anchor.decoder]);
+        const target = visibleDecoders.find((x) => x.id === anchor.decoder);//d.cfg[anchor.decoder]);
         if (!target) return undefined;
         
         // If no specific row ID is provided, use the ID of the last row in the target decoder.
@@ -89,7 +89,7 @@
 
     const lastChannel = channelOrder[channelOrder.length - 1];
     const rowsAtEnd = [];                      
-
+    //console.log(visibleDecoders);
     for (const d of visibleDecoders) {
       const chans = readBy(d);
 

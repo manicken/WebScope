@@ -84,6 +84,7 @@ class WebSocketSource {
                 }
             } else {
                 let data = new Uint8Array(ev.data);
+                //console.log(data);
                 //console.log(data.length);
                 WebSocketSource.#onData(data, WebSocketSource.#offset);
                 WebSocketSource.#offset += data.length;
@@ -94,12 +95,14 @@ class WebSocketSource {
     }
 
     static #sendStart() {
+        
         const cfg = WebSocketSource.#cfg;
+
         WebSocketSource.#ws.send(JSON.stringify({
             type: 'start',
             deviceId: window.WS.sources.getSelectedId(),
             samplerate: cfg.samplerate,
-            //channels: 8,
+            //channels: Array.from({ length: cfg.channels }, (_, i) => `D${i}`),
             samplecount: cfg.samplecount,
         }));
     }

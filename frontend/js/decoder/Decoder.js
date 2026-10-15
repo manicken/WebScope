@@ -6,6 +6,14 @@ class Decoder {
         return this.name;
     }
 
+
+    static Info = {
+        name: '',
+        longname: '',
+        desc: '',
+        class: Decoder // to be changed to the current class
+    };
+
     static GetSourceTypes() {
         return [CustomDecoder.TYPE];
     }

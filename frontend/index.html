@@ -16,15 +16,16 @@
     <div id="mainMenu"></div>
     <span class="brand">WebScope</span>
     <span class="sep"></span>
-    <span class="spacer"></span>
+    
     <select id="deviceSelect"></select>
     <button id="devicesRefreshBtn">↻</button>
-    
-    <label>Rate <input id="samplerateIn" type="number" value="8000000" step="1000" style="width:110px" /></label>
-    <!--<label>Rate <select id="samplerateIn" style="width:110px"></select></label>-->
+    <label>Rate <select id="samplerateSelect" style="width:110px"></select></label>
     <label>Duration (s) <input id="durationIn" type="number" value="1" step="0.01" /></label>
+
     <button id="captureBtn" class="primary">Start</button>
     <span id="statusPill" class="status-pill">idle</span>
+    
+    
     <span class="spacer"></span>
     <input id="wsUrlInput" type="text" placeholder="ws://localhost:8080" value="ws://localhost:8080" />
     <button id="wsConnectBtn" title="(Re)Connect to the websocket server">⇄</button>'
@@ -71,8 +72,7 @@
 -->
 <script src="js/libs/ace.js"></script>
 <script src="js/libs/mode-javascript.js"></script>
-<script src="js/libs/jszip.js"></script>
-<script src="js/components/sigrok-sr.js"></script>
+
 <script src="js/components/fileSelector.js"></script>
 
 <script src="js/components/MinimizeCard.js"></script>
@@ -108,7 +108,8 @@
 <script src="js/decoders/I2CDecoder.js"></script>
 <script src="js/decoders/SPIDecoder.js"></script>
 <script src="js/decoders/WS281xDecoder.js"></script>
-
+<script src="js/decoders/USBSignalingDecoder.js"></script>
+<script src="js/decoders/USBPacketDecoder.js"></script>
 
 <script src="js/annotations/annotationEngine.js"></script>
 <script src="js/annotations/annotationGui.js"></script>
@@ -127,6 +128,11 @@
 <script src="js/waveform/waveformGui.js"></script>
 <script src="js/waveform/measurements.js"></script>
 <script src="js/waveform/overview.js"></script>
+
+<script src="js/fileformats/helpers.js"></script>
+<script src="js/fileformats/saleae-bin-import.js"></script>
+<script src="js/fileformats/sigrok-sr.js"></script>
+<script src="js/fileformats/webscope.js"></script>
 
 <script src="js/topbar.js"></script>
 <script src="js/rightpanel.js"></script>

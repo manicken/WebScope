@@ -227,6 +227,7 @@ class DemoWave {
    * `bytes` includes the PID byte (PID | ~PID << 4) and CRC, see usbToken/usbData.
    */
   usb({dp, dm, t, bytes, low = false }) {
+    console.log(bytes);
     const bt = 1 / (low ? 1.5e6 : 12e6);
     const J = low ? [false, true] : [true, false]; // [D+, D-]
     const K = [!J[0], !J[1]];

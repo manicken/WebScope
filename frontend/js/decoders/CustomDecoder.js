@@ -23,6 +23,8 @@ let CustomDecoderExampleCode = `
 class CustomDecoder extends Decoder {
     static Info = {
         name: "Custom",
+        longname: 'Custom Decoder',
+        desc: 'Custom Decoder that can be changed at runtime',
         class: CustomDecoder
     };
 

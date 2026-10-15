@@ -15,7 +15,7 @@
     let devices = new Map();
     let selectedDevice = null;
     let deviceSelect_el = document.getElementById("deviceSelect");
-    let samplerateIn_el = document.getElementById("samplerateIn");
+    let samplerateSelect_el = document.getElementById("samplerateSelect");
     deviceSelect_el.onchange = deviceSelected;
     deviceSelect_el.onclick = deviceSelected;
 
@@ -44,10 +44,15 @@
         let id = deviceSelect_el.value;
         
         selectedDevice = devices.get(id);
+
+        samplerateSelect_el.innerHTML = "";
+        for (let rate of selectedDevice.samplerates) {
+            appendNewElement(samplerateSelect_el, 'option', {textContent:WS.format.fmtRate(rate), value:rate})
+        }
         console.log(selectedDevice);
         //for (let rate of selectedDevice.)
-        samplerateIn_el
-        console.log(selectedDevice);
+
+        //console.log(selectedDevice);
     }
 
     function refresh() {

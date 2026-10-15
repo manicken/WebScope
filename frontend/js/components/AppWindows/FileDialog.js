@@ -17,13 +17,15 @@ class FileDialog extends AppWindow {
 
     #cwd = '';            // virtual path relative to user_data_fs, e.g. "captures/2026"
     #entries = [];
-    #selected = null;     // selected file name
+    //#selected = null;     // selected file name
+    #selected = new Set();
     #loadToken = 0;
     #overwriteArmed = false;
 
     constructor({
         title = null,
         mode = FileDialog.FDModes.Open,
+        multiple = false,         // multiple file selection
         path = '',                // start directory
         fileName = '',            // default name in save mode
         extensions = null,        // e.g. ['.sr', '.json'] - filters files, dirs always shown
@@ -34,7 +36,7 @@ class FileDialog extends AppWindow {
             backdrop: true,
             closeOnBackdropClick: false,
         });
-
+        this.multiple = multiple;
         this.fdmode = mode;
         this.extensions = extensions?.map(e => e.toLowerCase()) ?? null;
         this.onConfirm = onConfirm;
@@ -140,7 +142,7 @@ class FileDialog extends AppWindow {
             this.#entries = entries
                 .filter(e => e.isDir || this.#matches(e.name))
                 .sort((a, b) => (Boolean(b.isDir) - Boolean(a.isDir)) || a.name.localeCompare(b.name, undefined, { numeric: true }));
-            this.#selected = null;
+            this.#selected = new Set();
             this.#overwriteArmed = false;
             this.#hideError();
             this.#render();
@@ -167,8 +169,14 @@ class FileDialog extends AppWindow {
                 }));
             } else {
                 const row = this.#makeRow('📄', entry.name, { size:entry.size,
-                    onClick: () => this.#select(entry.name, row),
-                    onDblClick: () => { this.#select(entry.name, row); this.#confirm(); }
+                    //onClick: () => this.#select(entry.name, row),
+                    //onDblClick: () => { this.#select(entry.name, row); this.#confirm(); }
+                    onClick: (event) => this.#select(entry.name, row, event),
+                    onDblClick: () => {
+                        this.#selected.clear();
+                        this.#selected.add(entry.name);
+                        this.#confirm();
+                    }
                 });
                 row.dataset.file = entry.name;
                 this.list_el.appendChild(row);
@@ -206,13 +214,38 @@ class FileDialog extends AppWindow {
         return row;
     }
 
-    #select(name, row) {
+    /*#select(name, row) {
         for (const r of this.list_el.children) r.style.background = '';
         row.style.background = 'rgba(80,140,255,0.35)';
         this.#selected = name;
         this.#overwriteArmed = false;
         this.#hideError();
         if (this.fdmode === FileDialog.FDModes.Save) this.name_el.value = name;
+    }*/
+
+    #select(name, row, event = {}) {
+        if (!this.multiple || (!event.ctrlKey && !event.metaKey)) {
+            this.#selected.clear();
+        }
+
+        if (this.#selected.has(name)) {
+            this.#selected.delete(name);
+        } else {
+            this.#selected.add(name);
+        }
+
+        for (const r of this.list_el.children) {
+            r.style.background = this.#selected.has(r.dataset.file)
+                ? 'rgba(80,140,255,0.35)'
+                : '';
+        }
+
+        this.#overwriteArmed = false;
+        this.#hideError();
+
+        if (this.fdmode === FileDialog.FDModes.Save) {
+            this.name_el.value = name;
+        }
     }
 
     #getSaveName() {
@@ -230,8 +263,13 @@ class FileDialog extends AppWindow {
 
     #openSaveAny() {
         if (this.fdmode === FileDialog.FDModes.Open) {
-            SelectFile({filters:['.ws.zip','.sr','.vcd','.bin'], onRead: async({data, name, ext})=>{
-                this.onConfirm({data, name, ext, source: FileDialog.FDSources.Local});
+            SelectFile({filters:this.extensions, multiple:this.multiple, onRead: async(files)=>{
+                if (this.multiple) {
+                    this.onConfirm({files, source: FileDialog.FDSources.Local});
+                } else {
+                    this.onConfirm({file:files, source: FileDialog.FDSources.Local});
+                }
+                
                 this.destroy();
             }});
         } else {
@@ -258,8 +296,8 @@ class FileDialog extends AppWindow {
         let name;
 
         if (this.fdmode === FileDialog.FDModes.Open) {
-            name = this.#selected;
-            if (!name) return this.#showError('Select a file first.');
+            //name = this.#selected;
+            //if (!name) return this.#showError('Select a file first.');
         } else {
             name = this.#getSaveName();
             if (!name) return;
@@ -272,12 +310,48 @@ class FileDialog extends AppWindow {
         }
         const filePath = this.#join(name);
         if (this.fdmode === FileDialog.FDModes.Open) {
-            try {
+            /*try {
                 const response = await fetch(FileDialog.#url(filePath));
                 if (!response.ok) throw new Error(`${response.status}`);
                 const data = await response.arrayBuffer();
                 this.onConfirm({ data, name: filePath, ext: FileDialog.#extOf(name, this.extensions), source: FileDialog.FDSources.Backend });
                 this.destroy();
+            } catch (err) {
+                this.#showError('Failed to read file: ' + err.message);
+            }*/
+            if (!this.#selected.size)
+                return this.#showError('Select a file first.');
+
+            try {
+                const files = await Promise.all(
+                    [...this.#selected].map(async name => {
+                        const filePath = this.#join(name);
+                        const response = await fetch(FileDialog.#url(filePath));
+
+                        if (!response.ok)
+                            throw new Error(`${response.status}`);
+
+                        return {
+                            data: await response.arrayBuffer(),
+                            name: filePath,
+                            ext: FileDialog.#extOf(name, this.extensions)
+                        };
+                    })
+                );
+                if (this.multiple) {
+                    this.onConfirm({
+                        files,
+                        source: FileDialog.FDSources.Backend
+                    });
+                } else {
+                    this.onConfirm({
+                        file: files[0],
+                        source: FileDialog.FDSources.Backend
+                    });
+                }
+
+                this.destroy();
+
             } catch (err) {
                 this.#showError('Failed to read file: ' + err.message);
             }

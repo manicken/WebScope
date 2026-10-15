@@ -299,7 +299,7 @@ server.on('connection', (ws) => {
                     /* onData */
                     (chunk, offset) => {
                         //console.log("sending: ", chunk);
-                        console.log("sending @ offset: "+ offset);
+                       // console.log("sending @ offset: "+ offset);
                         ws.send(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength));
                     },
                     /* onDone */

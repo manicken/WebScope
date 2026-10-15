@@ -1,5 +1,9 @@
 // WS281x RGB LED decoder
-// Ported from libsigrokdecode (rgb_led_ws281x), Copyright (C) 2016 Vladimir Ermakov
+
+// Ported from libsigrokdecode (rgb_led_ws281x)
+
+// Copyright (C) 2016 Vladimir Ermakov
+
 // License: GPLv3+
 
 /*

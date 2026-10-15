@@ -85,9 +85,10 @@ class SigrokKind {
             args.push('--config', `samplerate=${msg.samplerate}`);
         }
         if (!msg.channels) {
-            console.log("warning msg.channels is undefined");
+            console.log("warning msg.channels is undefined - using defaults from: ", this.channels);
         } 
         const wanted = msg.channels ?? this.channels.filter(isLogicChannel);
+        console.log(wanted);
         if (!Array.isArray(wanted) || wanted.length === 0 ||
             !wanted.every((c) => this.channels.includes(c) && isLogicChannel(c))) {
             return onError('bad channel list');
@@ -197,7 +198,7 @@ export async function scanSigrok(driver /* optional, e.g. "fx2lafw" */) {
 
         const deviceInfoOut = await run(['-d', spec, '--show']);
         const deviceInfoLines = deviceInfoOut.split(/\r?\n/);
-        const sampleRates = [];
+        const samplerates = [];
         let li = 0;
         for (; li < deviceInfoLines.length; li++) {
             if (deviceInfoLines[li].trim() === 'samplerate - supported samplerates:')
@@ -229,7 +230,7 @@ export async function scanSigrok(driver /* optional, e.g. "fx2lafw" */) {
                 } else if (prefix == 'G') {
                     mult = 1_000_000_000;
                 } // not sure there is any hobby logic analyzer that support terahertz hehe
-                sampleRates.push(Number(line.substring(0, currentEntryMaybeIndex).trim())*mult);
+                samplerates.push(Number(line.substring(0, currentEntryMaybeIndex).trim())*mult);
                 //sampleRates.push(line.substring(0, line.length-3));
             } else {
                 break;
@@ -249,7 +250,7 @@ export async function scanSigrok(driver /* optional, e.g. "fx2lafw" */) {
         const info = {
             id: 'sigrok:' + spec,
             name,
-            sampleRates,
+            samplerates,
             triggerOptions,
             driver: spec.split(':')[0],
             channels: channels.filter(isLogicChannel).map((n, i) => ({ index: i, name: n, type: 'logic' })),

@@ -31,14 +31,15 @@
         status: { ...store.get().status, state: 'running', sampleCount: 0, samplerate, captureId: store.get().status.captureId + 1 }
         });
         activeSource = source;
-        const sampleType = channels <= 8 ? Uint8Array :
-                    channels <= 16 ? Uint16Array :
+        const channelCount = Array.isArray(channels)?channels.length:channels;
+        const sampleType = channelCount <= 8 ? Uint8Array :
+                    channelCount <= 16 ? Uint16Array :
                     Uint32Array; // cap at 32 channels
-        if (channels > 32) {
+        if (channelCount > 32) {
             console.warn("channel count capped at 32");
         }
         activeSource.start(
-            { samplerate, samplecount:total, channels },
+            { samplerate, samplecount:total, channels:channelCount },
             /* onData */
             (chunk, offset) => {
                 const available = growing.length - offset;
@@ -63,7 +64,7 @@
                         chunk.byteOffset,
                         chunk.byteLength / sampleType.BYTES_PER_ELEMENT
                     );
-
+                    //console.log({input:chunk.buffer, output:samples});
                     growing.set(samples, offset);
                 }
 
