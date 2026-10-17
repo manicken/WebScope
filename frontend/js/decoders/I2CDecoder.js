@@ -18,7 +18,7 @@ class I2CDecoder extends Decoder {
         scl:{ label: 'SCL', type: 'channel', default: 1},
         sda:{ label: 'SDA', type: 'channel', default: 2},
         format: { ...Decoder.FORMAT_FIELD, default: 'hex'},
-        subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
+        //subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
     }
 
     getCfgGui() {
@@ -29,6 +29,10 @@ class I2CDecoder extends Decoder {
         super(p);
         this.signals = ['scl', 'sda'];
         this.frames = [];
+    }
+
+    static GetSourceTypes() {
+        return ['logic', CustomDecoder.TYPE];
     }
 
     getOutput() {

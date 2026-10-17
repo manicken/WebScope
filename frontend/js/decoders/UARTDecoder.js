@@ -15,7 +15,7 @@ class UARTDecoder extends Decoder {
         msbFirst:{ label: 'MSB first', type: 'bool', default: false },
         invert:{ label: 'Inverted', type: 'bool', default:false },
         format:{ ...Decoder.FORMAT_FIELD, default:'ascii'},
-        subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
+        //subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
     };
 
     getCfgGui() {
@@ -51,6 +51,10 @@ class UARTDecoder extends Decoder {
         return {
             data:{label:'DATA', anchor: { signal: 'channel' }, placement: 'after'}
         };
+    }
+
+    static GetSourceTypes() {
+        return ['logic', CustomDecoder.TYPE];
     }
 
     getOutput() {

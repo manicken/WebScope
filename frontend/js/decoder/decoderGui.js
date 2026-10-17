@@ -12,7 +12,14 @@
     let addDecoderMenu = null;
 
     function init() {
-        addDecoderMenu = new AddNewDecoderContextMenu({ itemClickedCb: (p) => { addNewDecoder(p); } });
+        //addDecoderMenu = new AddNewDecoderContextMenu({ itemClickedCb: (p) => { addNewDecoder(p); } });
+
+        addDecoderMenu = new AddNewDecoderContextMenu({
+            itemClickedCb: ({ path, parentDecoder }) => {
+                try { window.WS.decoders.addChain(path.map(window.WS.decoders.typeOf), { parentDecoder }); }
+                catch (e) { console.log(e); InfoDialog.Show({ title: 'Cannot add decoder', message: e }); }
+            }
+        });
         WS.decoders.ui.addDecoderMenu = addDecoderMenu;
     }
 
@@ -45,7 +52,8 @@
     }
 
     /* ============================== Analyzers ============================== */
-    function getSection(title, parent) {
+ 
+    function getSection({title, parent, panelRoot}) {
         const key = parent ? parent.id : 'root';
         let s = sections.get(key);
         if (s) return s;
@@ -58,23 +66,33 @@
             addDecoderMenu.setItems({ items: WS.decoders.registry, parentDecoder: s.parent });
             addDecoderMenu.toggleContextMenu(e, { x: rect.left, y: rect.top + rect.height + 2 });
         });
-        const spacer = createNewElement('div', { className: 'spacer' });
 
-        s.sec = MinimizeCard({ title, headItems: [spacer, btn] });
         s.hint = el('div', 'hint', 'Add a protocol analyzer to decode the captured data');
         s.cards = el('div', 'cards');
-        s.sec.bodyAppendChild(s.hint);
-        s.sec.bodyAppendChild(s.cards);
-        s.root = s.sec.getRoot();
+
+        if (panelRoot) {
+            
+            // plain section for the panel root, no minimize card
+            s.root = el('section', 'section');
+            const head = el('div', 'rp-header');
+            head.append(el('span', 'rp-header-title', title), btn);
+            s.root.append(head, s.hint, s.cards);
+        } else {
+            const spacer = createNewElement('div', { className: 'spacer' });
+            s.sec = MinimizeCard({ title, headItems: [spacer, btn] });
+            s.sec.bodyAppendChild(s.hint);
+            s.sec.bodyAppendChild(s.cards);
+            s.root = s.sec.getRoot();
+        }
 
         sections.set(key, s);
         return s;
     }
 
-    function renderAnalyzers({ container, title = 'Analyzers', decoders = store.get().decoders, parent = null } = {}) {
+    function renderAnalyzers({ container, title = 'Analyzers', decoders = store.get().decoders, parent = null, panelRoot = false } = {}) {
         if (!parent) pruneCaches();
 
-        const s = getSection(title, parent);
+        const s = getSection({title, parent, panelRoot});
         s.parent = parent;
 
         // attach the (persistent) section only if it is not already there
@@ -108,7 +126,7 @@
         const card = MinimizeCard({ headItems: [dot, titleEl, subEl, eyeBtn, delBtn] });
 
         // Form lives in its own div: it can be rebuilt without touching the MinimizeCard shell/state.
-        const form = el('div', 'decoder-form');
+        const form = el('div', 'card-body');
         card.bodyAppendChild(form);
 
         let formSig = null;
@@ -218,15 +236,16 @@
                         if (!isActive(codeText) && codeText.value !== v) codeText.value = v;
                     });
 
-                } else if (f.type === 'subDecoders') {
+                }/* else if (f.type === 'subDecoders') {
                     row.className = 'form-col';
                     input = createNewElement('div', { styles: { width: '100%' } });
                     updaters.set(key, (dec) => {
-                        renderAnalyzers({ container: input, decoders: store.get().decoders/*dec.subDecoders*/, parent: dec, title: f.label });
+                        renderAnalyzers({ container: input, decoders: store.get().decoders, parent: dec, title: f.label });
                     });
 
-                } else {
+                } */else {
                     input = document.createElement('input');
+                    input.title = "Unknown settings type: " + f.type;
                     input.className = 'mono';
                     const commit = () => {
                         const cur = d.cfg[key];
@@ -240,6 +259,15 @@
                     });
                 }
 
+                row.appendChild(input);
+                form.appendChild(row);
+            }
+            if (typeof d.getOutput === 'function') {
+                const row = el('label', 'form-col');
+                let input = createNewElement('div', { styles: { width: '100%' } }); 
+                updaters.set('__subDecoders', (dec) => {
+                    renderAnalyzers({ container: input, decoders: store.get().decoders, parent: d, title: "Sub Decoders" });
+                });
                 row.appendChild(input);
                 form.appendChild(row);
             }

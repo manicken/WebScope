@@ -450,6 +450,46 @@ class AppWindow extends EventTarget{
 			width:  Math.max(minW, w + dx),
 			height:  Math.max(minH, h + dy)
 		}));
+
+		this.#addResizeHandle("bottom", (x, y, w, h, dx, dy, minW, minH) => ({
+			x:      x,
+			y:      y,
+			width:  w,
+			height:  Math.max(minH, h + dy)
+		}));
+
+		this.#addResizeHandle("right", (x, y, w, h, dx, dy, minW, minH) => ({
+			x:      x,
+			y:      y,
+			width:  Math.max(minW, w + dx),
+			height: h,
+		}));
+
+		this.#addResizeHandle("top", (x, y, w, h, dx, dy, minW, minH) => 
+			{
+				const height = Math.max(minH, h - dy);
+
+				return {
+					x: x,
+					y: y + (h - height),
+					width:w,
+					height
+				};
+			}
+		);
+
+		this.#addResizeHandle("left", (x, y, w, h, dx, dy, minW, minH) => 
+			{
+				const width = Math.max(minW, w - dx);
+
+				return {
+					x: x + (w - width),
+					y: y,
+					width,
+					height:h
+				};
+			}
+		);
 	}
 
 	/** Replace the AppWindow body with the given node. */

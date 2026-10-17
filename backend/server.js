@@ -25,7 +25,21 @@ import { scanSigrok } from './SigrokDevice.js';
 
 import { WebSocketServer, WebSocket } from 'ws';
 
-const PORT = 8080;
+import open from 'open';
+
+const args = process.argv.slice(2);
+
+const autoOpen = args.includes('--open');
+
+const portIndex = args.indexOf('--port');
+
+const PORT = portIndex !== -1
+    ? Number(args[portIndex + 1])
+    : 8080;
+
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535)
+    throw new Error('Invalid port number');
+
 
 const PUBLIC_DIR = fileURLToPath(new URL('../frontend', import.meta.url));
 const DATA_DIR = fileURLToPath(new URL('../user_data_fs', import.meta.url));
@@ -227,10 +241,16 @@ const httpServer = createServer(async (req, res) => {
 
 // HTTP and WebSocket share the same server and port.
 const server = new WebSocketServer({ server: httpServer });
+//console.log(process.argv);
 
-httpServer.listen(PORT, () => {
+
+
+httpServer.listen(PORT, async () => {
     console.log(`WebScope: http://localhost:${PORT}`);
     console.log(`WebSocket: ws://localhost:${PORT}`);
+    if (autoOpen) {
+        await open(`http://localhost:${PORT}`);
+    }
 });
 
 server.on('listening', () => {

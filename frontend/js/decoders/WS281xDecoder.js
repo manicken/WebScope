@@ -61,7 +61,7 @@ class WS281xDecoder extends Decoder {
             options: ['BGR', 'BRG', 'GBR', 'GRB', 'RBG', 'RGB', 'RWBG', 'RGBW'].map((s) => [s, s]), default: 'GRB' },
         textorder:{ label: 'Text order', type: 'select',
             options: ['wire', 'RGB[W]', 'RGB', 'RGBW', 'RGWB'].map((s) => [s, s]), default: 'RGB[W]' },
-        subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
+        //subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
     };
 
     getCfgGui() {

@@ -52,7 +52,13 @@ let mainMenuItems = [
                         console.log(out);
                     }});
                 }
-            }
+            },
+            {
+                label: "Add chain test",
+                action: () => {
+                    window.WS.decoders.addChain([USBSignallingDecoder.TYPE, USBPacketDecoder.TYPE]);
+                }
+            },
             /*{
                 label: "SaveTest",
                 action: async () => {

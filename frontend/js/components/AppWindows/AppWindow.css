@@ -20,6 +20,9 @@
   max-width: calc(100vw - 40px);
   max-height: calc(100vh - 40px);
   box-sizing: border-box;
+  min-height: 0;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .AppWindow.AppWindow--open {
@@ -111,16 +114,15 @@
 
 .AppWindow-resize-handle {
 	position: absolute;
-	right: 0;
-	bottom: 0;
-	width: 16px;
-	height: 16px;
-	cursor: nwse-resize;
 	touch-action: none;
+  box-sizing: border-box;
+  background-color: transparent;
 }
 .AppWindow-resize-handle.top-left {
     left: 0;
     top: 0;
+    width: 8px;
+	  height: 8px;
     cursor: nwse-resize;
 }
 
@@ -135,13 +137,50 @@
 .AppWindow-resize-handle.bottom-left {
     left: 0;
     bottom: 0;
+    width: 8px;
+	  height: 8px;
     cursor: nesw-resize;
 }
 
 .AppWindow-resize-handle.bottom-right {
     right: 0;
     bottom: 0;
+    width: 8px;
+	  height: 8px;
     cursor: nwse-resize;
+}
+
+.AppWindow-resize-handle.top {
+    top: 0;
+    left: 16px;
+    right: 16px;
+    height: 8px;
+    cursor: ns-resize;
+}
+
+.AppWindow-resize-handle.bottom {
+    bottom: 0;
+    left: 16px;
+    right: 16px;
+    height: 8px;
+    cursor: ns-resize;
+}
+
+.AppWindow-resize-handle.left {
+    left: 0;
+    top: 16px;
+    bottom: 16px;
+    width: 8px;
+    cursor: ew-resize;
+}
+
+.AppWindow-resize-handle.right {
+    right: 0;
+    top: 16px;
+    bottom: 16px;
+    width: 8px;
+    cursor: ew-resize;
+
 }
 
 .reopen-btn {

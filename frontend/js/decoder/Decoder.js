@@ -14,8 +14,14 @@ class Decoder {
         class: Decoder // to be changed to the current class
     };
 
+    /**
+     * Types this decoder can consume as input:
+     *  - 'logic' = raw captured channels (default, i.e. a root decoder)
+     *  - a decoder TYPE (e.g. 'i2c') = stacks on decoders of that type
+     *  - '*'     = accepts any source (CustomDecoder)
+     */
     static GetSourceTypes() {
-        return [CustomDecoder.TYPE];
+        return ['logic'];
     }
 
     static FORMAT_FIELD = { label: 'Display', type: 'select', options: [['hex', 'Hex'], ['dec', 'Decimal'], ['bin', 'Binary'], ['ascii', 'ASCII']] };
@@ -144,7 +150,8 @@ class Decoder {
         }
 
         // 3. clear references
-        this.getSource = null;
         this.cfg = null;
     }
+
+    
 }

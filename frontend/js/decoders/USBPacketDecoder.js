@@ -18,16 +18,8 @@ class USBPacketDecoder extends Decoder {
     };
 
     static GuiConfigData = {
-        /*signalling: {
-            label: 'Signalling',
-            type: 'select',
-            options: [
-                ['full-speed', 'Full-speed'],
-                ['low-speed', 'Low-speed']
-            ],
-            default: 'full-speed'
-        },*/
-        subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
+        
+        //subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
     };
 
     static GetSourceTypes() {
@@ -424,6 +416,7 @@ class USBPacketDecoder extends Decoder {
      * }
      */
     run() {
+        console.log("packer is running");
         const source = this.getSource();
 
         this.frames = [];

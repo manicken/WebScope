@@ -26,6 +26,8 @@ class AppWindows {
 
 	static #AppWindowZoffset = 2000;
 	static #windows = [];
+
+    static GetWindows() { return AppWindows.#windows }
     static addToList(win) {
         AppWindows.#windows.push(win);
     }

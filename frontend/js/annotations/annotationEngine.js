@@ -10,11 +10,7 @@
         //console.trace(decId, rowId, allAtRow);
         return annotationsInRange(allAtRow, start, end, minWidth, limit);
     }
-    /** Page of raw (unmerged) annotations for the data table: { total, offset, items }. */
-    function annotationPage(decId, rowId, offset, limit) {
-        const allAtRow = WS.decoders.decodedResult(decId)?.[rowId] ?? [];
-        return { total: allAtRow.length, offset, items: allAtRow.slice(offset, offset + limit) };
-    }
+    
     /** Index of the annotation nearest `sampleIndex`, for click-to-focus from the waveform. */
     function annotationIndex(decId, rowId, sampleIndex) {
         const allAtRow = WS.decoders.decodedResult(decId)?.[rowId] ?? [];
@@ -79,7 +75,6 @@
         annKey, 
         annotationAt, 
         annotationsAtRowInRange, 
-        annotationPage, 
         annotationIndex
     });
 })(window.WS = window.WS || {});

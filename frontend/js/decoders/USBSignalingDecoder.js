@@ -35,7 +35,7 @@ class USBSignallingDecoder extends Decoder {
             ],
             default: 'automatic'
         },
-        subDecoders: { label: 'Sub-Analyzers', type: 'subDecoders', default: [] },
+        //subDecoders: { label: 'Sub-Analyzers', type: 'subDecoders', default: [] },
     };
 
     static Symbols = {
@@ -90,6 +90,10 @@ class USBSignallingDecoder extends Decoder {
 
     getCfgGui() {
         return USBSignallingDecoder.GuiConfigData;
+    }
+
+    static GetSourceTypes() {
+        return ['logic', CustomDecoder.TYPE];
     }
 
     getOutput() {

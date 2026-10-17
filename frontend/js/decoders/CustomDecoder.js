@@ -30,7 +30,7 @@ class CustomDecoder extends Decoder {
 
     static GuiConfigData = {
         code: {label:'code', type:'js_code_edit', default: CustomDecoderExampleCode},
-        subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
+        //subDecoders:{ label: 'Sub-Analyzers', type: 'subDecoders', default: []},
     }
     
     getCfgGui() {
@@ -39,12 +39,15 @@ class CustomDecoder extends Decoder {
 
     /** static method, no filter */
     static GetSourceTypes() {
-        return [];
+        return ['*'];
     }
 
-    /** instance method, gets it's filter from custom code or defaults to filter that includes nothing */
+    /**
+     * Instance override: restricts which decoder TYPEs may be stacked on this CD.
+     * Defaults to ['*'] (accept all) so sub-decoders can be added before the user code has run.
+     */
     GetSourceTypes() {
-        return this.#decoder?.GetSourceTypes?.() ?? [null];
+        return this.#decoder?.GetSourceTypes?.() ?? CustomDecoder.GetSourceTypes();
     }
 
     #decoder = null;
