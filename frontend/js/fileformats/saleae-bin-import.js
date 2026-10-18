@@ -148,7 +148,7 @@ function importSaleae({ items, sampleRate, maxSamples = 1 << 28 }) {
     }
   }
   if (sr == null) throw new Error('sampleRate krävs (v0-filer saknar den)');
-
+/*
   // Gemensam tidsbas
   let origin = Infinity, end = -Infinity;
   for (const { chunks } of parsed) for (const c of chunks) {
@@ -165,4 +165,36 @@ function importSaleae({ items, sampleRate, maxSamples = 1 << 28 }) {
   }
 
   return { samples, samplerate: sr, beginTime: origin, numSamples: total, channels: seen.size };
+  */
+
+  // Gemensam tidsbas
+  let origin = Infinity, end = -Infinity;
+  for (const { chunks } of parsed) for (const c of chunks) {
+    if (c.beginTime < origin) origin = c.beginTime;
+    if (c.endTime > end) end = c.endTime;
+  }
+
+  const fullTotal = Math.round((end - origin) * sr);
+  const limit = Math.max(1, Math.floor(maxSamples));
+  const total = Math.min(fullTotal, limit);
+  const truncated = total < fullTotal;
+  if (truncated) console.warn(`Capture trunkerad: ${fullTotal} -> ${total} samples`);
+
+  // Chunks som börjar efter klippgränsen behövs inte alls
+  const limitTime = origin + total / sr;
+
+  const samples = new Uint32Array(total);
+  for (const { ch, chunks } of parsed) {
+    const mask = (1 << ch) >>> 0;
+    for (const c of chunks) {
+      if (c.beginTime >= limitTime) continue;
+      orChunkIntoBits(samples, mask, c, origin, sr);
+    }
+  }
+
+  return {
+    samples, sampleRate: sr, beginTime: origin,
+    numSamples: total, fullNumSamples: fullTotal, truncated,
+    channels: seen.size
+  };
 }
