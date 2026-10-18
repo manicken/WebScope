@@ -1,15 +1,15 @@
-// saleae-bin.js — parser för Saleae Logic 2 "Binary Export Format" (v0 och v1)
+// saleae-bin.js — parser för Saleae Logic 2 "Binary Format" (v0 och v1)
 const MAGIC = '<SALEAE>';
 const TYPE_DIGITAL = 0, TYPE_ANALOG = 1;
 
-export function isSaleaeBinary(buf) {
+function isSaleaeBinary(buf) {
   if (buf.byteLength < 16) return false;
   const b = new Uint8Array(buf, 0, 8);
   for (let i = 0; i < 8; i++) if (b[i] !== MAGIC.charCodeAt(i)) return false;
   return true;
 }
 
-export function parseSaleaeBinary(buf) {
+function parseSaleaeBinary(buf) {
   if (!isSaleaeBinary(buf)) throw new Error('Inte en Saleae-binärfil');
   const dv = new DataView(buf);
   let o = 8;
@@ -73,7 +73,7 @@ export function parseSaleaeBinary(buf) {
 
 // Transitioner -> samples (1 byte/sample, 0/1) vid given samplerate.
 // OBS: stora för långa capturer — kör hellre run-length direkt från transitions om motorn tillåter det.
-export function digitalChunkToSamples(chunk, sampleRate = chunk.sampleRate) {
+function digitalChunkToSamples(chunk, sampleRate = chunk.sampleRate) {
   if (!sampleRate) throw new Error('Samplerate krävs (v0-filer saknar den)');
   const total = Math.round((chunk.endTime - chunk.beginTime) * sampleRate);
   const out = new Uint8Array(total);
@@ -117,17 +117,17 @@ function orChunkIntoBits(out, mask, chunk, origin, sr) {
 }
 
 /**
- * importSaleae({ files: [{ data, ch }, ...], sampleRate?, maxSamples? })
+ * importSaleae({ items: [{ data, ch }, ...], sampleRate?, maxSamples? })
  *  data: ArrayBuffer | typed array med innehållet i en Saleae .bin (digital, en kanal)
  *  ch:   bitposition 0..31 i utdata
  *  sampleRate: krävs för v0-filer, överstyr annars filens (v1)
  * Returnerar { samples: Uint32Array, sampleRate, beginTime, numSamples, channels }
  */
-export function importSaleae({ files, sampleRate, maxSamples = 1 << 28 }) {
-  if (!Array.isArray(files) || files.length === 0) throw new Error('Inga filer angivna');
+function importSaleae({ items, sampleRate, maxSamples = 1 << 28 }) {
+  if (!Array.isArray(items) || items.length === 0) throw new Error('Inga filer angivna');
 
   const seen = new Set();
-  const parsed = files.map(({ data, ch }, n) => {
+  const parsed = items.map(({ data, ch }, n) => {
     if (!Number.isInteger(ch) || ch < 0 || ch > 31) throw new Error(`Fil ${n}: ogiltig kanal ${ch} (0..31)`);
     if (seen.has(ch)) throw new Error(`Kanal ${ch} används av flera filer`);
     seen.add(ch);
@@ -157,12 +157,12 @@ export function importSaleae({ files, sampleRate, maxSamples = 1 << 28 }) {
   }
   const total = Math.round((end - origin) * sr);
   if (total > maxSamples) throw new Error(`För stor capture: ${total} samples (max ${maxSamples})`);
-
+  console.log({total});
   const samples = new Uint32Array(total);
   for (const { ch, chunks } of parsed) {
     const mask = (1 << ch) >>> 0;
     for (const c of chunks) orChunkIntoBits(samples, mask, c, origin, sr);
   }
 
-  return { samples, sampleRate: sr, beginTime: origin, numSamples: total, channels: [...seen] };
+  return { samples, samplerate: sr, beginTime: origin, numSamples: total, channels: seen.size };
 }

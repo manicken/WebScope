@@ -21,6 +21,7 @@ class FileDialog extends AppWindow {
     #selected = new Set();
     #loadToken = 0;
     #overwriteArmed = false;
+    #drag = null;
 
     constructor({
         title = null,
@@ -56,6 +57,26 @@ class FileDialog extends AppWindow {
         this.list_el = createNewElement('div', {
             styles: { flex: '1', minHeight: '0', overflowY: 'auto', border: '1px solid #888', userSelect: 'none' }
         });
+        if (this.multiple) {
+            this.list_el.addEventListener('mousedown', e => {
+                if (e.button !== 0 || e.target !== this.list_el) return;
+
+                this.#drag = {
+                    x: e.clientX,
+                    y: e.clientY,
+                    ctrl: e.ctrlKey || e.metaKey,
+                    base: new Set(this.#selected),
+                    moved: false,
+                    box: null
+                };
+
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', e => this.#dragMove(e));
+            window.addEventListener('mouseup', e => this.#dragEnd(e));
+
+        }
 
         this.error_el = createNewElement('div', { styles: { display: 'none', color: '#b40000' } });
 
@@ -96,6 +117,92 @@ class FileDialog extends AppWindow {
             }
         ]));
 
+    }
+
+    #dragMove(e) {
+        const drag = this.#drag;
+        if (!drag) return;
+
+        const dx = e.clientX - drag.x;
+        const dy = e.clientY - drag.y;
+
+        // Ignore small mouse movements
+        if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+
+        if (!drag.moved) {
+            drag.moved = true;
+
+            // Create selection rectangle
+            drag.box = createNewElement('div', {
+                styles: {
+                    position: 'absolute',
+                    border: '1px solid rgba(80,140,255,0.9)',
+                    background: 'rgba(80,140,255,0.2)',
+                    pointerEvents: 'none',
+                    zIndex: '10'
+                }
+            });
+
+            this.list_el.style.position = 'relative';
+            this.list_el.appendChild(drag.box);
+        }
+
+        const rect = this.list_el.getBoundingClientRect();
+
+        const left = Math.min(drag.x, e.clientX);
+        const right = Math.max(drag.x, e.clientX);
+        const top = Math.min(drag.y, e.clientY);
+        const bottom = Math.max(drag.y, e.clientY);
+
+        // Position selection rectangle relative to list
+        Object.assign(drag.box.style, {
+            left: `${left - rect.left - this.list_el.clientLeft + this.list_el.scrollLeft}px`,
+            top: `${top - rect.top - this.list_el.clientTop + this.list_el.scrollTop}px`,
+            width: `${right - left}px`,
+            height: `${bottom - top}px`
+        });
+
+        // Start with previously selected files (Ctrl selection)
+        this.#selected = new Set(drag.ctrl ? drag.base : []);
+
+        // Check which file rows intersect the selection
+        for (const row of this.list_el.querySelectorAll('[data-file]')) {
+            const r = row.getBoundingClientRect();
+
+            if (
+                r.right >= left &&
+                r.left <= right &&
+                r.bottom >= top &&
+                r.top <= bottom
+            ) {
+                this.#selected.add(row.dataset.file);
+            }
+        }
+
+        this.#updateSelection();
+    }
+
+    #dragEnd(e) {
+        const drag = this.#drag;
+        if (!drag) return;
+
+        if (drag.box) drag.box.remove();
+
+        // Clicking empty space clears selection
+        if (!drag.moved && !drag.ctrl) {
+            this.#selected.clear();
+            this.#updateSelection();
+        }
+
+        this.#drag = null;
+    }
+
+    #updateSelection() {
+        for (const row of this.list_el.querySelectorAll('[data-file]')) {
+            row.style.background = this.#selected.has(row.dataset.file)
+                ? 'rgba(80,140,255,0.35)'
+                : '';
+        }
     }
 
     // ---------- helpers ----------
@@ -223,7 +330,7 @@ class FileDialog extends AppWindow {
         if (this.fdmode === FileDialog.FDModes.Save) this.name_el.value = name;
     }*/
 
-    #select(name, row, event = {}) {
+    /*#select(name, row, event = {}) {
         if (!this.multiple || (!event.ctrlKey && !event.metaKey)) {
             this.#selected.clear();
         }
@@ -239,6 +346,27 @@ class FileDialog extends AppWindow {
                 ? 'rgba(80,140,255,0.35)'
                 : '';
         }
+
+        this.#overwriteArmed = false;
+        this.#hideError();
+
+        if (this.fdmode === FileDialog.FDModes.Save) {
+            this.name_el.value = name;
+        }
+    }*/
+
+    #select(name, row, event = {}) {
+        if (!this.multiple || (!event.ctrlKey && !event.metaKey)) {
+            this.#selected.clear();
+            this.#selected.add(name);
+        } else {
+            if (this.#selected.has(name))
+                this.#selected.delete(name);
+            else
+                this.#selected.add(name);
+        }
+
+        this.#updateSelection();
 
         this.#overwriteArmed = false;
         this.#hideError();

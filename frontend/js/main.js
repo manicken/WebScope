@@ -50,15 +50,27 @@ let mainMenuItems = [
                 action: () => {
                     FileDialog.Show({extensions:['.bin'], multiple:true, mode: FileDialog.FDModes.Open, onConfirm: async (out)=>{ // {data, name, ext, source}
                         console.log(out);
+                        SaleaeImportDialog.Show({
+                            items:out.files,   // [{ data, name }, ...]
+                            onConfirm: (args) => {
+                                let importData = importSaleae(args);
+                                setSamples({...importData, decode:true});
+                             }   // args = { items:[{data,ch}], sampleRate, maxSamples }
+                        });
+                        /*let chIndex = 0;
+                        let inputItems = out.files.map(item => { return {data:item.data, ch:chIndex++}});
+                        let importData = importSaleae({items:inputItems, sampleRate:4000000, maxSamples:615936000 });
+                        setSamples({...importData, decode:true});
+                        console.log({importData});*/
                     }});
                 }
             },
-            {
+           /* {
                 label: "Add chain test",
                 action: () => {
                     window.WS.decoders.addChain([USBSignallingDecoder.TYPE, USBPacketDecoder.TYPE]);
                 }
-            },
+            },*/
             /*{
                 label: "SaveTest",
                 action: async () => {

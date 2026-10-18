@@ -30,12 +30,7 @@ async function uploadFile(url, file) {
     return response;
 }
 
-async function loadSamplesFromSigrokFile({filedata, decode=false}) {
-    const cap = await loadSr(filedata);
-    const { samplerate, channels, names, unitsize, length, data } = cap;
-    
-    const samples = unpackSamples(cap);
-    //console.log({ samplerate, channels, names, unitsize, length, data, samples });
+function setSamples({samples, samplerate, channels, decode}) {
     const WS = window.WS;
     WS.capture.setBuffer(new CaptureBuffer(samples, samplerate, channels));
     const store = WS.store;
@@ -45,6 +40,15 @@ async function loadSamplesFromSigrokFile({filedata, decode=false}) {
         for (const d of store.get().decoders) WS.decoders.decode(d.id);
     }
     if (store.get().follow) WS.waveform.fit();
+}
+
+async function loadSamplesFromSigrokFile({filedata, decode=false}) {
+    const cap = await loadSr(filedata);
+    const { samplerate, channels, names, unitsize, length, data } = cap;
+    
+    const samples = unpackSamples(cap);
+    //console.log({ samplerate, channels, names, unitsize, length, data, samples });
+    setSamples({samples, samplerate, channels, decode});
 }
 
 function loadDecoderStates(decoderStateData) {

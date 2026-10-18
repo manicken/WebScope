@@ -1,0 +1,41 @@
+[global]
+sigrok version=0.5.2
+
+[device 1]
+capturefile=logic-1
+total probes=32
+samplerate=8 MHz
+total analog=0
+probe1=D0
+probe2=D1
+probe3=D2
+probe4=D3
+probe5=D4
+probe6=D5
+probe7=D6
+probe8=D7
+probe9=D8
+probe10=D9
+probe11=D10
+probe12=D11
+probe13=D12
+probe14=D13
+probe15=D14
+probe16=D15
+probe17=D16
+probe18=D17
+probe19=D18
+probe20=D19
+probe21=D20
+probe22=D21
+probe23=D22
+probe24=D23
+probe25=D24
+probe26=D25
+probe27=D26
+probe28=D27
+probe29=D28
+probe30=D29
+probe31=D30
+probe32=D31
+unitsize=4
