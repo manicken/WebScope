@@ -7,7 +7,7 @@ let mainMenuItems = [
             {
                 label: "Open",
                 action: () => {
-                    FileDialog.Show({extensions:['.ws.zip', '.sr', '.vcd', '.bin'], mode: FileDialog.FDModes.Open, onConfirm: async (out)=>{ // {data, name, ext, source}
+                    FileDialog.Show({extensions:['.ws.zip', '.sr'/*, '.vcd', '.bin'*/], mode: FileDialog.FDModes.Open, onConfirm: async (out)=>{ // {data, name, ext, source}
                         
                         //console.log("Selected the file:", {data:out.data, name:out.name, ext:out.ext, size:out.data.byteLength, source:FileDialog.FDSourceToString(out.source)});
                         console.log(out);
