@@ -41,11 +41,11 @@ function parseSaleaeBinary(buf) {
     for (let c = 0; c < chunkCount; c++) {
       need(version === 0 ? 28 : 36);
       const initialState = u32();
-      const sampleRate = version === 1 ? f64() : null;   // v0 saknar samplerate
+      const samplerate = version === 1 ? f64() : null;   // v0 saknar samplerate
       const beginTime = f64();
       const endTime = f64();
       const n = u64();
-      chunks.push({ initialState, sampleRate, beginTime, endTime, transitions: f64Array(n) });
+      chunks.push({ initialState, samplerate, beginTime, endTime, transitions: f64Array(n) });
     }
     return { type: 'digital', version, chunks };
   }
@@ -54,16 +54,16 @@ function parseSaleaeBinary(buf) {
     const count = version === 0 ? 1 : u64();
     const waveforms = [];
     for (let w = 0; w < count; w++) {
-      let beginTime, triggerTime, sampleRate, downsample, n;
+      let beginTime, triggerTime, samplerate, downsample, n;
       if (version === 0) {
         need(32);
-        beginTime = f64(); sampleRate = u64(); downsample = u64(); n = u64();
+        beginTime = f64(); samplerate = u64(); downsample = u64(); n = u64();
         triggerTime = beginTime;
       } else {
         need(40);
-        beginTime = f64(); triggerTime = f64(); sampleRate = f64(); downsample = i64(); n = u64();
+        beginTime = f64(); triggerTime = f64(); samplerate = f64(); downsample = i64(); n = u64();
       }
-      waveforms.push({ beginTime, triggerTime, sampleRate, downsample, samples: f32Array(n) });
+      waveforms.push({ beginTime, triggerTime, samplerate, downsample, samples: f32Array(n) });
     }
     return { type: 'analog', version, waveforms };
   }
@@ -73,14 +73,14 @@ function parseSaleaeBinary(buf) {
 
 // Transitioner -> samples (1 byte/sample, 0/1) vid given samplerate.
 // OBS: stora för långa capturer — kör hellre run-length direkt från transitions om motorn tillåter det.
-function digitalChunkToSamples(chunk, sampleRate = chunk.sampleRate) {
-  if (!sampleRate) throw new Error('Samplerate krävs (v0-filer saknar den)');
-  const total = Math.round((chunk.endTime - chunk.beginTime) * sampleRate);
+function digitalChunkToSamples(chunk, samplerate = chunk.samplerate) {
+  if (!samplerate) throw new Error('Samplerate krävs (v0-filer saknar den)');
+  const total = Math.round((chunk.endTime - chunk.beginTime) * samplerate);
   const out = new Uint8Array(total);
   let state = chunk.initialState ? 1 : 0;
   let idx = 0;
   for (const t of chunk.transitions) {
-    const end = Math.min(total, Math.round((t - chunk.beginTime) * sampleRate));
+    const end = Math.min(total, Math.round((t - chunk.beginTime) * samplerate));
     if (state) out.fill(1, idx, end);
     idx = Math.max(idx, end);
     state ^= 1;
@@ -117,13 +117,13 @@ function orChunkIntoBits(out, mask, chunk, origin, sr) {
 }
 
 /**
- * importSaleae({ items: [{ data, ch }, ...], sampleRate?, maxSamples? })
+ * importSaleae({ items: [{ data, ch }, ...], samplerate?, maxSamples? })
  *  data: ArrayBuffer | typed array med innehållet i en Saleae .bin (digital, en kanal)
  *  ch:   bitposition 0..31 i utdata
- *  sampleRate: krävs för v0-filer, överstyr annars filens (v1)
- * Returnerar { samples: Uint32Array, sampleRate, beginTime, numSamples, channels }
+ *  samplerate: krävs för v0-filer, överstyr annars filens (v1)
+ * Returnerar { samples: Uint32Array, samplerate, beginTime, numSamples, channels }
  */
-function importSaleae({ items, sampleRate, maxSamples = 1 << 28 }) {
+function importSaleae({ items, samplerate, maxSamples = 1 << 28 }) {
   if (!Array.isArray(items) || items.length === 0) throw new Error('Inga filer angivna');
 
   const seen = new Set();
@@ -138,16 +138,16 @@ function importSaleae({ items, sampleRate, maxSamples = 1 << 28 }) {
   });
 
   // Gemensam samplerate
-  let sr = sampleRate ?? null;
+  let sr = samplerate ?? null;
   for (const { chunks } of parsed) {
     for (const c of chunks) {
-      if (c.sampleRate == null) continue;
-      if (sr == null) sr = c.sampleRate;
-      else if (sampleRate == null && c.sampleRate !== sr)
-        throw new Error('Filerna har olika samplerate; ange sampleRate explicit');
+      if (c.samplerate == null) continue;
+      if (sr == null) sr = c.samplerate;
+      else if (samplerate == null && c.samplerate !== sr)
+        throw new Error('Filerna har olika samplerate; ange samplerate explicit');
     }
   }
-  if (sr == null) throw new Error('sampleRate krävs (v0-filer saknar den)');
+  if (sr == null) throw new Error('samplerate krävs (v0-filer saknar den)');
 /*
   // Gemensam tidsbas
   let origin = Infinity, end = -Infinity;
@@ -193,7 +193,7 @@ function importSaleae({ items, sampleRate, maxSamples = 1 << 28 }) {
   }
 
   return {
-    samples, sampleRate: sr, beginTime: origin,
+    samples, samplerate: sr, beginTime: origin,
     numSamples: total, fullNumSamples: fullTotal, truncated,
     channels: seen.size
   };

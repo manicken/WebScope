@@ -3,9 +3,9 @@
  *
  * SaleaeImportDialog.Show({
  *     items: [{ data, name }, ...],      // data: ArrayBuffer | typed array
- *     sampleRate: undefined,             // förifylld (Hz), tom = filens egen (v1)
+ *     samplerate: undefined,             // förifylld (Hz), tom = filens egen (v1)
  *     maxSamples: 1 << 28,
- *     onConfirm: ({ items, sampleRate, maxSamples }) => {}   // direkt till importSaleae()
+ *     onConfirm: ({ items, samplerate, maxSamples }) => {}   // direkt till importSaleae()
  * });
  *
  * Antal valbara kanaler = antal filer (0..N-1). Unik kanal per fil krävs.
@@ -22,7 +22,7 @@ function saleaeFileVersion(data) {
 
 class SaleaeImportDialog extends AppWindow {
 
-    constructor({ title = "Import Saleae .bin", items = [], sampleRate = undefined, maxSamples = 1 << 28, confirmText = "Import", confirmClass = "", onConfirm = (args) => {} } = {}) {
+    constructor({ title = "Import Saleae .bin", items = [], samplerate = '', maxSamples = 1 << 28, confirmText = "Import", confirmClass = "", onConfirm = (args) => {} } = {}) {
         super({ title, backdrop: true, closeOnBackdropClick: false });
         this.items = items;
         this.onConfirm = onConfirm;
@@ -36,12 +36,12 @@ class SaleaeImportDialog extends AppWindow {
 
         // Sample rate
         let sr_row = createNewElement('div', { styles: rowStyles });
-        sr_row.appendChild(createNewElement('div', { innerHTML: 'Sample rate (Hz):', styles: { minWidth: '120px' } }));
-        this.sr_el = createNewElement('input', { type: 'number', styles: { flex: '1' } });
-        this.sr_el.min = 1;
-        this.sr_el.step = 'any';
-        this.sr_el.value = sampleRate ?? '';
+        sr_row.appendChild(createNewElement('div', { innerHTML: 'Sample rate:', styles: { minWidth: '120px' } }));
+        this.sr_el = createNewElement('input', { type: 'text', value:samplerate, styles: { flex: '1' } });
         this.sr_el.placeholder = this.needsRate ? 'required (v0 files)' : 'empty = from file';
+        this.sr_el.addEventListener('input', () => {
+            this.sr_el.value =  this.sr_el.value.replace(/[mg]/gi, c => c.toUpperCase());
+        });
         sr_row.appendChild(this.sr_el);
         body_el.appendChild(sr_row);
 
@@ -99,12 +99,39 @@ class SaleaeImportDialog extends AppWindow {
         ]));
     }
 
+    #parseSIValue(value) {
+        if (typeof value === 'number')
+            return Number.isFinite(value) ? value : -1;
+
+        if (typeof value !== 'string')
+            return -1;
+
+        const match = value.trim().match(/^([+-]?(?:\d+\.?\d*|\.\d+))\s*([kmg])?$/i);
+
+        if (!match)
+            return -1;
+
+        const number = Number(match[1]);
+
+        if (!Number.isFinite(number))
+            return -1;
+
+        const multipliers = {
+            k: 1e3,
+            M: 1e6,
+            G: 1e9
+        };
+
+        return number * (multipliers[match[2]] ?? 1);
+    }
+
     /** Returnerar true eller felmeddelande. */
     #check() {
         const chs = this.ch_els.map(s => +s.value);
         if (new Set(chs).size !== chs.length) return 'Two files are mapped to the same channel.';
-        if (this.needsRate && !(+this.sr_el.value > 0)) return 'Sample rate is required for v0/unknown files.';
-        if (this.sr_el.value !== '' && !(+this.sr_el.value > 0)) return 'Invalid sample rate.';
+        const samplerate = this.#parseSIValue(this.sr_el.value);
+        if (samplerate != -1 && !(+samplerate > 0)) return 'Sample rate is required for v0/unknown files.';
+        if (samplerate !== -1 && !(+samplerate > 0)) return 'Invalid sample rate.';
         if (!(+this.max_el.value >= 1)) return 'Max samples must be >= 1.';
         return true;
     }
@@ -122,9 +149,12 @@ class SaleaeImportDialog extends AppWindow {
 
     #validateAndConfirm() {
         if (this.#validate() !== true) return;
+        const samplerate = this.#parseSIValue(this.sr_el.value);
+        console.log({samplerate});
+        if (samplerate === -1) samplerate = undefined;
         this.onConfirm({
             items: this.items.map((it, i) => ({ data: it.data, ch: +this.ch_els[i].value })),
-            sampleRate: this.sr_el.value === '' ? undefined : +this.sr_el.value,
+            samplerate,
             maxSamples: Math.floor(+this.max_el.value)
         });
         this.destroy();
@@ -142,7 +172,7 @@ SaleaeImportDialog.Show({
     items,
     onConfirm: (args) => {
         const res = importSaleae(args);
-        console.log(res.numSamples, res.sampleRate, res.channels);
+        console.log(res.numSamples, res.samplerate, res.channels);
     }
 });
 */

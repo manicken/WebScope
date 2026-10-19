@@ -54,14 +54,11 @@ let mainMenuItems = [
                             items:out.files,   // [{ data, name }, ...]
                             onConfirm: (args) => {
                                 let importData = importSaleae(args);
+                                console.log(importData);
                                 setSamples({...importData, decode:true});
                              }   // args = { items:[{data,ch}], sampleRate, maxSamples }
                         });
-                        /*let chIndex = 0;
-                        let inputItems = out.files.map(item => { return {data:item.data, ch:chIndex++}});
-                        let importData = importSaleae({items:inputItems, sampleRate:4000000, maxSamples:615936000 });
-                        setSamples({...importData, decode:true});
-                        console.log({importData});*/
+                        
                     }});
                 }
             },
