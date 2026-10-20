@@ -109,6 +109,7 @@
         samples(start, count) { return buffer ? buffer.rawSlice(start, count) : { first: 0, data: new Uint32Array(0) }; },
         measure(channel, sample) { return buffer ? buffer.measure(channel, sample) : null; },
         findEdge(channel, from, forward) { return buffer ? buffer.findEdge(channel, from, forward) : null; },
+        edges(channel, from, to) { return buffer ? buffer.edges(channel, from, to) : { pos: [], rising: [] }; },
         burstAt(channel, sample, maxGap, tol) { return buffer ? buffer.burstAt(channel, sample, maxGap, tol) : null; },
         getBuffer: () => buffer
     });

@@ -65,6 +65,15 @@
 
     function local(e) { const r = plotWrap.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
 
+    // measurement selections (js/selections/*): canvas interaction + HTML popup
+    const selInput = WS.selections.init({
+      canvas, plotWrap,
+      getEnv: () => {
+        const st = store.get();
+        return { rows: WS.uiRows.get(), scrollY: scroll.y, view: st.view, w: size.w, h: size.h, hasData: capture.hasData(), sampleCount: st.status.sampleCount };
+      },
+    });
+
     function render() {
       drawPending = false;
       const { w, h, dpr } = size;
@@ -92,11 +101,14 @@
 
       const ctx = canvas.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      console.log({st});
       WS.waveform.drawFrame(ctx, w, h, dpr, {
         view: st.view, samplerate: st.status.samplerate, sampleCount: st.status.sampleCount, trigger: st.status.trigger,
         rows, scrollY: scroll.y, wave, annotations:annotationsMap, markers: st.markers, hover: st.hover, measurement: st.measurement,
-        hoverChannel: st.hover ? st.hover.channel : null, highlight: hl, burst: lastBurst
+        hoverChannel: st.hover ? st.hover.channel : null, highlight: hl, burst: lastBurst,
+        selections: st.selections ?? [], selectedSelection: st.selectedSelection ?? null
       });
+      selInput.updatePopup();
       renderHoverTip();
     }
 
@@ -124,6 +136,7 @@
       if (modHeld && row?.kind === 'decoder') { const hit = hitTestAnnotation(); if (hit) waveform.frameSpan(hit.start, hit.end); return; }
       if (modHeld && row?.kind === 'channel') { const t = burstTarget(); if (t) { const b = capture.burstAt(t.channel, t.sample, 8 * t.spp, 2 * t.spp); if (b) waveform.frameSpan(b.start, b.end); } return; }
       canvas.setPointerCapture(e.pointerId);
+      if (y >= RULER_H && selInput.down(e, x, y)) return;
       if (y < RULER_H) {
         const near = (s) => s !== null && Math.abs((s - view.start) / view.spp - x) < 8;
         const marker = near(markers.b) ? 'b' : near(markers.a) ? 'a' : markers.a === null ? 'a' : 'b';
@@ -136,6 +149,7 @@
       const { x, y } = local(e);
       const { view } = store.get();
       const sampleIndex = view.start + x * view.spp;
+      if (selInput.move(x, y)) { pointer = { x, y }; return; }
       pointer = { x, y }; modHeld = e[MOD_KEY];
       if (drag) {
         if (Math.abs(x - drag.x0) > 3) drag.moved = true;
@@ -145,14 +159,17 @@
       }
       const row = y >= RULER_H ? rowAt(y) : undefined;
       const channel = row?.kind === 'channel' ? row.ch.index : null;
+      selInput.hover(x, y);
       store.set({ hover: { sampleIndex, channel, x, y } });
       if (channel !== null && WS.capture.hasData()) store.set({ measurement: WS.capture.measure(channel, Math.floor(sampleIndex)) });
       else if (store.get().measurement) store.set({ measurement: null });
     });
 
     window.addEventListener('pointerup', (e) => {
+      if (selInput.up()) return;
       const dr = drag;
       drag = null;
+      if (dr && dr.kind === 'pan' && !dr.moved && local(e).y >= RULER_H) selInput.clickEmpty();
       if (!dr || dr.moved || dr.kind !== 'pan') return;
       // Plain click on a decoder row: focus that annotation in the data table.
       const { x, y } = local(e);

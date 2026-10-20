@@ -74,6 +74,28 @@ class CaptureBuffer {
         return null;
     }
 
+    /**
+     * All edges of one channel in [from, to]: { pos: [i…], rising: [0|1…] }. An edge at i means
+     * sample i differs from sample i-1 (same convention as findEdge). Whole chunks without any
+     * activity on the channel are skipped using the per-chunk toggle masks.
+     */
+    edges(channel, from, to) {
+        const bit = 1 << channel, s = this.samples, n = this.length;
+        const hi = Math.min(n - 1, Math.floor(to));
+        const pos = [], rising = [];
+        let i = Math.max(1, Math.ceil(from));
+        while (i <= hi) {
+            if (i % CHUNK === 0 && i + CHUNK - 1 <= hi) {
+                const k = i / CHUNK, c = this.chunks[k];
+                if (c && !(c.toggle & bit) && !((this.chunks[k - 1].last ^ c.first) & bit)) { i += CHUNK; continue; }
+            }
+            const v = s[i] & bit;
+            if (v !== (s[i - 1] & bit)) { pos.push(i); rising.push(v ? 1 : 0); }
+            i++;
+        }
+        return { pos, rising };
+    }
+
     measure(channel, sample) {
         const bit = 1 << channel;
         const i = Math.max(0, Math.min(this.length - 1, Math.round(sample)));

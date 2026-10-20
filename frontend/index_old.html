@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WebScope — logic analyzer</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="js/components/ContextMenu.css" />
+<link rel="stylesheet" href="js/components/AppWindows/AppWindow.css" />
+<link rel="stylesheet" href="js/components/menu/menu.css" />
+<link rel="stylesheet" href="js/components/button-bar/button-bar.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div id="mainMenu"></div>
+    <span class="brand">WebScope</span>
+    <span class="sep"></span>
+    
+    <select id="deviceSelect"></select>
+    <button id="devicesRefreshBtn">↻</button>
+    <label>Rate <select id="samplerateSelect" style="width:110px"></select></label>
+    <label>Duration (s) <input id="durationIn" type="number" value="1" step="0.01" /></label>
+
+    <button id="captureBtn" class="primary">Start</button>
+    <span id="statusPill" class="status-pill">idle</span>
+    
+    
+    <span class="spacer"></span>
+    <input id="wsUrlInput" type="text" placeholder="ws://localhost:8080" value="ws://localhost:8080" />
+    <button id="wsConnectBtn" title="(Re)Connect to the websocket server">⇄</button>'
+    <span class="sep"></span>
+    <button id="fitBtn">Fit</button>
+  </div>
+
+  <div class="main">
+    <div class="gutter" id="gutter">
+      <div class="gutter-head"><span>Channels</span></div>
+      <div id="gutterBody"></div>
+    </div>
+    <div class="plot-col">
+      <div class="overview"><canvas id="overviewCanvas"></canvas></div>
+      <div class="plot-wrap" id="plotWrap">
+        <canvas id="canvas"></canvas>
+        <div id="hoverTip" class="hover-tip" style="display:none"></div>
+        <div id="emptyState" class="empty">
+          <div class="empty-title">No capture yet</div>
+          <div class="empty-sub">Pick a source above, then press <kbd>Start</kbd></div>
+        </div>
+      </div>
+    </div>
+    <aside class="right-panel" id="rightPanel"></aside>
+  </div>
+
+  <div class="statusbar">
+    <span>Sample Count <b id="stSamples">0</b></span>
+    <span>Rate <b id="stRate">—</b></span>
+    <span>Sample resolution <b id="stSampleResolution">—</b></span>
+    <span>View <b id="stView">—</b></span>
+    <span class="spacer"></span>
+    <span class="muted keys" id="keyHints"></span>
+  </div>
+</div>
+
+<!--
+  Classic (non-module) scripts, loaded in dependency order, all attaching to one global
+  `WS` namespace object (see the (function(WS){...})(window.WS = window.WS || {}) wrapper
+  at the top of every file). This is deliberate: `type="module"` scripts are blocked by CORS
+  when a page is opened directly via file:// in Chrome/Edge, so plain scripts are what make
+  double-click-to-run work. If you'd rather use real ES modules with import/export, switch
+  these to type="module" and serve the folder with any static server, e.g. `python3 -m http.server`.
+-->
+<script src="js/libs/ace.js"></script>
+<script src="js/libs/mode-javascript.js"></script>
+
+<script src="js/components/fileSelector.js"></script>
+
+<script src="js/components/MinimizeCard.js"></script>
+
+<script src="js/components/dom_helpers.js"></script>
+<script src="js/components/ContextMenu.js"></script>
+<script src="js/components/menu/menu.js"></script>
+<script src="js/components/AddNewDecoderContextMenu.js"></script>
+<script src="js/components/AppWindows/AppWindow.js"></script>
+<script src="js/components/AppWindows/AppWindows.js"></script>
+<script src="js/components/AppWindows/AceEditor.js"></script>
+<script src="js/components/AppWindows/CustomDecoderEditor.js"></script>
+<script src="js/components/AppWindows/InfoDialog.js"></script>
+<script src="js/components/AppWindows/InputDialog.js"></script>
+<script src="js/components/AppWindows/ConfirmDialog.js"></script>
+<script src="js/components/AppWindows/FileDialog.js"></script>
+<script src="js/components/button-bar/button-bar.js"></script>
+
+<script src="js/core/format.js"></script>
+<script src="js/core/theme.js"></script>
+<script src="js/core/store.js"></script>
+
+<script src="js/capture/CaptureBuffer.js"></script>
+<script src="js/capture/captureEngine.js"></script>
+
+
+<script src="js/decoder/Decoder.js"></script>
+<script src="js/decoder/decoderEngine.js"></script>
+<script src="js/decoder/decoderGui.js"></script>
+
+<script src="js/decoders/CustomDecoder.js"></script>
+<script src="js/decoders/UARTDecoder.js"></script>
+<script src="js/decoders/I2CDecoder.js"></script>
+<script src="js/decoders/SPIDecoder.js"></script>
+<script src="js/decoders/WS281xDecoder.js"></script>
+<script src="js/decoders/USBSignalingDecoder.js"></script>
+<script src="js/decoders/USBPacketDecoder.js"></script>
+<script src="js/decoders/USBRequestDecoder.js"></script>
+<script src="js/decoders/USBPowerDeliveryDecoder.js"></script>
+
+
+<script src="js/annotations/annotationEngine.js"></script>
+<script src="js/annotations/annotationGui.js"></script>
+
+<script src="js/dataTable/DataTable.js"></script>
+
+<script src="js/capture/sources/WebSocketSource.js"></script>
+<script src="js/capture/sources/DemoWave.js"></script>
+<script src="js/capture/sources/DemoSource.js"></script>
+<script src="js/capture/sources/sources.js"></script>
+
+<script src="js/waveform/view.js"></script>
+<script src="js/waveform/rowslayout.js"></script>
+<script src="js/waveform/waveformRenderer.js"></script>
+<script src="js/waveform/waveformActions.js"></script>
+<script src="js/waveform/rows.js"></script>
+<script src="js/waveform/gutter.js"></script>
+<script src="js/waveform/waveformGui.js"></script>
+<script src="js/waveform/measurements.js"></script>
+<script src="js/waveform/overview.js"></script>
+
+<script src="js/fileformats/helpers.js"></script>
+<script src="js/fileformats/saleae-bin-import.js"></script>
+<script src="js/fileformats/sigrok-sr.js"></script>
+<script src="js/fileformats/webscope.js"></script>
+
+<script src="js/components/AppWindows/SaleaeImportDialog.js"></script>
+
+<script src="js/topbar.js"></script>
+<script src="js/rightpanel.js"></script>
+<script src="js/statusbar.js"></script>
+<script src="js/keymap.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

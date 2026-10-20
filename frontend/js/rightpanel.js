@@ -138,7 +138,7 @@
   register({
     id: 'measurements', title: 'Measurements',
     icon: svg('<rect x="3" y="8" width="18" height="8" rx="1.5"/><path d="M7 8v3M11 8v4M15 8v3M19 8v4"/>'),
-    render: (c) => WS.measurements.render(c),
+    render: (c) => WS.selections.panel.render(c),
   });
   register({
     id: 'decoded', title: 'Decoded data', fill: true,
