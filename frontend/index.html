@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>WebScope — logic analyzer</title>
 <link rel="stylesheet" href="styles.css" />
-<link rel="stylesheet" href="js/components/ContextMenu.css" />
-<link rel="stylesheet" href="js/components/AppWindows/AppWindow.css" />
-<link rel="stylesheet" href="js/components/menu/menu.css" />
-<link rel="stylesheet" href="js/components/button-bar/button-bar.css" />
+<link rel="stylesheet" href="js/libs/internal/ContextMenu.css" />
+<link rel="stylesheet" href="js/libs/internal/AppWindows/AppWindow.css" />
+<link rel="stylesheet" href="js/libs/internal/menu/menu.css" />
+<link rel="stylesheet" href="js/libs/internal/button-bar/button-bar.css" />
 <link rel="stylesheet" href="js/selections/selections.css" />
 <link rel="stylesheet" href="js/markers/markers.css" />
 </head>
@@ -73,30 +73,30 @@
   double-click-to-run work. If you'd rather use real ES modules with import/export, switch
   these to type="module" and serve the folder with any static server, e.g. `python3 -m http.server`.
 -->
-<script src="js/libs/ace.js"></script>
-<script src="js/libs/mode-javascript.js"></script>
+<script src="js/libs/external/ace/ace.js"></script>
+<script src="js/libs/external/ace/mode-javascript.js"></script>
 
-<script src="js/components/fileSelector.js"></script>
+<script src="js/libs/internal/fileSelector.js"></script>
 
-<script src="js/components/MinimizeCard.js"></script>
+<script src="js/libs/internal/MinimizeCard.js"></script>
 
-<script src="js/components/dom_helpers.js"></script>
-<script src="js/components/ContextMenu.js"></script>
-<script src="js/components/menu/menu.js"></script>
-<script src="js/components/AddNewDecoderContextMenu.js"></script>
-<script src="js/components/AppWindows/AppWindow.js"></script>
-<script src="js/components/AppWindows/AppWindows.js"></script>
-<script src="js/components/AppWindows/AceEditor.js"></script>
-<script src="js/components/AppWindows/CustomDecoderEditor.js"></script>
-<script src="js/components/AppWindows/InfoDialog.js"></script>
-<script src="js/components/AppWindows/InputDialog.js"></script>
-<script src="js/components/AppWindows/ConfirmDialog.js"></script>
-<script src="js/components/AppWindows/FileDialog.js"></script>
-<script src="js/components/button-bar/button-bar.js"></script>
+<script src="js/libs/internal/dom_helpers.js"></script>
+<script src="js/libs/internal/ContextMenu.js"></script>
+<script src="js/libs/internal/menu/menu.js"></script>
+<script src="js/libs/internal/AddNewDecoderContextMenu.js"></script>
+<script src="js/libs/internal/AppWindows/AppWindow.js"></script>
+<script src="js/libs/internal/AppWindows/AppWindows.js"></script>
+<script src="js/libs/internal/AppWindows/AceEditor.js"></script>
+<script src="js/libs/internal/AppWindows/CustomDecoderEditor.js"></script>
+<script src="js/libs/internal/AppWindows/InfoDialog.js"></script>
+<script src="js/libs/internal/AppWindows/InputDialog.js"></script>
+<script src="js/libs/internal/AppWindows/ConfirmDialog.js"></script>
+<script src="js/libs/internal/AppWindows/FileDialog.js"></script>
+<script src="js/libs/internal/button-bar/button-bar.js"></script>
 
-<script src="js/core/format.js"></script>
-<script src="js/core/theme.js"></script>
-<script src="js/core/store.js"></script>
+<script src="js/format.js"></script>
+<script src="js/theme.js"></script>
+<script src="js/store.js"></script>
 
 <script src="js/capture/CaptureBuffer.js"></script>
 <script src="js/capture/captureEngine.js"></script>
@@ -154,7 +154,7 @@
 <script src="js/fileformats/sigrok-sr.js"></script>
 <script src="js/fileformats/webscope.js"></script>
 
-<script src="js/components/AppWindows/SaleaeImportDialog.js"></script>
+<script src="js/libs/internal/AppWindows/SaleaeImportDialog.js"></script>
 
 <script src="js/topbar.js"></script>
 <script src="js/rightpanel.js"></script>
