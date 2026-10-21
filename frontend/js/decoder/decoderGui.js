@@ -212,7 +212,7 @@
                         if (res !== true) InfoDialog.Show({ title: 'Custom Code Error', message: res });
                     };
                     const codeEditOpenBtn = createNewElement('button', {
-                        textContent: 'edit',
+                        textContent: 'Open Code Editor',
                         styles: { width: '100%', background: '#494949' },
                         onclick: () => {
                             WS.customDecoderEditor.open({
@@ -262,7 +262,7 @@
                 row.appendChild(input);
                 form.appendChild(row);
             }
-            if (typeof d.getOutput === 'function') {
+            if (typeof d.getOutput === 'function' && d.getOutput() != null) {
                 const row = el('label', 'form-col');
                 let input = createNewElement('div', { styles: { width: '100%' } }); 
                 updaters.set('__subDecoders', (dec) => {

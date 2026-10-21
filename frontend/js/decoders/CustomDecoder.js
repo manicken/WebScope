@@ -1,20 +1,20 @@
 let CustomDecoderExampleCode = `
 ({
-    /** in all functions context is the Decoder Instance */
+    /** in all functions self is the Decoder Instance */
     /** runs directly after the compile is done */
-    init(context) {
+    init(self) {
 
     },
     /** called from custom decoder rows function*/
-    rows(context) {
+    rows(self) {
         return [
             {id:'data', label: 'DATA' },
             {id:'address', label: 'ADDRESS' }
         ];
     },
     /** called from custom decoder run function */
-    run(input, context) {
-        // Decode input
+    run(self) {
+        const input = self.getSource();
         return {};
     }
 })
@@ -69,10 +69,10 @@ class CustomDecoder extends Decoder {
                 throw new TypeError('Custom decoder must return an object');
             }
             if (typeof decoder.run !== 'function') {
-                throw new TypeError('Custom decoder must implement a run(context) function');
+                throw new TypeError('Custom decoder must implement a run(self) function');
             }
              if (typeof decoder.rows !== 'function') {
-                throw new TypeError('Custom decoder must implement a rows(context) function');
+                throw new TypeError('Custom decoder must implement a rows(self) function');
             }
             decoder?.init(this);
             this.#decoder = decoder;
@@ -86,10 +86,7 @@ class CustomDecoder extends Decoder {
 
     getOutput() {
         if (!this.#decoder) { console.warn("@ getOutput - CustomDecoder not initialized yet!"); }
-        if (typeof this.#decoder?.getOutput !== 'function')
-            throw new Error('Custom decoder does not implement getOutput()');
-
-        return this.#decoder.getOutput();
+        return this.#decoder?.getOutput?.() ?? null;
     }
 
     rows() {
@@ -97,9 +94,9 @@ class CustomDecoder extends Decoder {
         return this.#decoder?.rows?.(this) ?? {};
     }
 
-    run(input) {
+    run() {
         if (!this.#decoder) { console.warn("@ run - CustomDecoder not initialized yet!"); }
-        return this.#decoder?.run?.(input, this);
+        return this.#decoder?.run?.(this);
     }
 
 /* custom decoder example:

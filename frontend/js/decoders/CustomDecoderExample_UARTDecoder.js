@@ -1,6 +1,6 @@
 
 ({
-    getCfgGui(context) {
+    getCfgGui(self) {
 		return {
 			baud: {
 				label: 'Baud rate',
@@ -16,10 +16,10 @@
 			format:{ ...Decoder.FORMAT_FIELD, default:'ascii'},
 		};
 	},
-	/** in all functions context is the Decoder Instance */
+	/** in all functions self is the Decoder Instance */
     /** runs directly after the compile is done */
-    init(context) {
-        const cfg = context.cfg;
+    init(self) {
+        const cfg = self.cfg;
         cfg.channel = 0;
         cfg.baud = 115200;
         cfg.dataBits = 8;
@@ -28,13 +28,13 @@
         cfg.format = 'hex';
     },
     /** called from custom decoder rows function*/
-    rows(context) {
+    rows(self) {
         return {data:{label:'DATA', anchor: { signal: 'channel' }, placement: 'after'}};
     },
     /** called from custom decoder run function */
-    run(context) {
-        const buf = context.getSource();
-        const cfg = context.cfg;
+    run(self) {
+        const buf = self.getSource();
+        const cfg = self.cfg;
         const ANN = window.WS.theme;
         const ch = cfg.channel;
         const spb = buf.samplerate / cfg.baud; // samples per bit

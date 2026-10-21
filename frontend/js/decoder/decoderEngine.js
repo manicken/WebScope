@@ -116,7 +116,7 @@ function decode(id) {
     const isWildcard = (def) => sourcesOf(def).includes('*');
     const pathLabel = (p) => p.map(d => d.name).join(' › ');
     /** does this decoder class implement getOutput (i.e. can other decoders stack on it)? */
-    const hasOutput = (cls) => cls.prototype.getOutput !== Decoder.prototype.getOutput;
+    const hasOutput = (cls) => typeof cls.prototype.getOutput === 'function';
 
     /** CustomDecoder instances can restrict which TYPEs may be stacked on them (default ['*']) */
     function instanceAccepts(parentDecoder, def) {
