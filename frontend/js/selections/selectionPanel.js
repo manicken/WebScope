@@ -2,7 +2,6 @@
  * selections/selectionPanel.js — contents of the "Measurements" right-panel tab:
  * title, "+" button, and the list of selections (caret expands the stats).
  * Click a row = select it (opens the popup), double-click = zoom to it.
- * The old A/B marker readout (WS.measurements) is kept below the list.
  */
 (function (WS) {
   'use strict';
@@ -22,9 +21,8 @@
     add.addEventListener('click', () => S.addAtCenter());
     head.append(title, add);
     const listEl = el('div', 'sel-list');
-    const abBox = el('div', 'sel-ab');
-    container.append(head, listEl, abBox);
-    ui = { container, add, listEl, abBox };
+    container.append(head, listEl);
+    ui = { container, add, listEl };
     lastKey = '';
   }
 
@@ -84,7 +82,6 @@
     const key = JSON.stringify([sels, st.selectedSelection ?? null, [...expanded], st.status.samplerate, st.status.sampleCount, st.status.captureId, st.channels.map((c) => c.name)]);
     if (key !== lastKey) { lastKey = key; rebuildList(); }
     ui.add.disabled = !st.status.sampleCount;
-    if (WS.measurements) WS.measurements.render(ui.abBox);
   }
 
   S.panel = { render };

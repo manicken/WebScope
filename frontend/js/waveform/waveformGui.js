@@ -65,6 +65,12 @@
 
     function local(e) { const r = plotWrap.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
 
+    // time markers (js/markers/*): drag the flags / lines of the markers added in the Markers panel
+    const tmInput = WS.timeMarkers.init({
+      canvas, plotWrap,
+      getEnv: () => { const st = store.get(); return { view: st.view, hasData: capture.hasData(), sampleCount: st.status.sampleCount }; },
+    });
+
     // measurement selections (js/selections/*): canvas interaction + HTML popup
     const selInput = WS.selections.init({
       canvas, plotWrap,
@@ -101,12 +107,13 @@
 
       const ctx = canvas.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      console.log({st});
+      //console.log({st});
       WS.waveform.drawFrame(ctx, w, h, dpr, {
         view: st.view, samplerate: st.status.samplerate, sampleCount: st.status.sampleCount, trigger: st.status.trigger,
         rows, scrollY: scroll.y, wave, annotations:annotationsMap, markers: st.markers, hover: st.hover, measurement: st.measurement,
         hoverChannel: st.hover ? st.hover.channel : null, highlight: hl, burst: lastBurst,
-        selections: st.selections ?? [], selectedSelection: st.selectedSelection ?? null
+        selections: st.selections ?? [], selectedSelection: st.selectedSelection ?? null,
+        markerList: st.markerList ?? [], selectedMarker: st.selectedMarker ?? null
       });
       selInput.updatePopup();
       renderHoverTip();
@@ -136,44 +143,45 @@
       if (modHeld && row?.kind === 'decoder') { const hit = hitTestAnnotation(); if (hit) waveform.frameSpan(hit.start, hit.end); return; }
       if (modHeld && row?.kind === 'channel') { const t = burstTarget(); if (t) { const b = capture.burstAt(t.channel, t.sample, 8 * t.spp, 2 * t.spp); if (b) waveform.frameSpan(b.start, b.end); } return; }
       canvas.setPointerCapture(e.pointerId);
+      if (tmInput.down(e, x, y)) return;
       if (y >= RULER_H && selInput.down(e, x, y)) return;
-      if (y < RULER_H) {
-        const near = (s) => s !== null && Math.abs((s - view.start) / view.spp - x) < 8;
-        const marker = near(markers.b) ? 'b' : near(markers.a) ? 'a' : markers.a === null ? 'a' : 'b';
-        store.set({ markers: { ...markers, [marker]: view.start + x * view.spp } });
-        drag = { kind: 'marker', marker, x0: x, last: x, moved: false };
-      } else drag = { kind: 'pan', x0: x, last: x, moved: false };
+      drag = { kind: 'pan', x0: x, lastX: x, y0:y, lastY:y, moved: false };
     });
 
     canvas.addEventListener('pointermove', (e) => {
       const { x, y } = local(e);
       const { view } = store.get();
       const sampleIndex = view.start + x * view.spp;
-      if (selInput.move(x, y)) { pointer = { x, y }; return; }
+      if (tmInput.move(x) || selInput.move(x, y)) { pointer = { x, y }; return; }
       pointer = { x, y }; modHeld = e[MOD_KEY];
       if (drag) {
-        if (Math.abs(x - drag.x0) > 3) drag.moved = true;
-        if (drag.kind === 'pan') waveform.panBy(drag.last - x);
-        else store.set({ markers: { ...store.get().markers, [drag.marker]: sampleIndex } });
-        drag.last = x; return;
+        if (Math.abs(x - drag.x0) > 3 || Math.abs(y - drag.y0) > 3) drag.moved = true;
+        if (drag.kind === 'pan') {
+          scrollBy(drag.lastY - y)
+          waveform.panBy(drag.lastX - x);
+        }
+        drag.lastY = y;
+        drag.lastX = x;
+        return;
       }
       const row = y >= RULER_H ? rowAt(y) : undefined;
       const channel = row?.kind === 'channel' ? row.ch.index : null;
       selInput.hover(x, y);
+      tmInput.hover(x, y);
       store.set({ hover: { sampleIndex, channel, x, y } });
       if (channel !== null && WS.capture.hasData()) store.set({ measurement: WS.capture.measure(channel, Math.floor(sampleIndex)) });
       else if (store.get().measurement) store.set({ measurement: null });
     });
 
     window.addEventListener('pointerup', (e) => {
-      if (selInput.up()) return;
+      if (tmInput.up() || selInput.up()) return;
       const dr = drag;
       drag = null;
       if (dr && dr.kind === 'pan' && !dr.moved && local(e).y >= RULER_H) selInput.clickEmpty();
       if (!dr || dr.moved || dr.kind !== 'pan') return;
       // Plain click on a decoder row: focus that annotation in the data table.
       const { x, y } = local(e);
-      const row = rowAt(y);
+      const row = y >= RULER_H ? rowAt(y) : undefined;
       if (row?.kind === 'decoder' && capture.hasData()) {
         const sampleIndex = store.get().view.start + x * store.get().view.spp; // spp = samples per pixel
         const index = annotationIndex(row.dec.id, row.rowId, sampleIndex);
@@ -192,7 +200,7 @@
       else { const k = e.ctrlKey ? 0.012 : 0.0025; waveform.zoomAt(Math.exp(e.deltaY * k), x); }
     }, { passive: false });
 
-    canvas.addEventListener('dblclick', (e) => { if (local(e).y < RULER_H) store.set({ markers: { a: null, b: null } }); });
+    // (double-click on the ruler used to clear markers A/B; markers are now managed in the Markers panel)
 
     const modKeyName = MOD_KEY === 'metaKey' ? 'Meta' : 'Control';
     window.addEventListener('keydown', (e) => { if (e.key === modKeyName) { modHeld = true; requestDraw(); } });
@@ -203,6 +211,11 @@
 
     resize();
     requestDraw();
+
+    const gutterEl = document.getElementById('gutter');
+    function scrollBy(dy) {
+      gutterEl.scrollTop += dy;
+    }
 
     return { requestDraw, setScroll(y) { scroll.y = y; requestDraw(); } };
   }

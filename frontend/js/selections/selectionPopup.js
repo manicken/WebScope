@@ -17,16 +17,17 @@
 
   function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; }
 
-  let root, chSel, ta, vals = {}, swatches = [], shownId = null, chSig = '', last = null;
+  let root, nameIn, chSel, ta, vals = {}, swatches = [], shownId = null, chSig = '', last = null;
 
   function init(plotWrap) {
     root = el('div', 'sel-pop'); root.style.display = 'none';
 
     const top = el('div', 'sel-pop-top');
+    nameIn = el('input', 'sel-pop-name'); nameIn.type = 'text'; nameIn.maxLength = 32; nameIn.title = 'Rename measurement'; nameIn.spellcheck = false;
     chSel = el('select', 'sel-pop-ch');
     const zoom = el('button', 'sel-pop-icon', '⤢'); zoom.title = 'Zoom to selection';
     const copy = el('button', 'sel-pop-icon', '⧉'); copy.title = 'Copy values';
-    top.append(chSel, el('span', 'spacer'), zoom, copy);
+    top.append(nameIn, chSel, el('span', 'spacer'), zoom, copy);
 
     const grid = el('div', 'sel-pop-grid');
     for (const [k, label] of FIELDS) {
@@ -49,10 +50,13 @@
     plotWrap.appendChild(root);
 
     // keep typing away from global shortcuts (keymap etc.)
-    for (const t of ['keydown', 'keyup']) for (const n of [ta, chSel]) {
-      n.addEventListener(t, (e) => { e.stopPropagation(); if (t === 'keydown' && e.key === 'Escape') n.blur(); });
+    for (const t of ['keydown', 'keyup']) for (const n of [ta, chSel, nameIn]) {
+      n.addEventListener(t, (e) => { e.stopPropagation(); if (t === 'keydown' && (e.key === 'Escape' || (e.key === 'Enter' && n !== ta))) n.blur(); });
     }
     ta.addEventListener('input', () => { if (shownId) S.update(shownId, { comment: ta.value }); });
+    // rename: applied live (the ruler tag and the panel follow); an empty name is not accepted
+    nameIn.addEventListener('input', () => { const v = nameIn.value.trim(); if (shownId && v) S.update(shownId, { name: v }); });
+    nameIn.addEventListener('blur', () => { const s = S.find(shownId); if (s && !nameIn.value.trim()) nameIn.value = s.name; });
     chSel.addEventListener('change', () => {
       const id = shownId, ch = parseInt(chSel.value, 10);
       store.set((s) => ({ selectionStatCh: { ...(s.selectionStatCh ?? {}), [id]: ch } }));
@@ -87,8 +91,9 @@
     if (!rs.length || x1 < 0 || x0 > E.w) return hide();
 
     root.style.display = 'block';
-    if (shownId !== sel.id) { shownId = sel.id; ta.value = sel.comment ?? ''; }
+    if (shownId !== sel.id) { shownId = sel.id; ta.value = sel.comment ?? ''; nameIn.value = sel.name; }
     else if (document.activeElement !== ta && ta.value !== (sel.comment ?? '')) ta.value = sel.comment ?? '';
+    if (document.activeElement !== nameIn && nameIn.value !== sel.name) nameIn.value = sel.name;
     for (const b of swatches) b.classList.toggle('on', b.dataset.color === sel.color);
 
     // channel dropdown (only when more than one channel row is selected)

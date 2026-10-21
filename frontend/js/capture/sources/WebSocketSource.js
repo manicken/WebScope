@@ -7,6 +7,22 @@ class WebSocketSource {
     static #offset = 0;
 
     static #wsUrlInput_el = document.getElementById('wsUrlInput');
+    static #wsConnectedStatus_el = document.getElementById('connectionStatusPill');
+
+    static #SetDisconnected() {
+        WebSocketSource.#wsConnectedStatus_el.textContent = 'disconnected';
+        WebSocketSource.#wsConnectedStatus_el.className = 'status-pill error';
+    }
+
+    static #SetConnecting() {
+        WebSocketSource.#wsConnectedStatus_el.textContent = 'connecting';
+        WebSocketSource.#wsConnectedStatus_el.className = 'status-pill waiting';
+    }
+
+    static #SetConnected() {
+        WebSocketSource.#wsConnectedStatus_el.textContent = 'connected';
+        WebSocketSource.#wsConnectedStatus_el.className = 'status-pill running';
+    }
 
     static wsConnectBtn_el =
         document.getElementById('wsConnectBtn').onclick = () => {
@@ -24,20 +40,23 @@ class WebSocketSource {
             return;
         }
 
-      
+        WebSocketSource.#SetConnecting();
+
         const ws = new WebSocket(WebSocketSource.#wsUrlInput_el.value);
         WebSocketSource.#ws = ws;
         ws.binaryType = 'arraybuffer';
 
         ws.onopen = () => {
+            WebSocketSource.#SetConnected();
             console.log('WebSocket connected');
         };
 
         ws.onclose = () => {
             //console.log('WebSocket disconnected');
             WebSocketSource.ws = null;
-
+            WebSocketSource.#SetDisconnected();
             setTimeout(() => {
+                WebSocketSource.#SetConnecting();
                 WebSocketSource.connect();
             }, 2000);
         };

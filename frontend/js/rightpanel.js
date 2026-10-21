@@ -141,6 +141,11 @@
     render: (c) => WS.selections.panel.render(c),
   });
   register({
+    id: 'markers', title: 'Markers',
+    icon: svg('<path d="M6 4v16M18 4v16M6 12h12M9 9l-3 3 3 3M15 9l3 3-3 3"/>'),
+    render: (c) => WS.timeMarkers.panel.render(c),
+  });
+  register({
     id: 'decoded', title: 'Decoded data', fill: true,
     icon: svg('<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18M3 14h18M9 9v11"/>'),
     render: (c) => WS.dataTable.renderDataTable(c),

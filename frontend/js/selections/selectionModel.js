@@ -64,7 +64,7 @@
       color: color ?? COLORS[(seq - 1) % COLORS.length],
       comment: '',
     };
-    store.set((s) => ({ selections: [...(s.selections ?? []), sel], selectedSelection: sel.id }));
+    store.set((s) => ({ selections: [...(s.selections ?? []), sel], selectedSelection: sel.id, selectedMarker: null }));
     return sel;
   }
 
@@ -80,7 +80,7 @@
   }
 
   function select(id) {
-    if ((store.get().selectedSelection ?? null) !== id) store.set({ selectedSelection: id });
+    if ((store.get().selectedSelection ?? null) !== id) store.set(id == null ? { selectedSelection: null } : { selectedSelection: id, selectedMarker: null });
   }
 
   /** The panel's "+" button: a selection in the middle of the view on the first row. */

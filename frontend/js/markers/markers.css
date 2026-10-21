@@ -1,0 +1,25 @@
+/* ---- Markers panel (shares the .sel-* list styles from selections.css) ---- */
+.mk-head { position: relative; }
+.mk-menu { position: absolute; right: 10px; top: calc(100% - 4px); z-index: 20; min-width: 190px; padding: 4px;
+  background: #2b2b2e; border: 1px solid var(--border-2); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column; }
+.mk-menu[hidden] { display: none; }
+.mk-menu-item { background: none; border: none; text-align: left; padding: 7px 10px; border-radius: 5px; font-size: 12px; color: var(--text-2); }
+.mk-menu-item:hover { background: rgba(255,255,255,0.08); }
+
+/* goto button shares the hover-reveal style of .sel-del */
+.mk-goto:hover { color: var(--text-2); }
+
+/* edit box (double-click a marker row) */
+.mk-edit { width: 260px; padding: 12px; gap: 8px; background: #2b2b2e; border-color: var(--border-2); }
+.mk-edit[hidden] { display: none; }
+.mk-edit-name { width: 100%; font-weight: 600; background: #232326; }
+.mk-edit-comment { width: 100%; resize: vertical; min-height: 54px; background: #232326; border: 1px solid var(--border);
+  border-radius: 5px; padding: 6px 8px; font: inherit; color: var(--text-2); }
+.mk-edit-comment::placeholder { color: var(--muted); }
+.mk-edit-colors { display: flex; gap: 8px; }
+
+/* comment tooltip on the ruler (inside #plotWrap) */
+.mk-tip { position: absolute; z-index: 7; pointer-events: none; max-width: 280px; background: #14161fee; border: 1px solid var(--border-2);
+  border-radius: 6px; padding: 6px 8px; font-size: 11px; line-height: 1.4; }
+.mk-tip-text { margin-top: 2px; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }

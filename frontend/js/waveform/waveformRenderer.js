@@ -94,13 +94,7 @@
         ctx.setLineDash([]);
         };
         if (f.trigger !== null) { vline(f.trigger, THEME.trigger, [4, 3]); }
-        if (f.markers.a !== null && f.markers.b !== null) {
-            const a = x(f.markers.a);
-            ctx.fillStyle = 'rgba(124,108,255,0.08)';
-            ctx.fillRect(a, RULER_H, x(f.markers.b) - a, h - RULER_H);
-        }
-        if (f.markers.a !== null) { vline(f.markers.a, THEME.markerA); }
-        if (f.markers.b !== null) { vline(f.markers.b, THEME.markerB); }
+        WS.timeMarkers?.drawLines(ctx, w, h, f, x);
         if (f.hover) { vline(f.hover.sample, THEME.cursor, [2, 3]); }
 
         drawRuler(ctx, w, ticks, step, tx, f, x);
@@ -128,7 +122,8 @@
             ctx.fillStyle = '#0a0b0f'; ctx.font = 'bold 10px -apple-system, Inter, sans-serif'; ctx.textAlign = 'center';
             ctx.fillText(label, px, RULER_H - 9); ctx.textAlign = 'left'; ctx.font = THEME.font;
         };
-        flag(f.trigger, 'T', THEME.trigger); flag(f.markers.a, 'A', THEME.markerA); flag(f.markers.b, 'B', THEME.markerB);
+        flag(f.trigger, 'T', THEME.trigger);
+        WS.timeMarkers?.drawFlags(ctx, w, f, x);
     }
 
     function drawChannel(ctx, w, dpr, ch, color, y, h, f) {

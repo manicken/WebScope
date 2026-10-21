@@ -27,7 +27,7 @@
         const total = Math.max(64, Math.round(samplerate * duration));
         growing = new Uint32Array(total);
         store.set({
-        follow: true, markers: { a: null, b: null }, measurement: null,
+        follow: true, markers: { a: null, b: null }, markerList: [], selectedMarker: null, selections: [], selectedSelection: null, measurement: null,
         status: { ...store.get().status, state: 'running', sampleCount: 0, samplerate, captureId: store.get().status.captureId + 1 }
         });
         activeSource = source;

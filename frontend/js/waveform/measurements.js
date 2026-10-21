@@ -15,7 +15,7 @@
     // plain panel section, no minimize card (the panel itself is toggled by its tab icon)
     const root = el('section', 'section');
     const head = el('div', 'section-head');
-    head.append(el('span', null, 'Measurements'), clearBtn);
+    head.append(el('span', null, 'Measurementst'), clearBtn);
 
     const metrics = el('div', 'metrics');
     const metric = (label, color, strong) => {

@@ -5,7 +5,7 @@
  *                              drag up/down to extend it over more rows)
  *   drag left/right edge       resize in time
  *   drag top/bottom edge       change which rows are covered (multirow)
- *   drag body                  move in time
+ *   drag body                  move in time, and up/down by whole rows
  *   click empty area / Esc     deselect (closes the popup)        Delete  remove selected
  *
  * waveformGui.js calls down/move/up/hover/clickEmpty from its own pointer handlers; each returns
@@ -55,6 +55,7 @@
     }
 
     function down(e, px, py) {
+      if (e.button !== 0) return;
       const E = getEnv();
       if (!E.hasData) return false;
       if (e.shiftKey) {
@@ -67,7 +68,10 @@
       const h = hit(E, px, py);
       if (!h) return false;
       S.select(h.sel.id);
-      drag = { mode: h.part, id: h.sel.id, x0: px, startSample: sampleAt(E, px), orig: { start: h.sel.start, end: h.sel.end }, ir: S.indexRange(h.sel, E.rows), moved: false };
+      const keys = new Set(h.sel.rows);
+      const origIdx = [];
+      E.rows.forEach((r, i) => { if (keys.has(S.rowKey(r))) origIdx.push(i); });
+      drag = { mode: h.part, id: h.sel.id, x0: px, startSample: sampleAt(E, px), startRow: rowIdxAt(E, py, true), origIdx, orig: { start: h.sel.start, end: h.sel.end }, ir: S.indexRange(h.sel, E.rows), moved: false };
       canvas.style.cursor = CURSOR[h.part];
       return true;
     }
@@ -90,8 +94,16 @@
         case 'left':  S.update(drag.id, { start: Math.min(s, drag.orig.end),   end: Math.max(s, drag.orig.end) }); break;
         case 'right': S.update(drag.id, { start: Math.min(s, drag.orig.start), end: Math.max(s, drag.orig.start) }); break;
         case 'body': {
+          // horizontal: move in time. vertical: move the whole selection up/down by whole rows
           const d = Math.max(-drag.orig.start, Math.min(E.sampleCount - drag.orig.end, s - drag.startSample));
-          S.update(drag.id, { start: drag.orig.start + d, end: drag.orig.end + d });
+          const patch = { start: drag.orig.start + d, end: drag.orig.end + d };
+          if (drag.origIdx.length && E.rows.length) {
+            const lo = drag.origIdx[0], hi = drag.origIdx[drag.origIdx.length - 1];
+            const di = Math.max(-lo, Math.min(E.rows.length - 1 - hi, rowIdxAt(E, py, true) - drag.startRow));
+            const rows = drag.origIdx.map((i) => E.rows[i + di]).filter(Boolean).map(S.rowKey);
+            if (rows.length === drag.origIdx.length) patch.rows = rows;
+          }
+          S.update(drag.id, patch);
           break;
         }
         case 'top': case 'bottom': {

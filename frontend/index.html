@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="js/components/menu/menu.css" />
 <link rel="stylesheet" href="js/components/button-bar/button-bar.css" />
 <link rel="stylesheet" href="js/selections/selections.css" />
+<link rel="stylesheet" href="js/markers/markers.css" />
 </head>
 <body>
 <div class="app">
@@ -28,6 +29,7 @@
     
     
     <span class="spacer"></span>
+    <span id="connectionStatusPill" class="status-pill error">disconnected</span>
     <input id="wsUrlInput" type="text" placeholder="ws://localhost:8080" value="ws://localhost:8080" />
     <button id="wsConnectBtn" title="(Re)Connect to the websocket server">⇄</button>'
     <span class="sep"></span>
@@ -141,6 +143,11 @@
 <script src="js/selections/selectionPopup.js"></script>
 <script src="js/selections/selectionInput.js"></script>
 <script src="js/selections/selectionPanel.js"></script>
+
+<script src="js/markers/markerModel.js"></script>
+<script src="js/markers/markerDraw.js"></script>
+<script src="js/markers/markerInput.js"></script>
+<script src="js/markers/markerPanel.js"></script>
 
 <script src="js/fileformats/helpers.js"></script>
 <script src="js/fileformats/saleae-bin-import.js"></script>
