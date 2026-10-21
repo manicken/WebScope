@@ -62,13 +62,11 @@ async function getSaveData() {
         format:"WebScope",
         version:1
     };
-    let buf = window.WS.capture.getBuffer();
-    let sigrokData = await saveSr({samplerate:buf.samplerate, channels:buf.channelCount, data:buf.samples});
-
+    
     const encoder = new TextEncoder();
     const json = data => encoder.encode(JSON.stringify(data, null, 4));
     const entries = [
-        { name: "sigrok.sr", data: sigrokData },
+        { name: "sigrok.sr", data: await getSigrokData() }, // helpers.js
         { name: "decoders.json", data: json(decodersSave) },
         { name: "project.json", data: json(project) },
         { name: "markers.json", data: json(store.markerList ?? []) },

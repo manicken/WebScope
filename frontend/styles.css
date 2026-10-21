@@ -65,7 +65,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 .ch-row { height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--border); }
 .ch-bar { width: 3px; height: 20px; border-radius: 2px; flex-shrink: 0; }
 .ch-index { color: var(--muted); font-size: 10px; width: 20px; flex-shrink: 0; }
-.ch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.ch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; margin-left: 8px; }
 .ch-name input { width: 100%; }
 .ch-actions { display: flex; gap: 2px; }
 .icon-btn { padding: 3px 5px; font-size: 10px; border-radius: 4px; }

@@ -30,16 +30,21 @@ async function uploadFile(url, file) {
     return response;
 }
 
-function setSamples({samples, samplerate, channels, decode}) {
+function setSamples({samples, samplerate, channels, decode, names}) {
+
     const WS = window.WS;
     WS.capture.setBuffer(new CaptureBuffer(samples, samplerate, channels));
     const store = WS.store;
-    if (store.get().channels.length !== channels) store.set({ channels: store.makeChannels(channels) });
+    store.set({ channels: store.makeChannels({count:channels, names}) });
+    console.log(store.get());
     store.set((s) => ({ status: { ...s.status, state: 'done', sampleCount:samples.length, samplerate, channels, trigger: null } }));
     if (decode) {
         for (const d of store.get().decoders) WS.decoders.decode(d.id);
     }
     if (store.get().follow) WS.waveform.fit();
+    
+    WS.uiRows.recompute();
+    WS.gutter.ui.render();
 }
 
 async function loadSamplesFromSigrokFile({filedata, decode=false}) {
@@ -47,8 +52,8 @@ async function loadSamplesFromSigrokFile({filedata, decode=false}) {
     const { samplerate, channels, names, unitsize, length, data } = cap;
     
     const samples = unpackSamples(cap);
-    //console.log({ samplerate, channels, names, unitsize, length, data, samples });
-    setSamples({samples, samplerate, channels, decode});
+    console.log({ samplerate, channels, names, unitsize, length, data, samples });
+    setSamples({samples, samplerate, channels, decode, names});
 }
 
 function loadDecoderStates(decoderStateData) {
@@ -90,4 +95,11 @@ async function saveToLocation({name, data, location}) {
             console.error(err);
         }
     }
+}
+
+async function getSigrokData() {
+    let buf = window.WS.capture.getBuffer();
+    const channels = window.WS.store.get().channels;
+    let names = Object.values(channels).map(item=>item.name);
+    return await saveSr({samplerate:buf.samplerate, channels:buf.channelCount, data:buf.samples, names});
 }

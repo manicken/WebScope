@@ -50,6 +50,8 @@
             appendNewElement(samplerateSelect_el, 'option', {textContent:WS.format.fmtRate(rate), value:rate})
         }
         console.log(selectedDevice);
+
+        WS.store.set({ channels: WS.store.makeChannels({items:selectedDevice.channels}) });
         //for (let rate of selectedDevice.)
 
         //console.log(selectedDevice);

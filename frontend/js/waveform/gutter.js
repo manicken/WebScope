@@ -6,10 +6,10 @@
   'use strict';
   const { store } = WS;
   const TRIGGER_LABEL = { rising: '↗', falling: '↘', edge: '↕', high: '⬆', low: '⬇' };
-
+  let _render = null;
   function init(gutterBodyEl, onScroll) {
     function render(rows) {
-      //console.log(rows);
+      console.trace(rows);
       gutterBodyEl.innerHTML = '';
       for (const r of rows) {
         if (r.kind === 'channel') {
@@ -31,6 +31,7 @@
     function channelRow(r) {
       //console.trace();
       let ch = r.ch;
+      console.log({ch});
       const row = document.createElement('div');
       row.className = 'ch-row';
       row.innerHTML = `
@@ -38,10 +39,8 @@
         <span class="ch-index">CH${ch.index+1}</span>
         <span class="ch-name">${ch.name}</span>
         <span class="ch-actions">
-          <button class="icon-btn trig ${ch.trigger ? 'on' : ''}" title="Cycle trigger">${ch.trigger ? TRIGGER_LABEL[ch.trigger] : '⚡'}</button>
           <button class="icon-btn hide" title="Hide channel">✕</button>
         </span>`;
-      row.querySelector('.trig').addEventListener('click', () => WS.waveform.cycleTrigger(ch.index));
       row.querySelector('.hide').addEventListener('click', () => WS.waveform.updateChannel(ch.index, { visible: false }));
       const nameEl = row.querySelector('.ch-name');
       nameEl.addEventListener('dblclick', () => {
@@ -72,8 +71,9 @@
     gutterBodyEl.parentElement.addEventListener('scroll', (e) => onScroll(e.currentTarget.scrollTop));
     WS.uiRows.onShapeChange(render);
     render(WS.uiRows.get());
+    _render = render;
   }
 
   WS.gutter = WS.gutter || {};
-  WS.gutter.ui = { init };
+  WS.gutter.ui = { init, render() {_render(WS.uiRows.get());} };
 })(window.WS = window.WS || {});

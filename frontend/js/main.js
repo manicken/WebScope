@@ -39,8 +39,7 @@ let mainMenuItems = [
                 action: () => {
                     FileDialog.Show({extensions:['.sr'], mode: FileDialog.FDModes.Save, onConfirm: async ({name, source})=>{
                         //console.log("file to save selected:", {name, source:FileDialog.FDSourceToString(source)});
-                        let buf = window.WS.capture.getBuffer();
-                        let data = await saveSr({samplerate:buf.samplerate, channels:buf.channelCount, data:buf.samples});
+                        let data = await getSigrokData(); // helpers.js
                         await saveToLocation({name, data, location:source});
                     }});
                 }

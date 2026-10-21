@@ -20,29 +20,41 @@
     };
   }
 
-  function makeChannels(n, names) {
-    return Array.from({ length: n }, (_, i) => ({
-      index: i, name: names?.[i] ?? `CH${i+1}`, color: PALETTE[i % PALETTE.length], visible: true, trigger: null
-    }));
-  }
+    function makeChannels({count=0, names=null, items=null}) {
+        let ret = [];
+        if (!items) {
+            //console.trace({names});
+            ret = Array.from({ length: count }, (_, i) => ({
+                index: i, name: names?.[i] ?? `CH${i+1}`, color: PALETTE[i % PALETTE.length], visible: true, trigger: null
+            }));
+        } else {
+            //console.trace({items});
+            ret = items.map((item) => {return { color: PALETTE[item.index % PALETTE.length], visible: true, trigger: null, ...item}});
+        }
+        //console.log(ret);
+        store.set((s) => ({ status: { ...s.status, channels: ret.length } }));
+        return ret;
+    }
 
-  const store = createStore({
-    channels: makeChannels(8),
-    decoders: [], // { id, kind, name, color, config, rows, visible }
-    status: {
-      state: 'idle', message: '', samples: 0, samplerate: 8_000_000, channels: 8,
-      trigger: null, captureId: 0, decoding: false, decodeGen: 0
-    },
-    view: { start: 0, /** samples per pixel */ spp: 1000 },
-    plotWidth: 1000,
-    follow: true,
-    markerList: [],
-    selections: [],
-    hover: null,
-    measurement: null,
-    table: { decoder: null, row: 0, focus: null },
-    toast: null
-  });
+
+    const store = createStore({
+        channels: [],
+        decoders: [], // { id, kind, name, color, config, rows, visible }
+        status: {
+        state: 'idle', message: '', samples: 0, samplerate: 8_000_000, channels: 8,
+        trigger: null, captureId: 0, decoding: false, decodeGen: 0
+        },
+        view: { start: 0, /** samples per pixel */ spp: 1000 },
+        plotWidth: 1000,
+        follow: true,
+        markerList: [],
+        selections: [],
+        hover: null,
+        measurement: null,
+        table: { decoder: null, row: 0, focus: null },
+        toast: null
+    });
+    //store.set({channels: makeChannels({count:8})});
 
   function toast(msg) {
     store.set({ toast: msg });

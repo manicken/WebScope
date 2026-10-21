@@ -5,7 +5,40 @@ class DemoSource {
             id: 'localdemo',
             name: 'Local Demo device',
             sourceKind: DemoSource,
-            channels: 32,
+            channels: [
+                {index:0, name:'D0', type: 'logic'},
+                {index:1, name:'D1', type: 'logic'},
+                {index:2, name:'D2', type: 'logic'},
+                {index:3, name:'D3', type: 'logic'},
+                {index:4, name:'D4', type: 'logic'},
+                {index:5, name:'D5', type: 'logic'},
+                {index:6, name:'D6', type: 'logic'},
+                {index:7, name:'D7', type: 'logic'},
+                {index:8, name:'D8', type: 'logic'},
+                {index:9, name:'D9', type: 'logic'},
+                {index:10, name:'D10', type: 'logic'},
+                {index:11, name:'D11', type: 'logic'},
+                {index:12, name:'D12', type: 'logic'},
+                {index:13, name:'D13', type: 'logic'},
+                {index:14, name:'D14', type: 'logic'},
+                {index:15, name:'D15', type: 'logic'},
+                {index:16, name:'D16', type: 'logic'},
+                {index:17, name:'D17', type: 'logic'},
+                {index:18, name:'D18', type: 'logic'},
+                {index:19, name:'D19', type: 'logic'},
+                {index:20, name:'D20', type: 'logic'},
+                {index:21, name:'D21', type: 'logic'},
+                {index:22, name:'D22', type: 'logic'},
+                {index:23, name:'D23', type: 'logic'},
+                {index:24, name:'D24', type: 'logic'},
+                {index:25, name:'D25', type: 'logic'},
+                {index:26, name:'D26', type: 'logic'},
+                {index:27, name:'D27', type: 'logic'},
+                {index:28, name:'D28', type: 'logic'},
+                {index:29, name:'D29', type: 'logic'},
+                {index:30, name:'D30', type: 'logic'},
+                {index:31, name:'D31', type: 'logic'},
+            ],
             samplerates: [4_000_000, 8_000_000, 10_000_000, 20_000_000, 25_000_000, 50_000_000, 100_000_000],
             defaultSamplerate: 20_000_000,
             note: 'UART D0 · I²C D1/D2 · SPI D3–D6 · PWM D7',
@@ -31,7 +64,7 @@ class DemoSource {
      * @returns {Uint8Array}
      */
     static pattern(rate) {
-        const w = new DemoWave({channels:DemoSource.info().channels});
+        const w = new DemoWave({channels:DemoSource.info().channels.length});
         const tOffset = 0.01;
         // UART
         w.uart({ch:0, t:0+tOffset, baud:115_200, data:DemoSource.bytes('Hello from WebScope Frontend!\r\n')});

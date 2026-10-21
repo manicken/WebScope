@@ -29,7 +29,6 @@
       shapeKey = key;
       listeners.forEach((fn) => fn(rows));
     }
-
   }
 
   store.subscribe(recompute);
