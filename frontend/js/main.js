@@ -131,10 +131,12 @@ let mainMenuItems = [
       hoverTipEl: document.getElementById('hoverTip'),
       emptyStateEl: document.getElementById('emptyState')
     });
+    Object.assign(WS.waveform.ui, waveform);
+   // WS.waveform.ui.requestDraw = waveform.requestDraw;
     WS.gutter.ui.init(gutterBody, (y) => waveform.setScroll(y));
     WS.rightpanel.init(document.getElementById('rightPanel'));
     WS.topbar.init({
-      sourceKind: 'sourceKind', wsUrl: 'wsUrl', samplerate: 'samplerateSelect', duration: 'durationIn',
+      sourceKind: 'sourceKind', wsUrl: 'wsUrl'/*, duration: 'durationIn'*/,
       captureBtn: 'captureBtn', fitBtn: 'fitBtn', statusPill: 'statusPill'
     });
     WS.statusbar.init({ samples: 'stSamples', rate: 'stRate', view: 'stView', sampleResolution:'stSampleResolution' });
@@ -148,5 +150,40 @@ let mainMenuItems = [
 
     let menu = createMenu(document.getElementById('mainMenu'), mainMenuItems);
 
+
+    
+    WS.capturePanel.onChange((cfg, key) => { 
+        console.log({key, changed:cfg[key]});
+        if (key == 'samplerate') {
+            WS.store.update('status', {
+                samplerate: cfg[key]
+            });
+        } else if (key == 'timer') {
+            WS.store.update('status', {
+                captureDuration: cfg[key].seconds
+            });
+
+        }
+        /* key: 'channels' | 'samplerate' | 'mode' | … */
+    });
+    /*
+    let test = {hello:true};
+    let checkbox = createNewElement('input', {type:'checkbox', checked:test.hello});
+    test._hello = test.hello;
+    Object.defineProperty(test, 'hello', {
+        get() {
+            return this._hello;
+        },
+        set(value) {
+            this._hello = value;
+            checkbox.checked = value;
+        }
+    });
+    checkbox.addEventListener('change', () => {
+        test._hello = checkbox.checked;
+    });
+    document.getElementById('test').appendChild(checkbox);
+    window.WS.test = test; // expose globally so we can try it in development tools console
+    */
   });
 })(window.WS = window.WS || {});

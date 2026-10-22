@@ -9,7 +9,7 @@
   const { RULER_H, hexA } = WS.theme;
 
   function drawLines(ctx, w, h, f, x) {
-    const list = f.markerList;
+    const list = f.markers;
     if (!list || !list.length) return;
     const sr = WS.store.get().status.samplerate;
     ctx.save();
@@ -39,7 +39,7 @@
   }
 
   function drawFlags(ctx, w, f, x) {
-    const list = f.markerList;
+    const list = f.markers;
     if (!list || !list.length) return;
     ctx.save();
     ctx.font = 'bold 10px -apple-system, Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';

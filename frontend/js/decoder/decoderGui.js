@@ -89,8 +89,9 @@
         return s;
     }
 
-    function renderAnalyzers({ container, title = 'Analyzers', decoders = store.get().decoders, parent = null, panelRoot = false } = {}) {
+    function renderAnalyzers({ container, keys, state, subkey, title = 'Analyzers', decoders = store.get().decoders, parent = null, panelRoot = false } = {}) {
         if (!parent) pruneCaches();
+        console.log(keys?.map((key)=>state[key]), subkey);
 
         const s = getSection({title, parent, panelRoot});
         s.parent = parent;

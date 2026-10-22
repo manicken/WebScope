@@ -108,7 +108,7 @@ function showFull(a, idx) {
     }
   }
 
-  function renderDataTable(container) {
+  function renderDataTable({container}) {
     if (!ui) build();
     const { decoders, table } = store.get();
     const dec = currentDecoder();

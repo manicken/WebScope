@@ -40,10 +40,12 @@
     views.set(def.id, { def, tab, view });
   }
 
-  function renderActive() {
+  function renderActive(args) {
+    //const {keys, subkey} = args;
+    //console.log(args.keys, args.subkey);
     const p = views.get(activeId);
     //console.log(p.view.parent);
-    if (p) p.def.render(p.view);
+    if (p) p.def.render({container:p.view, ...args});
   }
 
   function setActive(id) {
@@ -57,7 +59,7 @@
       p.tab.classList.toggle('on', pid === id);
       p.view.classList.toggle('on', pid === id);
     });
-    renderActive();
+    renderActive({});
     // let canvases re-measure after the plot area changes size
     requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   }
@@ -132,14 +134,14 @@
 
   register({
     id: 'capture', title: 'Capture Config',
-    icon: svg('<path d="M24 8 42 17 24 26 6 17Z"/><path d="M6 17v10l18 9 18-9V17"/><path d="M24 26v10"/><circle cx="24" cy="17" r="2.5"/>'),
+    icon: svg('<path d="M12 3 21 8l-9 5-9-5z M3 13l9 5 9-5"/>'),
     render: (c) => WS.capturePanel.render(c),
   });
 
   register({
     id: 'analyzers', title: 'Analyzers',
     icon: svg('<path d="M3 12h3l2-6 4 12 3-9 2 3h4"/>'),
-    render: (c) => WS.decoders.ui.renderAnalyzers({ container: c, header:ui.header, panelRoot:true }),
+    render: (c) => WS.decoders.ui.renderAnalyzers({ ...c, header:ui.header, panelRoot:true }),
   });
   register({
     id: 'measurements', title: 'Measurements',

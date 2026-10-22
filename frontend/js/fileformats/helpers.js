@@ -35,6 +35,7 @@ function setSamples({samples, samplerate, channelCount, decode, names}) {
     const WS = window.WS;
     WS.capture.setBuffer(new CaptureBuffer(samples, samplerate, channelCount));
     const store = WS.store;
+    console.log(channelCount, store.makeChannels({count:channelCount, names}));
     store.set({ channels: store.makeChannels({count:channelCount, names}) });
     console.log(store.get());
     store.set((s) => ({ status: { ...s.status, state: 'done', sampleCount:samples.length, samplerate, trigger: null } }));
@@ -45,6 +46,7 @@ function setSamples({samples, samplerate, channelCount, decode, names}) {
     
     WS.uiRows.recompute();
     WS.gutter.ui.render();
+    WS.waveform.ui.requestDraw();
 }
 
 async function loadSamplesFromSigrokFile({filedata, decode=false}) {
@@ -52,7 +54,7 @@ async function loadSamplesFromSigrokFile({filedata, decode=false}) {
     const { samplerate, channelCount, names, unitsize, length, data } = cap;
     
     const samples = unpackSamples(cap);
-    console.log({ samplerate, channelCount, names, unitsize, length, data, samples });
+    //console.log({ samplerate, channelCount, names, unitsize, length, data, samples });
     setSamples({samples, samplerate, channelCount, decode, names});
 }
 

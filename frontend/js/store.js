@@ -3,40 +3,36 @@
  * get()/set(patch)/subscribe(fn); patch may be a value or an updater function.
  */
 (function (WS) {
-  'use strict';
-  const { PALETTE } = WS.theme;
+    'use strict';
+    const { PALETTE } = WS.theme;
 
-  function createStore(initial) {
-    let state = initial;
-    const subs = new Set();
-    return {
-      get: () => state,
-      /*get: () => {
-            return new Proxy(state, {
-                get(target, prop, receiver) {
-                    if (prop === 'status') {
-                        return new Proxy(target.status, {
-                            get(status, key, receiver) {
-                                if (key === 'channels') {
-                                    console.trace('status.channels accessed');
-                                }
-                                return Reflect.get(status, key, receiver);
-                            }
-                        });
+    function createStore(initial) {
+        let state = initial;
+        const subs = new Set();
+        return {
+            get: () => state,
+            set: (patch) => {
+                const changes = typeof patch === 'function' ? patch(state) : patch;
+                state = { ...state, ...changes };
+                const args = {state, keys:Object.keys(changes), subkey:null};
+                subs.forEach((fn) => fn(args));
+            },
+            update: (key, patch) => {
+                const current = state[key];
+                const changes = typeof patch === 'function' ? patch(state) : patch;
+                state = {
+                    ...state,
+                    [key]: {
+                        ...current,
+                        ...changes
                     }
-
-                    return Reflect.get(target, prop, receiver);
-                }
-            });
-        },*/
-      set: (patch) => {
-        state = { ...state, ...(typeof patch === 'function' ? patch(state) : patch) };
-        //console.log("store changed");
-        subs.forEach((fn) => fn(state));
-      },
-      subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); }
-    };
-  }
+                };
+                const args = {state, keys:Object.keys(changes), subkey:key};
+                subs.forEach((fn) => fn(args));
+            },
+            subscribe: (fn) => { subs.add(fn); return () => subs.delete(fn); }
+        };
+    }
 
     function makeChannels({count=0, names=null, items=null}) {
         let ret = [];
@@ -57,11 +53,14 @@
     const store = createStore({
         channels: [],//makeChannels({count:8})
         decoders: [], // { id, kind, name, color, config, rows, visible }
+        devices: new Map(),
+        selectedDevice: null,
         status: {
             state: 'idle',
             message: '',
             sampleCount: 0,
             samplerate: 8_000_000,
+            captureDuration: 1.0, // in seconds
             trigger: null,
             captureId: 0,
             decoding: false,
@@ -73,7 +72,7 @@
         },
         plotWidth: 1000,
         follow: true,
-        markerList: [],
+        markers: [],
         selections: [],
         hover: null,
         measurement: null,
@@ -86,15 +85,15 @@
     });
 
 
-  function toast(msg) {
-    store.set({ toast: msg });
-    setTimeout(() => store.get().toast === msg && store.set({ toast: null }), 3500);
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.textContent = msg;
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), 3500);
-  }
+    function toast(msg) {
+        store.set({ toast: msg });
+        setTimeout(() => store.get().toast === msg && store.set({ toast: null }), 3500);
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3500);
+    }
 
-  WS.store = { createStore, makeChannels, store, get: store.get, set: store.set, toast };
+    WS.store = { createStore, makeChannels, store, get: store.get, set: store.set, update: store.update, toast };
 })(window.WS = window.WS || {});

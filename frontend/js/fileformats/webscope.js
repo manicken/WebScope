@@ -23,7 +23,7 @@ async function loadWebScopeProjectFile(filedata) {
     } catch (ex) {
         InfoDialog.Show({title:"Load error", message:"Error while loading sigrok.sr from the project.\n"+ ex.message});
         loadDecoderStates([]);
-        window.WS.store.set({markerList:[], selections:[]});
+        window.WS.store.set({markers:[], selections:[]});
         return;
     }
     try {
@@ -33,10 +33,10 @@ async function loadWebScopeProjectFile(filedata) {
         loadDecoderStates([]);
         InfoDialog.Show({title:"Load error", message:"Error while parsing decoders.json from the project.\n"+ ex.message})
     }
-    let markerList = [];
+    let markers = [];
     let selections = [];
     try {
-        markerList = zip.has("markers.json") ? JSON.parse(await zip.readText("markers.json")) : [];
+        markers = zip.has("markers.json") ? JSON.parse(await zip.readText("markers.json")) : [];
     } catch (ex) {
         InfoDialog.Show({title:"Load error", message:"Error while parsing markers.json from the project.\n"+ ex.message})
     }
@@ -45,7 +45,7 @@ async function loadWebScopeProjectFile(filedata) {
     } catch (ex) {
         InfoDialog.Show({title:"Load error", message:"Error while parsing selections.json from the project.\n"+ ex.message})
     }
-    window.WS.store.set({markerList, selections});
+    window.WS.store.set({markers, selections});
 
     //console.log(decoderData);
 }
@@ -69,7 +69,7 @@ async function getSaveData() {
         { name: "sigrok.sr", data: await getSigrokData() }, // helpers.js
         { name: "decoders.json", data: json(decodersSave) },
         { name: "project.json", data: json(project) },
-        { name: "markers.json", data: json(store.markerList ?? []) },
+        { name: "markers.json", data: json(store.markers ?? []) },
         { name: "selections.json", data: json(store.selections ?? []) },
     ];
     let data = await writeZip(entries, { compress: true });

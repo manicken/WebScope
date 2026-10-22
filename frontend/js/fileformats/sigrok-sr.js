@@ -329,9 +329,9 @@ async function loadSr(input) {
   const fileUnit = Math.max(1, int("unitsize", 1));
   const samplerate = (kv.has("samplerate") && parseRate(kv.get("samplerate"))) || 1_000_000;
   const base = kv.get("capturefile") || "logic-1";
-  const channels = Math.min(probes, MAX_CHANNELS);
-  const names = Array.from({ length: channels }, (_, i) => kv.get(`probe${i + 1}`) ?? `D${i}`);
-  const keep = Math.max(1, Math.ceil(channels / 8));
+  const channelCount = Math.min(probes, MAX_CHANNELS);
+  const names = Array.from({ length: channelCount }, (_, i) => kv.get(`probe${i + 1}`) ?? `D${i}`);
+  const keep = Math.max(1, Math.ceil(channelCount / 8));
 
   // Chunk files: "<base>" or "<base>-<n>", in numeric order.
   const parts = [];
@@ -357,7 +357,7 @@ async function loadSr(input) {
     }),
   );
   const data = concat(out);
-  return { samplerate, channels, names, unitsize: keep, length: data.length / keep, data };
+  return { samplerate, channelCount, names, unitsize: keep, length: data.length / keep, data };
 }
 
 // ---------------------------------------------------------------- VCD export

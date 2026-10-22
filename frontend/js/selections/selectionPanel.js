@@ -71,9 +71,11 @@
   }
 
   let current = null;
-  function renderNow() { if (current) render(current); }
+  function renderNow() { if (current) render({container:current}); }
 
-  function render(container) {
+  function render({container, keys=null}={}) {
+    if (keys && keys.includes('selections') == false && keys.includes('view') == false) return;
+    //console.log('render selection panel');
     current = container;
     if (!ui || ui.container !== container) build(container);
     const st = store.get();

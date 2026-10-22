@@ -118,7 +118,7 @@
 
   function rebuildList() {
     const st = store.get();
-    const markers = st.markerList ?? [];
+    const markers = st.markers ?? [];
     const sr = st.status.samplerate, origin = st.status.trigger ?? 0;
     ui.listEl.innerHTML = '';
     if (!markers.length) {
@@ -147,12 +147,13 @@
     }
   }
 
-  function render(container) {
+  function render({container, keys}) {
+    if (keys && keys.includes('markers') == false && keys.includes('view') == false) return;
     current = container;
     if (!ui || ui.container !== container) build(container);
     const st = store.get();
     // render() runs on every store update; only rebuild the list when something it shows changed
-    const key = JSON.stringify([st.markerList ?? [], st.selectedMarker ?? null, [...expanded], st.status.samplerate, st.status.trigger ?? 0, st.status.captureId]);
+    const key = JSON.stringify([st.markers ?? [], st.selectedMarker ?? null, [...expanded], st.status.samplerate, st.status.trigger ?? 0, st.status.captureId]);
     if (key !== lastKey) { lastKey = key; rebuildList(); }
     ui.add.disabled = !st.status.sampleCount;
     syncEditor();

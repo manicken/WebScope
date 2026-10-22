@@ -33,7 +33,9 @@
     new ResizeObserver(resize).observe(plotWrap);
 
     let drawPending = false;
-    function requestDraw() { if (!drawPending) { drawPending = true; requestAnimationFrame(render); } }
+    function requestDraw() { 
+      if (!drawPending) { drawPending = true; requestAnimationFrame(render); }
+    }
 
     function rowAt(y) { return WS.uiRows.rowAt(y, scroll.y, RULER_H); }
 
@@ -113,7 +115,7 @@
         rows, scrollY: scroll.y, wave, annotations:annotationsMap, markers: st.markers, hover: st.hover, measurement: st.measurement,
         hoverChannel: st.hover ? st.hover.channel : null, highlight: hl, burst: lastBurst,
         selections: st.selections ?? [], selectedSelection: st.selectedSelection ?? null,
-        markerList: st.markerList ?? [], selectedMarker: st.selectedMarker ?? null
+        markers: st.markers ?? [], selectedMarker: st.selectedMarker ?? null
       });
       selInput.updatePopup();
       renderHoverTip();
@@ -217,7 +219,7 @@
       gutterEl.scrollTop += dy;
     }
 
-    return { requestDraw, setScroll(y) { scroll.y = y; requestDraw(); } };
+    return { requestDraw, setScroll(y) { scroll.y = y; requestDraw(); }, getDrawPending() { return drawPending; }  };
   }
   WS.waveform.ui = { init };
 

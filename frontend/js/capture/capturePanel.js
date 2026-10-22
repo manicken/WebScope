@@ -14,7 +14,6 @@
  *     channels:   [{ index:0, name:'Channel 0', color:'#e8e8e8', enabled:true }, …],
  *     samplerates:[4e6, 8e6, …],  samplerate: 24e6,                       // Hz
  *     mode: 'trigger',                                                    // 'looping' | 'timer' | 'trigger'
- *     disabledModes: ['looping'],                                         // greyed out, not clickable
  *     timer:   { seconds: 1 },                                            // "Stop recording after"
  *     trigger: { channel: 0, type: 'L2H',                                 // 'L2H' | 'H2L' | 'PulseH' | 'PulseL'
  *                pulseWidth: 1e-5,                                        // s, PulseH / PulseL only
@@ -43,7 +42,7 @@
 
   const DEFAULTS = {
     deviceName: '', channels: [], samplerates: [], samplerate: null,
-    mode: 'timer', disabledModes: ['looping'],
+    mode: 'timer',
     timer: { seconds: 1 },
     trigger: { channel: 0, type: 'L2H', pulseWidth: 1e-5 },
     preTrigger: 1, postTrigger: 1,
@@ -54,7 +53,7 @@
   const handlers = [];
   let deviceInfoHandler = null;
   let host = null, lastKey = '';
-  let patternMenuOpen = false, conditionsOpen = true;
+  let patternMenuOpen = true, conditionsOpen = true;
 
   /* ---------------- tiny helpers ---------------- */
   function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; }
@@ -153,10 +152,8 @@
   function modeTabs() {
     const seg = el('div', 'cp-seg');
     for (const [id, text] of MODES) {
-      const dis = cfg.disabledModes?.includes(id);
-      const b = el('button', 'cp-seg-btn' + (cfg.mode === id ? ' on' : '') + (dis ? ' dis' : ''));
-      b.textContent = text; b.disabled = !!dis;
-      if (dis) b.title = 'Not available';
+      const b = el('button', 'cp-seg-btn' + (cfg.mode === id ? ' on' : ''));
+      b.textContent = text;
       b.addEventListener('click', () => { if (cfg.mode !== id) change('mode', (c) => { c.mode = id; }); });
       seg.appendChild(b);
     }
@@ -212,7 +209,7 @@
       s.append(label('Pulse length'), timeField(cfg.trigger.pulseWidth ?? DEFAULTS.trigger.pulseWidth, (v) => change('trigger', (c) => { c.trigger.pulseWidth = v; }, false), { positive: true }));
     }
 
-    if (cfg.trigger.conditions) s.appendChild(conditionsBlock());
+    s.appendChild(conditionsBlock());
 
     s.append(label('Capture duration after trigger'), timeField(cfg.postTrigger, (v) => change('postTrigger', (c) => { c.postTrigger = v; }, false)));
     s.append(label('Capture duration before trigger'), timeField(cfg.preTrigger, (v) => change('preTrigger', (c) => { c.preTrigger = v; }, false)));
@@ -225,15 +222,21 @@
     head.addEventListener('click', () => { conditionsOpen = !conditionsOpen; rebuild(true); });
     box.appendChild(head);
     if (!conditionsOpen) return box;
+    cfg.trigger.conditions = cfg.trigger.conditions ?? [];
     for (const ch of cfg.channels.filter((c) => c.enabled !== false && c.index !== cfg.trigger.channel)) {
       const row = el('div', 'cp-cond-row');
-      const nm = el('span', 'cp-cond-name'); nm.innerHTML = `<i style="color:${colorOf(ch)}"></i>`; nm.firstChild.textContent = String(ch.index).padStart(2, '0') + '.';
+      const nm = el('span', 'cp-cond-name');
+      nm.innerHTML = `<i style="color:${colorOf(ch)}"></i>`;
+      nm.firstChild.textContent = String(ch.index).padStart(2, '0') + '.';
       nm.append(document.createTextNode(' ' + (ch.name ?? 'Channel ' + ch.index)));
       row.appendChild(nm);
       for (const [v, text] of [['lo', 'Lo'], ['hi', 'Hi']]) {
-        const b = el('button', 'cp-cond-btn' + (cfg.trigger.conditions[ch.index] === v ? ' on' : '')); b.textContent = text;
+        const b = el('button', 'cp-cond-btn' + (cfg.trigger.conditions?.[ch.index] === v ? ' on' : ''));
+        b.textContent = text;
         b.addEventListener('click', () => change('trigger', (c) => {
-          if (c.trigger.conditions[ch.index] === v) delete c.trigger.conditions[ch.index]; else c.trigger.conditions[ch.index] = v;
+          if (c.trigger.conditions[ch.index] === v)
+            delete c.trigger.conditions[ch.index];
+          else c.trigger.conditions[ch.index] = v;
         }));
         row.appendChild(b);
       }
@@ -290,7 +293,13 @@
   }
 
   WS.capturePanel = {
-    render(container) { if (host !== container) { host = container; lastKey = ''; } rebuild(false); },
+    render({container, state, keys, subkey}) { 
+        if (keys) return;
+        //if (keys?.includes('hover') || keys?.includes('mesurements')) return;
+
+        if (host !== container) { host = container; lastKey = ''; } 
+        rebuild(false);
+    },
     setConfig(patch) { merge(cfg, patch); rebuild(false); },
     getConfig() { return structuredClone(cfg); },
     onChange(fn) { handlers.push(fn); return () => handlers.splice(handlers.indexOf(fn), 1); },

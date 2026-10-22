@@ -7,7 +7,9 @@
     const rateEl = document.getElementById(ids.rate);
     const sampleResolutionEl = document.getElementById(ids.sampleResolution);
     const viewEl = document.getElementById(ids.view);
-    function render() {
+    function render({keys, subkey}={}) {
+     // console.log(keys, subkey);
+      if (keys && keys.includes('view') == false && keys.includes('status') == false && keys.includes('samplerate') == false) return;
       const { status, view } = WS.store.get();
       samplesEl.textContent = fmtCount(status.sampleCount);
       rateEl.textContent = fmtRate(status.samplerate);
