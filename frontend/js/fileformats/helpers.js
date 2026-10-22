@@ -30,14 +30,14 @@ async function uploadFile(url, file) {
     return response;
 }
 
-function setSamples({samples, samplerate, channels, decode, names}) {
+function setSamples({samples, samplerate, channelCount, decode, names}) {
 
     const WS = window.WS;
-    WS.capture.setBuffer(new CaptureBuffer(samples, samplerate, channels));
+    WS.capture.setBuffer(new CaptureBuffer(samples, samplerate, channelCount));
     const store = WS.store;
-    store.set({ channels: store.makeChannels({count:channels, names}) });
+    store.set({ channels: store.makeChannels({count:channelCount, names}) });
     console.log(store.get());
-    store.set((s) => ({ status: { ...s.status, state: 'done', sampleCount:samples.length, samplerate, channels, trigger: null } }));
+    store.set((s) => ({ status: { ...s.status, state: 'done', sampleCount:samples.length, samplerate, trigger: null } }));
     if (decode) {
         for (const d of store.get().decoders) WS.decoders.decode(d.id);
     }
@@ -49,11 +49,11 @@ function setSamples({samples, samplerate, channels, decode, names}) {
 
 async function loadSamplesFromSigrokFile({filedata, decode=false}) {
     const cap = await loadSr(filedata);
-    const { samplerate, channels, names, unitsize, length, data } = cap;
+    const { samplerate, channelCount, names, unitsize, length, data } = cap;
     
     const samples = unpackSamples(cap);
-    console.log({ samplerate, channels, names, unitsize, length, data, samples });
-    setSamples({samples, samplerate, channels, decode, names});
+    console.log({ samplerate, channelCount, names, unitsize, length, data, samples });
+    setSamples({samples, samplerate, channelCount, decode, names});
 }
 
 function loadDecoderStates(decoderStateData) {

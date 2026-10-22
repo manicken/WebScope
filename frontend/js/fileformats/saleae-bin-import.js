@@ -195,6 +195,6 @@ function importSaleae({ items, samplerate, maxSamples = 1 << 28 }) {
   return {
     samples, samplerate: sr, beginTime: origin,
     numSamples: total, fullNumSamples: fullTotal, truncated,
-    channels: seen.size
+    channelCount: seen.size
   };
 }

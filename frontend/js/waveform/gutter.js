@@ -9,7 +9,7 @@
   let _render = null;
   function init(gutterBodyEl, onScroll) {
     function render(rows) {
-      console.trace(rows);
+      //console.trace(rows);
       gutterBodyEl.innerHTML = '';
       for (const r of rows) {
         if (r.kind === 'channel') {
@@ -31,7 +31,7 @@
     function channelRow(r) {
       //console.trace();
       let ch = r.ch;
-      console.log({ch});
+      //console.log({ch});
       const row = document.createElement('div');
       row.className = 'ch-row';
       row.innerHTML = `

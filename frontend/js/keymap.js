@@ -10,7 +10,7 @@
   const MOD = navigator.platform?.startsWith('Mac') ? '⌘' : 'Ctrl';
   const HELP_HTML =
     `<kbd>Space</kbd> capture · <kbd>scroll</kbd> zoom · <kbd>drag</kbd> pan · <kbd>F</kbd> fit · ` +
-    `<kbd>${MOD}</kbd> click zoom to packet · <kbd>A</kbd>/<kbd>B</kbd> markers · <kbd>[</kbd><kbd>]</kbd> edges`;
+    `<kbd>${MOD}</kbd> click zoom to packet · <kbd>[</kbd><kbd>]</kbd> edges`;
 
   function jumpEdge(forward) {
     const { hover, channels, view, plotWidth } = store.get();
@@ -50,13 +50,6 @@
         break;
       case 'ArrowRight':
         WS.waveform.panBy(plotWidth * 0.2);
-        break;
-      case 'a':
-      case 'b':
-        if (hover) store.set({ markers: { ...markers, [e.key]: hover.sample } });
-        break;
-      case 'Escape':
-        store.set({ markers: { a: null, b: null } });
         break;
       case '[':
         jumpEdge(false);

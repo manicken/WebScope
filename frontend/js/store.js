@@ -11,6 +11,24 @@
     const subs = new Set();
     return {
       get: () => state,
+      /*get: () => {
+            return new Proxy(state, {
+                get(target, prop, receiver) {
+                    if (prop === 'status') {
+                        return new Proxy(target.status, {
+                            get(status, key, receiver) {
+                                if (key === 'channels') {
+                                    console.trace('status.channels accessed');
+                                }
+                                return Reflect.get(status, key, receiver);
+                            }
+                        });
+                    }
+
+                    return Reflect.get(target, prop, receiver);
+                }
+            });
+        },*/
       set: (patch) => {
         state = { ...state, ...(typeof patch === 'function' ? patch(state) : patch) };
         //console.log("store changed");
@@ -32,29 +50,41 @@
             ret = items.map((item) => {return { color: PALETTE[item.index % PALETTE.length], visible: true, trigger: null, ...item}});
         }
         //console.log(ret);
-        store.set((s) => ({ status: { ...s.status, channels: ret.length } }));
         return ret;
     }
 
 
     const store = createStore({
-        channels: [],
+        channels: [],//makeChannels({count:8})
         decoders: [], // { id, kind, name, color, config, rows, visible }
         status: {
-        state: 'idle', message: '', samples: 0, samplerate: 8_000_000, channels: 8,
-        trigger: null, captureId: 0, decoding: false, decodeGen: 0
+            state: 'idle',
+            message: '',
+            sampleCount: 0,
+            samplerate: 8_000_000,
+            trigger: null,
+            captureId: 0,
+            decoding: false,
+            decodeGen: 0
         },
-        view: { start: 0, /** samples per pixel */ spp: 1000 },
+        view: { 
+            start: 0,
+            spp: 1000 /** samples per pixel */
+        },
         plotWidth: 1000,
         follow: true,
         markerList: [],
         selections: [],
         hover: null,
         measurement: null,
-        table: { decoder: null, row: 0, focus: null },
+        table: { 
+            decoder: null,
+            row: 0,
+            focus: null
+        },
         toast: null
     });
-    //store.set({channels: makeChannels({count:8})});
+
 
   function toast(msg) {
     store.set({ toast: msg });

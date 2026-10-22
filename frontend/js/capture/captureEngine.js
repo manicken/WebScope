@@ -80,7 +80,7 @@
             (info) => {
                     WS.capture.setBuffer(new CaptureBuffer(growing.slice(0, info.samples), info.samplerate, info.channels));
                     if (store.get().channels.length !== info.channels) store.set({ channels: makeChannels({count:info.channels}) });
-                    store.set((s) => ({ status: { ...s.status, state: 'done', sampleCount: info.samples, samplerate: info.samplerate, channels: info.channels, trigger: null } }));
+                    store.set((s) => ({ status: { ...s.status, state: 'done', sampleCount: info.samples, samplerate: info.samplerate/*, channelCount: info.channels*/, trigger: null } }));
                     for (const d of store.get().decoders) WS.decoders.decode(d.id);
                     if (store.get().follow) WS.waveform.fit();
             },

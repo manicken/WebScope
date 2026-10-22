@@ -131,6 +131,12 @@
   const svg = (inner) => `<svg viewBox="0 0 24 24">${inner}</svg>`;
 
   register({
+    id: 'capture', title: 'Capture Config',
+    icon: svg('<path d="M24 8 42 17 24 26 6 17Z"/><path d="M6 17v10l18 9 18-9V17"/><path d="M24 26v10"/><circle cx="24" cy="17" r="2.5"/>'),
+    render: (c) => WS.capturePanel.render(c),
+  });
+
+  register({
     id: 'analyzers', title: 'Analyzers',
     icon: svg('<path d="M3 12h3l2-6 4 12 3-9 2 3h4"/>'),
     render: (c) => WS.decoders.ui.renderAnalyzers({ container: c, header:ui.header, panelRoot:true }),
