@@ -23,9 +23,10 @@
     let activeSource = null;
     let growing = null; // Uint32Array being filled while a capture streams in
 
-    function startCapture(source, {samplerate, duration, channels} = {}) {
-        const total = Math.max(64, Math.round(samplerate * duration));
-        growing = new Uint32Array(total);
+    function startCapture(source, cfg) {
+        const {samplerate, duration, channels} = cfg;
+        const total = duration ? Math.max(64, Math.round(samplerate * duration)): undefined;
+        growing = new Uint32Array(total??64);
         store.set({
         follow: true, markers: { a: null, b: null }, markers: [], selectedMarker: null, selections: [], selectedSelection: null, measurement: null,
         status: { ...store.get().status, state: 'running', sampleCount: 0, samplerate, captureId: store.get().status.captureId + 1 }
@@ -39,7 +40,7 @@
             console.warn("channel count capped at 32");
         }
         activeSource.start(
-            { samplerate, samplecount:total, channels:channelCount },
+            { ...cfg, samplecount:total, channels:channelCount },
             /* onData */
             (chunk, offset) => {
                 const available = growing.length - offset;
@@ -93,7 +94,7 @@
         activeSource?.stop();
         if (growing && store.get().status.sampleCount > 0) {
             const n = store.get().status.sampleCount;
-            WS.capture.setBuffer(new WS.CaptureBuffer(growing.slice(0, n), store.get().status.samplerate, store.get().channels.length));
+            WS.capture.setBuffer(new CaptureBuffer(growing.slice(0, n), store.get().status.samplerate, store.get().channels.length));
             for (const d of store.get().decoders) decoders.decode(d.id);
         }
         store.set((s) => ({ status: { ...s.status, state: s.status.sampleCount > 0 ? 'done' : 'idle' } }));

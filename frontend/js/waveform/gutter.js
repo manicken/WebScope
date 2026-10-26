@@ -5,7 +5,7 @@
 (function (WS) {
   'use strict';
   const { store } = WS;
-  const TRIGGER_LABEL = { rising: '↗', falling: '↘', edge: '↕', high: '⬆', low: '⬇' };
+  
   let _render = null;
   function init(gutterBodyEl, onScroll) {
     function render(rows) {
@@ -23,7 +23,12 @@
         const btn = document.createElement('button');
         btn.textContent = `Show ${hidden.length} hidden`;
         btn.style.margin = '6px 8px';
-        btn.addEventListener('click', () => hidden.forEach((c) => WS.waveform.updateChannel(c.index, { visible: true })));
+        btn.addEventListener('click', () => hidden.forEach((c) => {
+          WS.waveform.updateChannel(c.index, { visible: true });
+          const channels = WS.capturePanel.getConfig().channels;
+          channels[c.index].enabled = true;
+          WS.capturePanel.setConfig({channels});
+        }));
         gutterBodyEl.appendChild(btn);
       }
     }
@@ -41,13 +46,21 @@
         <span class="ch-actions">
           <button class="icon-btn hide" title="Hide channel">✕</button>
         </span>`;
-      row.querySelector('.hide').addEventListener('click', () => WS.waveform.updateChannel(ch.index, { visible: false }));
+      row.querySelector('.hide').addEventListener('click', () => { 
+        WS.waveform.updateChannel(ch.index, { visible: false });
+        const channels = WS.capturePanel.getConfig().channels;
+        channels[ch.index].enabled = false;
+        WS.capturePanel.setConfig({channels});
+      });
       const nameEl = row.querySelector('.ch-name');
       nameEl.addEventListener('dblclick', () => {
         nameEl.innerHTML = `<input value="${ch.name}">`;
         const input = nameEl.querySelector('input');
         input.focus(); input.select();
-        const commit = () => WS.waveform.updateChannel(ch.index, { name: input.value.trim() || `D${ch.index}` });
+        const commit = () =>{
+          WS.waveform.updateChannel(ch.index, { name: input.value.trim() || `D${ch.index}` });
+          nameEl.innerHTML = input.value.trim();
+        };
         input.addEventListener('blur', commit);
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') input.blur(); });
       });

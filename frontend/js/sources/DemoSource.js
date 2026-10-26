@@ -116,7 +116,8 @@ class DemoSource {
 
         const rate = cfg.samplerate;
         const buffer = new Uint32Array(DemoSource.pattern(rate).buffer);
-        const total = cfg.samplecount;
+        const total = cfg.samplecount??Number.MAX_VALUE;
+        console.log({total, samplecount:cfg.samplecount});
         const chunk = Math.max(1, Math.floor(rate / 100));
 
         let pos = 0;

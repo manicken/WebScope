@@ -163,6 +163,10 @@ let mainMenuItems = [
                 captureDuration: cfg[key].seconds
             });
 
+        } else if (key == 'channels') {
+            for (let ch of cfg[key]) {
+                WS.waveform.updateChannel(ch.index, { visible: ch.enabled??true })
+            }
         }
         /* key: 'channels' | 'samplerate' | 'mode' | … */
     });

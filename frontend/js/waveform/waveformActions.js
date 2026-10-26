@@ -44,7 +44,9 @@
     store.set({ channels: store.get().channels.map((c) => c.index === index ? { ...c, trigger: TRIGGER_CYCLE[(TRIGGER_CYCLE.indexOf(c.trigger) + 1) % TRIGGER_CYCLE.length] } : c) });
   }
   function updateChannel(index, patch) {
+    
     store.set({ channels: store.get().channels.map((c) => c.index === index ? { ...c, ...patch } : c) });
+    
   }
 
   WS.waveform = WS.waveform ?? {};

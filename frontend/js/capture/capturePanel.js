@@ -275,7 +275,7 @@
     body.appendChild(modeTabs());
     if (cfg.mode === 'timer') body.appendChild(timerSection());
     if (cfg.mode === 'trigger') body.appendChild(triggerSection());
-    body.appendChild(memorySection());
+    //body.appendChild(memorySection());
     kids.push(body);
     host.replaceChildren(...kids);
   }

@@ -75,13 +75,13 @@ class SigrokKind {
     start(msg, onData, onDone, onError) {
         console.log("sigrock device start");
         if (!sigrokCli) return onError('sigrok-cli has not been located (scanSigrok() must run first)');
-        if (this.proc) return onError('device is already capturing');
+        if (this.proc) return onError('SigrokDevice - device is already capturing');
 
         // msg comes from the browser: validate everything before it reaches the command line
         const args = ['-d', this.driverSpec];
 
         if (msg.samplerate !== undefined) {
-            if (!Number.isInteger(msg.samplerate) || msg.samplerate <= 0) return onError('bad samplerate');
+            if (!Number.isInteger(msg.samplerate) || msg.samplerate <= 0) return onError('SigrokDevice - bad samplerate');
             args.push('--config', `samplerate=${msg.samplerate}`);
         }
         if (!msg.channels) {
@@ -91,12 +91,12 @@ class SigrokKind {
         console.log(wanted);
         if (!Array.isArray(wanted) || wanted.length === 0 ||
             !wanted.every((c) => this.channels.includes(c) && isLogicChannel(c))) {
-            return onError('bad channel list');
+            return onError('SigrokDevice - bad channel list');
         }
         args.push('-C', wanted.join(','));
 
         if (msg.samplecount !== undefined) {
-            if (!Number.isInteger(msg.samplecount) || msg.samplecount <= 0) return onError('bad samplecount');
+            if (!Number.isInteger(msg.samplecount) || msg.samplecount <= 0) return onError('SigrokDevice - bad samplecount');
             args.push('--samples', String(msg.samplecount));
         } else {
             args.push('--continuous');
@@ -146,14 +146,14 @@ class SigrokKind {
         proc.on('error', (err) => {   // e.g. ENOENT when sigrok-cli is not installed / not on PATH
             failed = true;
             this.proc = null;
-            onError(`could not run ${sigrokCli}: ${err.message}`);
+            onError(`SigrokDevice - could not run ${sigrokCli}: ${err.message}`);
             onDone({ deviceId: this.driverSpec, samples: 0, stopped: false, ok: false });
         });
 
         proc.on('close', (code) => {
             if (failed) return;
             this.proc = null;
-            if (code !== 0 && !stopped) onError(stderr.trim() || `sigrok-cli exited with code ${code}`);
+            if (code !== 0 && !stopped) onError('SigrokDevice - ' + stderr.trim() || `sigrok-cli exited with code ${code}`);
             onDone({
                 deviceId: this.driverSpec,
                 samples: totalBytes / unitSize,

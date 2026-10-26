@@ -79,7 +79,7 @@ export class DemoDevice {
 
         const rate = cfg.samplerate;
         const buffer = DemoDevice.pattern(rate);
-        const total = cfg.samplecount;
+        const total = cfg.samplecount ?? Infinity;   // no samplecount = run until stop() (triggered capture)
         const chunk = Math.max(1, Math.floor(rate / 100));
 
         let pos = 0;
