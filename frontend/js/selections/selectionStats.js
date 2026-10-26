@@ -10,12 +10,13 @@
  */
 (function (WS) {
   'use strict';
-  const cache = new Map();
+  const cache = new Map(); // results for the current buffer
+  WS.capture.buffer.subscribe(() => cache.clear());
 
   function compute(channel, start, end) {
     const buf = WS.capture.getBuffer();
     if (!buf || channel == null) return null;
-    const key = `${WS.store.get().status.captureId}:${buf.length}:${channel}:${start}:${end}`;
+    const key = `${channel}:${start}:${end}`;
     if (cache.has(key)) return cache.get(key);
 
     const sr = buf.samplerate;

@@ -7,7 +7,7 @@
 (function (WS) {
   'use strict';
   const S = WS.selections;
-  const { store } = WS;
+  const { appState } = WS;
   const { RULER_H } = WS.theme;
 
   const FIELDS = [
@@ -58,8 +58,8 @@
     nameIn.addEventListener('input', () => { const v = nameIn.value.trim(); if (shownId && v) S.update(shownId, { name: v }); });
     nameIn.addEventListener('blur', () => { const s = S.find(shownId); if (s && !nameIn.value.trim()) nameIn.value = s.name; });
     chSel.addEventListener('change', () => {
-      const id = shownId, ch = parseInt(chSel.value, 10);
-      store.set((s) => ({ selectionStatCh: { ...(s.selectionStatCh ?? {}), [id]: ch } }));
+      const statChannel = appState.selections.statChannel;
+      statChannel.set({ ...statChannel.value, [shownId]: parseInt(chSel.value, 10) });
     });
     zoom.addEventListener('click', () => { const s = S.find(shownId); if (s) WS.waveform.frameSpan(s.start, s.end); });
     trash.addEventListener('click', () => { if (shownId) S.remove(shownId); });
@@ -73,16 +73,16 @@
   function hide() { if (root) root.style.display = 'none'; }
 
   /** The channel the stats are shown for (user's pick in the dropdown, else the first channel). */
-  function statChannel(sel, st) {
+  function statChannel(sel) {
     const chans = S.channelsOf(sel);
-    const want = st.selectionStatCh?.[sel.id];
+    const want = appState.selections.statChannel.value[sel.id];
     return chans.includes(want) ? want : (chans[0] ?? null);
   }
 
   function update(E) {
     if (!root) return;
-    const st = store.get();
-    const sel = S.find(st.selectedSelection ?? null);
+    const channels = appState.channels.value;
+    const sel = S.find(S.selected());
     if (!sel || !E.hasData) return hide();
 
     const rs = S.runs(sel, E.rows);
@@ -98,14 +98,14 @@
 
     // channel dropdown (only when more than one channel row is selected)
     const chans = S.channelsOf(sel);
-    const sig = chans.map((c) => c + ':' + (st.channels[c]?.name ?? '')).join('|');
+    const sig = chans.map((c) => c + ':' + (channels[c]?.name.value ?? '')).join('|');
     if (sig !== chSig) {
       chSig = sig;
       chSel.innerHTML = '';
-      for (const c of chans) { const o = el('option'); o.value = c; o.textContent = `CH${c + 1} ${st.channels[c]?.name ?? ''}`; chSel.appendChild(o); }
+      for (const c of chans) { const o = el('option'); o.value = c; o.textContent = `CH${c + 1} ${channels[c]?.name.value ?? ''}`; chSel.appendChild(o); }
     }
     chSel.style.display = chans.length > 1 ? '' : 'none';
-    const ch = statChannel(sel, st);
+    const ch = statChannel(sel);
     if (ch != null) chSel.value = String(ch);
 
     last = S.stats.formatted(sel, ch);

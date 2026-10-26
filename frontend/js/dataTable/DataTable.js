@@ -3,7 +3,8 @@
  */
 (function (WS) {
   'use strict';
-  const { store } = WS;
+  const { appState } = WS;
+  const { table } = appState;
   const { fmtTime } = WS.format;
 
   //const ROW_H = 26;
@@ -46,30 +47,39 @@ function showFull(a, idx) {
     root.append(sectionHead, hint, head, tableEl);
     ui = { root, tabs, hint, head, tableEl, spacer, rowsById: new Map(), shownKey: null, lastFocus: null };
 
-    // listeners are added once; renderVisible always reads the current store state
+    // listeners are added once; renderVisible always reads the current state
     tableEl.addEventListener('scroll', renderVisible);
     new ResizeObserver(renderVisible).observe(tableEl);
   }
 
   function currentDecoder() {
-    const { decoders, table } = store.get();
-    return decoders.find((d) => d.id === table.decoder) ?? decoders[0] ?? null;
+    const decoders = WS.decoders.list.value;
+    return decoders.find((d) => d.id === table.decoder.value) ?? decoders[0] ?? null;
+  }
+
+  /** The row (tab) of `dec` that is shown: the selected one, else the decoder's first row. */
+  function currentRowId(dec) {
+    const keys = Object.keys(dec.rows());
+    const rowId = table.rowId.value;
+    return keys.includes(rowId) ? rowId : keys[0];
   }
 
   function renderVisible() {
     if (!ui) return;
     const dec = currentDecoder();
     if (!dec) return;
-    const { table, status } = store.get();
-    const origin = status.trigger ?? 0;
+    const rowId = currentRowId(dec);
+    const buf = WS.capture.getBuffer();
+    const samplerate = buf?.samplerate ?? 1;
+    const origin = buf?.timeOrigin ?? 0;
     const { tableEl, spacer, rowsById } = ui;
 
-    const total = annotationPage(dec.id, table.rowId, 0, 0).total;
+    const total = annotationPage(dec.id, rowId, 0, 0).total;
     spacer.style.height = (total * ROW_H) + 'px';
     const scrollTop = tableEl.scrollTop, height = tableEl.clientHeight || 300;
     const first = Math.max(0, Math.floor(scrollTop / ROW_H) - 10);
     const count = Math.ceil(height / ROW_H) + 20;
-    const p = annotationPage(dec.id, table.rowId, first, count);
+    const p = annotationPage(dec.id, rowId, first, count);
 
     const keep = new Set();
     p.items.forEach((a, i) => {
@@ -92,25 +102,34 @@ function showFull(a, idx) {
 
         node.addEventListener('click', () => {
           const an = node._ann; // always the latest annotation for this row
-          store.set({ table: { ...store.get().table, decoder: currentDecoder().id, focus: idx } });
+          table.decoder.set(currentDecoder().id);
+          table.focus.set(idx);
           WS.waveform.centerOn((an.start + an.end) / 2, an.end - an.start);
         });
         spacer.appendChild(node);
         rowsById.set(idx, node);
       }
       node._ann = a;
-      node.children[1].textContent = fmtTime((a.start - origin) / status.samplerate, 6);
+      node.children[1].textContent = fmtTime((a.start - origin) / samplerate, 6);
       node.children[2].textContent = a.text;
-      node.className = 'table-row' + (idx === table.focus ? ' focus' : '') + ` cls-${a.class}`;
+      node.className = 'table-row' + (idx === table.focus.value ? ' focus' : '') + ` cls-${a.class}`;
     });
     for (const [idx, node] of rowsById) {
       if (!keep.has(idx)) { node.remove(); rowsById.delete(idx); }
     }
   }
 
+  /** Shows row `rowId` of decoder `decoderId` from the top (no focused row). */
+  function showTable(decoderId, rowId) {
+    table.focus.set(null);
+    table.rowId.set(rowId);
+    table.decoder.set(decoderId);
+  }
+
+  /** Called by the rightpanel when the panel is opened and when the decoders, appState.table or the capture data changed. */
   function renderDataTable({container}) {
     if (!ui) build();
-    const { decoders, table } = store.get();
+    const decoders = WS.decoders.list.value;
     const dec = currentDecoder();
 
     if (ui.root.parentNode !== container) {
@@ -129,15 +148,14 @@ function showFull(a, idx) {
       const sel = document.createElement('select');
       for (const d of decoders) sel.appendChild(new Option(d.name, String(d.id)));
       sel.value = String(dec.id);
-      sel.addEventListener('change', () => store.set({ table: { decoder: Number(sel.value), focus: null } }));
+      sel.addEventListener('change', () => showTable(Number(sel.value), null));
       ui.tabs.appendChild(sel);
     }
     const rows = dec.rows();
-    const keys = Object.keys(rows);
-    const activeKey = table.rowId ?? keys[0];
-    for (const key of keys) {
+    const activeKey = currentRowId(dec);
+    for (const key of Object.keys(rows)) {
       const tab = el('button', 'tab' + (key === activeKey ? ' on' : ''), rows[key].label);
-      tab.addEventListener('click', () => store.set({ table: { decoder: dec.id, rowId: key, focus: null } }));
+      tab.addEventListener('click', () => showTable(dec.id, key));
       ui.tabs.appendChild(tab);
     }
 
@@ -150,17 +168,18 @@ function showFull(a, idx) {
       ui.tableEl.scrollTop = 0;
     }
 
-    const page = annotationPage(dec.id, table.rowId, 0, 1);
+    const page = annotationPage(dec.id, activeKey, 0, 1);
     ui.head.innerHTML = `<span>#</span><span>Time</span><span>Value</span><span class="muted">${page.total.toLocaleString()} rows</span>`;
 
     renderVisible();
 
-    if (table.focus !== null && table.focus !== ui.lastFocus) {
-      const y = table.focus * ROW_H;
+    const focus = table.focus.value;
+    if (focus !== null && focus !== ui.lastFocus) {
+      const y = focus * ROW_H;
       const { tableEl } = ui;
       if (y < tableEl.scrollTop || y > tableEl.scrollTop + tableEl.clientHeight - ROW_H) tableEl.scrollTop = y - tableEl.clientHeight / 2;
     }
-    ui.lastFocus = table.focus;
+    ui.lastFocus = focus;
   }
 
   WS.dataTable = Object.assign(WS.dataTable ?? {}, { renderDataTable });

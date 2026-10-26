@@ -5,7 +5,7 @@
 (function (WS) {
   'use strict';
 
-  const { store } = WS;
+  const { appState } = WS;
 
   const MOD = navigator.platform?.startsWith('Mac') ? '⌘' : 'Ctrl';
   const HELP_HTML =
@@ -13,29 +13,29 @@
     `<kbd>${MOD}</kbd> click zoom to packet · <kbd>[</kbd><kbd>]</kbd> edges`;
 
   function jumpEdge(forward) {
-    const { hover, channels, view, plotWidth } = store.get();
-    const ch = hover?.channel ?? channels.find((c) => c.visible)?.index;
+    const { view, pointer } = appState;
+    const hover = pointer.hover.value;
+    const ch = hover?.channel ?? appState.channels.value.find((c) => c.visible.value)?.index;
     if (ch === undefined) return;
-    const from = hover?.sample ?? view.start + (view.spp * plotWidth) / 2;
+    const from = hover?.sample ?? view.start.value + (view.spp.value * view.plotWidth.value) / 2;
     const edge = WS.capture.findEdge(ch, Math.round(from), forward);
     if (edge === null) return;
     WS.waveform.centerOn(edge);
-    const v = store.get().view;
-    store.set({ hover: { sample: edge, channel: ch, x: (edge - v.start) / v.spp, y: hover?.y ?? 0 } });
+    pointer.hover.set({ sample: edge, channel: ch, x: (edge - view.start.value) / view.spp.value, y: hover?.y ?? 0 });
   }
 
   function onKey(e) {
     const t = e.target;
     if (t.closest('input, select, textarea') || e.metaKey || e.ctrlKey) return;
-    const { plotWidth, hover, markers } = store.get();
-    const mid = hover?.x ?? plotWidth / 2;
+    const plotWidth = appState.view.plotWidth.value;
+    const mid = appState.pointer.hover.value?.x ?? plotWidth / 2;
     switch (e.key) {
       case ' ':
         e.preventDefault();
         WS.topbar.toggleCapture();
         break;
       case 'f':
-        store.set({ follow: false });
+        appState.view.follow.set(false);
         WS.waveform.fit();
         break;
       case '=':
@@ -66,4 +66,4 @@
   }
 
   WS.keymap = { init };
-})(window.WS = window.WS || {});
+})(window.WS = window.WS || {});

@@ -57,7 +57,7 @@
   </div>
 
   <div class="statusbar">
-    <span>Sample Count <b id="stSamples">0</b></span>
+    <span>Sample Count <b id="stSamples">—</b></span>
     <span>Rate <b id="stRate">—</b></span>
     <span>Sample resolution <b id="stSampleResolution">—</b></span>
     <span>View <b id="stView">—</b></span>
@@ -97,9 +97,11 @@
 
 <script src="js/format.js"></script>
 <script src="js/theme.js"></script>
-<script src="js/store.js"></script>
+<script src="js/libs/internal/ReactiveValue.js"></script>
+<script src="js/appState.js"></script>
 
 <script src="js/capture/CaptureBuffer.js"></script>
+<script src="js/capture/CaptureStorage.js"></script>
 <script src="js/capture/captureEngine.js"></script>
 <script src="js/capture/capturePanel.js"></script>
 

@@ -1,54 +1,54 @@
 /**
- * waveformActions.js — view (zoom/pan/fit/frame) and channel (trigger, name, visibility)
+ * waveformActions.js — view actions: zoom / pan / fit / frame. They write appState.view.
  */
 (function (WS) {
   'use strict';
-  const { store } = WS;
+  const { view } = WS.appState;
   const { clampViewTo, frameRange } = WS.view;
 
-  /* ---- view ---- */
+  /** Plain copy of appState.view: { start, spp, plotWidth, follow } */
+  function getView() {
+    return { start: view.start.value, spp: view.spp.value, plotWidth: view.plotWidth.value, follow: view.follow.value };
+  }
+
+  /** Sets the view; any user navigation stops following a streaming capture. */
+  function setView({ start, spp }, follow = false) {
+    view.follow.set(follow);
+    view.spp.set(spp);
+    view.start.set(start);
+  }
+
   function fit() {
-    const { status, plotWidth } = store.get();
-    const n = Math.max(status.sampleCount, 1);
-    store.set({ view: { start: 0, spp: n / Math.max(plotWidth, 1) } });
+    const n = Math.max(WS.capture.length(), 1);
+    view.spp.set(n / Math.max(view.plotWidth.value, 1));
+    view.start.set(0);
   }
   function clampView(start, spp) {
-    const { status, plotWidth } = store.get();
-    return clampViewTo(start, spp, status.sampleCount, plotWidth);
+    return clampViewTo(start, spp, WS.capture.length(), view.plotWidth.value);
   }
   function zoomAt(factor, x) {
-    const { view } = store.get();
-    const sample = view.start + x * view.spp;
-    const spp = view.spp * factor;
-    store.set({ view: clampView(sample - x * spp, spp), follow: false });
+    const sample = view.start.value + x * view.spp.value;
+    const spp = view.spp.value * factor;
+    setView(clampView(sample - x * spp, spp));
   }
   function panBy(px) {
-    const { view } = store.get();
-    store.set({ view: clampView(view.start + px * view.spp, view.spp), follow: false });
+    setView(clampView(view.start.value + px * view.spp.value, view.spp.value));
   }
   function frameSpan(start, end) {
-    const v = frameRange(start, end, store.get().plotWidth);
-    store.set({ view: clampView(v.start, v.spp), follow: false });
+    const v = frameRange(start, end, view.plotWidth.value);
+    setView(clampView(v.start, v.spp));
   }
   /** Centers the view on `sample`; widens out if `width` wouldn't be legible at the current zoom. */
   function centerOn(sample, width) {
-    const { view, plotWidth } = store.get();
-    let spp = view.spp;
+    const plotWidth = view.plotWidth.value;
+    let spp = view.spp.value;
     if (width && width / spp < 24) spp = Math.max(width / (plotWidth / 8), 1 / 64);
-    store.set({ view: clampView(sample - (plotWidth / 2) * spp, spp), follow: false });
+    setView(clampView(sample - (plotWidth / 2) * spp, spp));
   }
 
-  /* ---- channels ---- */
-  const TRIGGER_CYCLE = [null, 'rising', 'falling', 'edge', 'high', 'low'];
-  function cycleTrigger(index) {
-    store.set({ channels: store.get().channels.map((c) => c.index === index ? { ...c, trigger: TRIGGER_CYCLE[(TRIGGER_CYCLE.indexOf(c.trigger) + 1) % TRIGGER_CYCLE.length] } : c) });
-  }
-  function updateChannel(index, patch) {
-    
-    store.set({ channels: store.get().channels.map((c) => c.index === index ? { ...c, ...patch } : c) });
-    
-  }
+  // new data is shown whole, unless the user has navigated since the capture started
+  WS.capture.buffer.subscribe(() => { if (view.follow.value) fit(); });
 
   WS.waveform = WS.waveform ?? {};
-  Object.assign(WS.waveform, { fit, clampView, zoomAt, panBy, frameSpan, centerOn, cycleTrigger, updateChannel });
+  Object.assign(WS.waveform, { getView, fit, clampView, setView, zoomAt, panBy, frameSpan, centerOn });
 })(window.WS = window.WS || {});

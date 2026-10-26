@@ -1,36 +1,19 @@
 /**
  * capturepanel/capturePanel.js — "Capture" right-panel tab, modelled on Logic 2's device panel:
- * channel chips (All / Clear), samplerate, mode tabs (Looping / Timer / Trigger), trigger pattern +
+ * channel chips (All / Clear), samplerate, mode tabs (Looping / One shot / Timer / Trigger), trigger pattern +
  * channel, capture duration after / before the trigger, memory buffer size.
  *
- * This file is only the GUI. It does not touch the store or any capture code:
- *   you push the current configuration in            WS.capturePanel.setConfig(cfg)    (partial is fine)
- *   it tells you when the user changes something     WS.capturePanel.onChange((cfg, key) => …)
- * The panel updates itself immediately on user input and then calls the handler; call setConfig() again
- * if you want to correct/veto the change (e.g. clamp a value). Times are always SECONDS in the config.
- *
- *   cfg = {
- *     deviceName: 'Logic',
- *     channels:   [{ index:0, name:'Channel 0', color:'#e8e8e8', enabled:true }, …],
- *     samplerates:[4e6, 8e6, …],  samplerate: 24e6,                       // Hz
- *     mode: 'trigger',                                                    // 'looping' | 'timer' | 'trigger'
- *     timer:   { seconds: 1 },                                            // "Stop recording after"
- *     trigger: { channel: 0, type: 'L2H',                                 // 'L2H' | 'H2L' | 'PulseH' | 'PulseL'
- *                pulseWidth: 1e-5,                                        // s, PulseH / PulseL only
- *                conditions: { 1:'lo', 2:'hi' } },                        // optional: shows "Other channel conditions"
- *     preTrigger: 1, postTrigger: 1,                                      // s before / after the trigger
- *     memoryMB: 3072, memoryStepsMB: [128, 256, …],                       // buffer size stepper
- *   }
- *   key (2nd arg of the handler) = 'channels' | 'samplerate' | 'mode' | 'timer' | 'trigger' | 'preTrigger' | 'postTrigger' | 'memoryMB'
- *
- * Register it like the other panels: WS.rightpanel.register({ id:'capture', title:'Capture', icon, render: (c) => WS.capturePanel.render(c) })
+ * Shows and edits appState.captureSettings (see appState.js) and the channels' `visible` (the channel
+ * chips; a hidden channel is also hidden in the waveform). Times are always SECONDS.
+ * The rightpanel calls render() when one of the values in watch() changes.
  */
 (function (WS) {
   'use strict';
+  const { appState } = WS;
   const { fmtTime, fmtRate } = WS.format;
 
   const PALETTE = ['#e8e8e8', '#b08968', '#ff6b81', '#ffa94d', '#f2e03c', '#51cf66', '#4dabf7', '#b197fc'];
-  const MODES = [['looping', 'Looping'], ['timer', 'Timer'], ['trigger', 'Trigger']];
+  const MODES = [['looping', 'Looping'], ['oneshot', 'One shot'], ['timer', 'Timer'], ['trigger', 'Trigger']];
   const ico = (d) => `<svg viewBox="0 0 20 14" width="20" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
   const TYPES = [
     { id: 'L2H',    label: 'Rising edge',  icon: ico('M2 11h6V3h8') },
@@ -39,18 +22,13 @@
     { id: 'PulseL', label: 'Pulse low',    icon: ico('M2 3h4v8h6V3h4') },
   ];
   const DEVICE_ICON = '<svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M24 8 42 17 24 26 6 17Z"/><path d="M6 17v10l18 9 18-9V17"/><path d="M24 26v10"/><circle cx="24" cy="17" r="2.5"/></svg>';
+  const DEFAULT_PULSE_WIDTH = 1e-5;
+  const MEMORY_STEPS_MB = [128, 256, 512, 1024, 2048, 3072, 4096, 6144, 8192];
+  const settings = appState.captureSettings;
 
-  const DEFAULTS = {
-    deviceName: '', channels: [], samplerates: [], samplerate: null,
-    mode: 'timer',
-    timer: { seconds: 1 },
-    trigger: { channel: 0, type: 'L2H', pulseWidth: 1e-5 },
-    preTrigger: 1, postTrigger: 1,
-    memoryMB: 1024, memoryStepsMB: [128, 256, 512, 1024, 2048, 3072, 4096, 6144, 8192],
-  };
-
-  let cfg = structuredClone(DEFAULTS);
-  const handlers = [];
+  // plain copies, set at the start of every rebuild(): the state the panel is drawn from
+  let cfg = null;         // { samplerate, mode, trigger, ... }
+  let channels = [];      // [{ index, name, color, visible }]
   let deviceInfoHandler = null;
   let host = null, lastKey = '';
   let patternMenuOpen = true, conditionsOpen = true;
@@ -66,14 +44,35 @@
     return parseFloat(m[1]) * mult;
   }
 
-  const keyOf = () => JSON.stringify([cfg, patternMenuOpen, conditionsOpen, !!deviceInfoHandler]);
+  function readSettings() {
+    const out = {};
+    for (const [key, v] of Object.entries(settings)) out[key] = v.value;
+    return out;
+  }
+  const readChannels = () => appState.channels.value.map((ch) =>
+    ({ index: ch.index, name: ch.name.value, color: ch.color.value, visible: ch.visible.value }));
 
-  /** Apply a user change and notify. `redraw:false` for text fields: they update themselves, so the DOM
-   *  is not replaced under the user's pointer (a replaced element would swallow the next click). */
-  function change(key, mutate, redraw = true) {
-    mutate(cfg);
-    if (redraw) rebuild(true); else lastKey = keyOf();
-    for (const h of handlers) h(structuredClone(cfg), key);
+  const keyOf = () => JSON.stringify([readSettings(), readChannels(), patternMenuOpen, conditionsOpen, !!deviceInfoHandler]);
+
+  const setSetting = (key, value) => settings[key].set(value);
+  const setTrigger = (patch) => settings.trigger.set({ ...settings.trigger.value, ...patch });
+  const setChannelVisible = (index, visible) => appState.channels.value[index].visible.set(visible);
+
+  /** For text fields: they already show the new value, so the panel is not rebuilt under the user's
+   *  pointer (a replaced element would swallow the next click). `write` changes the setting. */
+  function setQuietly(write) {
+    write();
+    lastKey = keyOf();
+  }
+
+  function setAllChannelsVisible(visible) {
+    channels.forEach((ch) => setChannelVisible(ch.index, visible));
+  }
+
+  /** Called once by the rightpanel: `changed` is called when anything the panel shows changes. */
+  function watch(changed) {
+    ReactiveValue.subscribeAll(Object.values(settings), changed);
+    ReactiveValue.subscribeItems(appState.channels, (ch) => [ch.name, ch.color, ch.visible], changed);
   }
 
   /* ---------------- building blocks ---------------- */
@@ -125,16 +124,15 @@
     const s = el('div', 'cp-block');
     const tools = el('div', 'cp-pills');
     tools.append(
-      pill('All', () => change('channels', (c) => c.channels.forEach((ch) => { ch.enabled = true; }))),
-      pill('Clear', () => change('channels', (c) => c.channels.forEach((ch) => { ch.enabled = false; }))),
+      pill('All', () => setAllChannelsVisible(true)),
+      pill('Clear', () => setAllChannelsVisible(false)),
     );
     s.appendChild(label('Digital', tools));
     const chips = el('div', 'cp-chips');
-    for (const ch of cfg.channels) {
-      const on = ch.enabled !== false;
-      const b = el('button', 'cp-chip' + (on ? ' on' : '')); b.textContent = String(ch.index);
+    for (const ch of channels) {
+      const b = el('button', 'cp-chip' + (ch.visible ? ' on' : '')); b.textContent = String(ch.index);
       b.style.setProperty('--c', colorOf(ch)); b.title = ch.name ?? '';
-      b.addEventListener('click', () => change('channels', (c) => { const t = c.channels.find((x) => x.index === ch.index); t.enabled = !(t.enabled !== false); }));
+      b.addEventListener('click', () => setChannelVisible(ch.index, !ch.visible));
       chips.appendChild(b);
     }
     s.appendChild(chips);
@@ -143,7 +141,7 @@
     const rates = cfg.samplerates.includes(cfg.samplerate) || cfg.samplerate == null ? cfg.samplerates : [...cfg.samplerates, cfg.samplerate];
     for (const r of rates) { const o = el('option'); o.value = r; o.textContent = fmtRate(r); sel.appendChild(o); }
     if (cfg.samplerate != null) sel.value = String(cfg.samplerate);
-    sel.addEventListener('change', () => change('samplerate', (c) => { c.samplerate = Number(sel.value); }));
+    sel.addEventListener('change', () => setSetting('samplerate', Number(sel.value)));
     sel.addEventListener('keydown', (e) => e.stopPropagation());
     s.appendChild(sel);
     return s;
@@ -154,7 +152,7 @@
     for (const [id, text] of MODES) {
       const b = el('button', 'cp-seg-btn' + (cfg.mode === id ? ' on' : ''));
       b.textContent = text;
-      b.addEventListener('click', () => { if (cfg.mode !== id) change('mode', (c) => { c.mode = id; }); });
+      b.addEventListener('click', () => setSetting('mode', id));
       seg.appendChild(b);
     }
     return seg;
@@ -162,7 +160,7 @@
 
   function timerSection() {
     const s = el('div', 'cp-sec');
-    s.append(label('Stop recording after'), timeField(cfg.timer.seconds, (v) => change('timer', (c) => { c.timer.seconds = v; }, false), { positive: true }));
+    s.append(label('Stop recording after'), timeField(cfg.timerSeconds, (v) => setQuietly(() => setSetting('timerSeconds', v)), { positive: true }));
     return s;
   }
 
@@ -177,7 +175,7 @@
       const menu = el('div', 'cp-dd-menu');
       for (const t of TYPES) {
         const it = el('button', 'cp-dd-item' + (t.id === cur.id ? ' on' : ''), `${t.icon}<span>${t.label}</span>`);
-        it.addEventListener('click', (e) => { e.stopPropagation(); patternMenuOpen = false; change('trigger', (c) => { c.trigger.type = t.id; }); });
+        it.addEventListener('click', (e) => { e.stopPropagation(); patternMenuOpen = false; setTrigger({ type: t.id }); rebuild(true); });
         menu.appendChild(it);
       }
       wrap.appendChild(menu);
@@ -187,32 +185,32 @@
 
   function triggerSection() {
     const s = el('div', 'cp-sec');
-    const reset = pill('reset', () => change('trigger', (c) => {
-      const first = c.channels.find((x) => x.enabled !== false);
-      c.trigger = { channel: first?.index ?? 0, type: 'L2H', pulseWidth: DEFAULTS.trigger.pulseWidth, ...(c.trigger.conditions ? { conditions: {} } : {}) };
-    }), 'Reset the trigger pattern');
+    const reset = pill('reset', () => {
+      const first = channels.find((x) => x.visible);
+      setSetting('trigger', { channel: first?.index ?? 0, type: 'L2H', pulseWidth: DEFAULT_PULSE_WIDTH, conditions: {} });
+    }, 'Reset the trigger pattern');
     s.appendChild(label('Pattern and Channel', reset));
 
     const row = el('div', 'cp-row');
     row.appendChild(patternDropdown());
     const sel = el('select', 'cp-select');
-    const list = cfg.channels.filter((c) => c.enabled !== false);
-    if (!list.some((c) => c.index === cfg.trigger.channel)) { const miss = cfg.channels.find((c) => c.index === cfg.trigger.channel); if (miss) list.push(miss); }
-    for (const c of list) { const o = el('option'); o.value = c.index; o.textContent = `${String(c.index).padStart(2, '0')}. ${c.name ?? 'Channel ' + c.index}` + (c.enabled === false ? ' (off)' : ''); sel.appendChild(o); }
+    const list = channels.filter((c) => c.visible);
+    if (!list.some((c) => c.index === cfg.trigger.channel)) { const miss = channels.find((c) => c.index === cfg.trigger.channel); if (miss) list.push(miss); }
+    for (const c of list) { const o = el('option'); o.value = c.index; o.textContent = `${String(c.index).padStart(2, '0')}. ${c.name ?? 'Channel ' + c.index}` + (c.visible ? '' : ' (off)'); sel.appendChild(o); }
     sel.value = String(cfg.trigger.channel);
-    sel.addEventListener('change', () => change('trigger', (c) => { c.trigger.channel = Number(sel.value); }));
+    sel.addEventListener('change', () => setTrigger({ channel: Number(sel.value) }));
     sel.addEventListener('keydown', (e) => e.stopPropagation());
     row.appendChild(sel);
     s.appendChild(row);
 
     if (cfg.trigger.type === 'PulseH' || cfg.trigger.type === 'PulseL') {
-      s.append(label('Pulse length'), timeField(cfg.trigger.pulseWidth ?? DEFAULTS.trigger.pulseWidth, (v) => change('trigger', (c) => { c.trigger.pulseWidth = v; }, false), { positive: true }));
+      s.append(label('Pulse length'), timeField(cfg.trigger.pulseWidth ?? DEFAULT_PULSE_WIDTH, (v) => setQuietly(() => setTrigger({ pulseWidth: v })), { positive: true }));
     }
 
     s.appendChild(conditionsBlock());
 
-    s.append(label('Capture duration after trigger'), timeField(cfg.postTrigger, (v) => change('postTrigger', (c) => { c.postTrigger = v; }, false)));
-    s.append(label('Capture duration before trigger'), timeField(cfg.preTrigger, (v) => change('preTrigger', (c) => { c.preTrigger = v; }, false)));
+    s.append(label('Capture duration after trigger'), timeField(cfg.postTrigger, (v) => setQuietly(() => setSetting('postTrigger', v))));
+    s.append(label('Capture duration before trigger'), timeField(cfg.preTrigger, (v) => setQuietly(() => setSetting('preTrigger', v))));
     return s;
   }
 
@@ -222,8 +220,8 @@
     head.addEventListener('click', () => { conditionsOpen = !conditionsOpen; rebuild(true); });
     box.appendChild(head);
     if (!conditionsOpen) return box;
-    cfg.trigger.conditions = cfg.trigger.conditions ?? [];
-    for (const ch of cfg.channels.filter((c) => c.enabled !== false && c.index !== cfg.trigger.channel)) {
+    const conditions = cfg.trigger.conditions ?? {};
+    for (const ch of channels.filter((c) => c.visible && c.index !== cfg.trigger.channel)) {
       const row = el('div', 'cp-cond-row');
       const nm = el('span', 'cp-cond-name');
       nm.innerHTML = `<i style="color:${colorOf(ch)}"></i>`;
@@ -231,13 +229,14 @@
       nm.append(document.createTextNode(' ' + (ch.name ?? 'Channel ' + ch.index)));
       row.appendChild(nm);
       for (const [v, text] of [['lo', 'Lo'], ['hi', 'Hi']]) {
-        const b = el('button', 'cp-cond-btn' + (cfg.trigger.conditions?.[ch.index] === v ? ' on' : ''));
+        const b = el('button', 'cp-cond-btn' + (conditions[ch.index] === v ? ' on' : ''));
         b.textContent = text;
-        b.addEventListener('click', () => change('trigger', (c) => {
-          if (c.trigger.conditions[ch.index] === v)
-            delete c.trigger.conditions[ch.index];
-          else c.trigger.conditions[ch.index] = v;
-        }));
+        b.addEventListener('click', () => {
+          const next = { ...conditions };
+          if (next[ch.index] === v) delete next[ch.index];
+          else next[ch.index] = v;
+          setTrigger({ conditions: next });
+        });
         row.appendChild(b);
       }
       box.appendChild(row);
@@ -246,7 +245,7 @@
   }
 
   function memorySection() {
-    const steps = [...cfg.memoryStepsMB].sort((a, b) => a - b);
+    const steps = [...MEMORY_STEPS_MB].sort((a, b) => a - b);
     const cur = cfg.memoryMB;
     const prev = [...steps].reverse().find((v) => v < cur), next = steps.find((v) => v > cur);
     const fmt = (mb) => (mb >= 1024 ? [String(+(mb / 1024).toFixed(2)), 'GB'] : [String(mb), 'MB']);
@@ -255,8 +254,8 @@
     const ctl = el('div', 'cp-stepper');
     const minus = el('button', 'cp-step', '−'); minus.disabled = prev === undefined; minus.title = 'Smaller';
     const plus = el('button', 'cp-step', '+'); plus.disabled = next === undefined; plus.title = 'Larger';
-    minus.addEventListener('click', () => change('memoryMB', (c) => { c.memoryMB = prev; }));
-    plus.addEventListener('click', () => change('memoryMB', (c) => { c.memoryMB = next; }));
+    minus.addEventListener('click', () => setSetting('memoryMB', prev));
+    plus.addEventListener('click', () => setSetting('memoryMB', next));
     const [num, unit] = fmt(cur);
     const val = el('div', 'cp-step-val'); val.innerHTML = '<b></b><span></span>'; val.firstChild.textContent = num; val.lastChild.textContent = unit;
     ctl.append(minus, val, plus);
@@ -270,12 +269,15 @@
     const key = keyOf();
     if (!force && key === lastKey) return;
     lastKey = key;
+    cfg = readSettings();
+    channels = readChannels();
     const kids = [headerSection(), divider(), digitalSection(), divider()];
     const body = el('div', 'cp-block cp-modes');
     body.appendChild(modeTabs());
     if (cfg.mode === 'timer') body.appendChild(timerSection());
     if (cfg.mode === 'trigger') body.appendChild(triggerSection());
-    //body.appendChild(memorySection());
+    // Looping keeps the newest samples that fit, One shot stops when the memory is full
+    if (cfg.mode === 'looping' || cfg.mode === 'oneshot') body.appendChild(memorySection());
     kids.push(body);
     host.replaceChildren(...kids);
   }
@@ -284,25 +286,12 @@
     if (patternMenuOpen && !e.target.closest?.('.cp-dd')) { patternMenuOpen = false; rebuild(true); }
   });
 
-  function merge(base, patch) {
-    for (const [k, v] of Object.entries(patch)) {
-      if ((k === 'timer' || k === 'trigger') && v && typeof v === 'object') base[k] = { ...base[k], ...structuredClone(v) };
-      else base[k] = structuredClone(v);
-    }
-    return base;
-  }
-
   WS.capturePanel = {
-    render({container, state, keys, subkey}) { 
-        if (keys) return;
-        //if (keys?.includes('hover') || keys?.includes('mesurements')) return;
-
-        if (host !== container) { host = container; lastKey = ''; } 
-        rebuild(false);
+    render({ container }) {
+      if (host !== container) { host = container; lastKey = ''; }
+      rebuild(false);
     },
-    setConfig(patch) { merge(cfg, patch); rebuild(false); },
-    getConfig() { return structuredClone(cfg); },
-    onChange(fn) { handlers.push(fn); return () => handlers.splice(handlers.indexOf(fn), 1); },
+    watch,
     onDeviceInfo(fn) { deviceInfoHandler = fn; rebuild(false); },
   };
 })(window.WS = window.WS || {});

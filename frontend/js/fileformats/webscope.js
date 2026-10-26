@@ -17,13 +17,15 @@ async function loadWebScopeProjectFile(filedata) {
         InfoDialog.Show({title:"Load error", message:`Unsupported project version: ${projectData.version}`});
         return;
     }
+    // the old decoders would otherwise run on the new samples before they are replaced
+    loadDecoderStates([]);
     try {
         const srFileData = await zip.read("sigrok.sr");
-        await loadSamplesFromSigrokFile({filedata:srFileData, decode:false});
+        await loadSamplesFromSigrokFile({filedata:srFileData});
     } catch (ex) {
         InfoDialog.Show({title:"Load error", message:"Error while loading sigrok.sr from the project.\n"+ ex.message});
         loadDecoderStates([]);
-        window.WS.store.set({markers:[], selections:[]});
+        setMarkersAndSelections([], []);
         return;
     }
     try {
@@ -45,19 +47,20 @@ async function loadWebScopeProjectFile(filedata) {
     } catch (ex) {
         InfoDialog.Show({title:"Load error", message:"Error while parsing selections.json from the project.\n"+ ex.message})
     }
-    window.WS.store.set({markers, selections});
+    setMarkersAndSelections(markers, selections);
+}
 
-    //console.log(decoderData);
+function setMarkersAndSelections(markers, selections) {
+    const { markers: m, selections: s } = window.WS.appState;
+    m.selected.set(null);
+    m.list.set(markers);
+    s.selected.set(null);
+    s.list.set(selections);
 }
 
 async function getSaveData() {
-    const store = window.WS.store.get();
-    let decoders =  store.decoders??[];
-    //console.log(decoders);
-    let decodersSave = [];
-    for (let d of decoders) {
-        decodersSave.push(d.getState());
-    }
+    const { appState } = window.WS;
+    const decodersSave = window.WS.decoders.list.value.map((d) => d.getState());
     let project = {
         format:"WebScope",
         version:1
@@ -69,9 +72,9 @@ async function getSaveData() {
         { name: "sigrok.sr", data: await getSigrokData() }, // helpers.js
         { name: "decoders.json", data: json(decodersSave) },
         { name: "project.json", data: json(project) },
-        { name: "markers.json", data: json(store.markers ?? []) },
-        { name: "selections.json", data: json(store.selections ?? []) },
+        { name: "markers.json", data: json(appState.markers.list.value) },
+        { name: "selections.json", data: json(appState.selections.list.value) },
     ];
     let data = await writeZip(entries, { compress: true });
     return data;
-}
+}

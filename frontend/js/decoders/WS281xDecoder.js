@@ -68,14 +68,6 @@ class WS281xDecoder extends Decoder {
         return WS281xDecoder.GuiConfigData;
     }
 
-    loadDefaultConfig() {
-        this.cfg = {
-            channel: WS281xDecoder.GuiConfigData.channel.default,
-            wireorder: WS281xDecoder.GuiConfigData.wireorder.default,
-            textorder: WS281xDecoder.GuiConfigData.textorder.default,
-        }
-    }
-
     constructor(p) {
         super(p);
         this.signals = ['channel'];

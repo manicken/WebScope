@@ -46,8 +46,18 @@ class Decoder {
         this.id = id;
         /** instance color */
         this.color = color;
-        this.visible = true;
-        this.cfg = {};
+        /** are the decoder's rows shown in the waveform */
+        this.visible = new ReactiveValue(true);
+        /** set by destroy() */
+        this.removed = false;
+        /** the user's settings: key -> ReactiveValue, one per field in getCfgGui(). Use setting(key)
+         *  to get one, it is created when it does not exist yet (CustomDecoder adds fields at runtime). */
+        this.settings = {};
+        /** bumped when any setting changed; the decoder engine re-runs the decoder on it */
+        this.settingsChanged = new ReactiveValue(0);
+        for (const [key, field] of Object.entries(this.constructor.GuiConfigData ?? {})) {
+            this.setting(key, field.default);
+        }
         /** points to the decoder:s parent, 
          *  if null then it's a root decoder, 
          *  this is used to keep track of it's parent 
@@ -57,8 +67,23 @@ class Decoder {
         this.parent = parentDecoder;
         /** contains a list of subdecoders that consume this decoder:s output */
         this.subDecoders = [];
+    }
 
-        this.loadDefaultConfig(this.constructor.GuiConfigData, this.cfg);
+    /** The ReactiveValue of setting `key`, created with `initial` if it does not exist yet. */
+    setting(key, initial) {
+        let s = this.settings[key];
+        if (!s) {
+            s = this.settings[key] = new ReactiveValue(initial);
+            s.subscribe(() => this.settingsChanged.set(this.settingsChanged.value + 1));
+        }
+        return s;
+    }
+
+    /** Plain copy of the settings for the decoder implementations: this.cfg.baud */
+    get cfg() {
+        const out = {};
+        for (const [key, s] of Object.entries(this.settings)) out[key] = s.value;
+        return out;
     }
 
     addSubDecoder(decoder) {
@@ -83,12 +108,6 @@ class Decoder {
         return this.constructor.Info.name;
     }
 
-    loadDefaultConfig(src, dest) {
-        for (const [name, value] of Object.entries(src)) {
-            dest[name] = value.default;
-        }
-    }
-
     run(input) {
         throw new Error('Not implemented');
     }
@@ -109,14 +128,14 @@ class Decoder {
             id:this.id, 
             parent:this.parent?.id??null, 
             subDecoders:this.subDecoders.map((d)=>d.id), 
-            visible:this.visible 
+            visible:this.visible.value
         };
     }
 
     /** very important this function need to be run after all decoders have been instantiated  */
-    setState(v, decoders =  window.WS.store.get().decoders) {
+    setState(v, decoders = window.WS.decoders.list.value) {
         const dFind = (id) => decoders.find((d) => d.id === id);
-        this.cfg = v.cfg;
+        for (const [key, value] of Object.entries(v.cfg ?? {})) this.setting(key).set(value);
         //this.color = v.color; set by the constructor
         //this.id = v.id; set by the constructor
         this.parent = v.parent != null ? dFind(v.parent) : null;
@@ -127,12 +146,14 @@ class Decoder {
 
             return decoder;
         });
-        this.visible = v.visible;
+        this.visible.set(v.visible ?? true);
         
     }
 
     destroy() {
         console.log(`Städar upp decoder instans: ${this.id} (${this.name})`);
+        // subscriptions to long-lived values (e.g. the channel list) can still call this decoder's GUI
+        this.removed = true;
 
         // 1. remove from the parent
         if (this.parent) {
@@ -148,9 +169,6 @@ class Decoder {
             const sub = this.subDecoders[0];
             sub.destroy();
         }
-
-        // 3. clear references
-        this.cfg = null;
     }
 
     

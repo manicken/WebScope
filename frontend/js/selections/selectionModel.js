@@ -1,23 +1,25 @@
 /**
  * selections/selectionModel.js — state + actions for measurement selections (Logic 2 style "M0, M1…").
  *
- * A selection lives in the store as plain, serialisable data:
+ * A selection is plain, serialisable data:
  *   { id, name, start, end, rows:[rowKey…], color, comment }
  *     start/end  sample positions (integers, start < end)
  *     rows       row KEYS, not y-positions or indexes, so they survive layout changes:
  *                  'c<channelIndex>'          a channel row
  *                  'd<decoderId>.<rowId>'     a decoder row
- * Store keys used: `selections` (array) and `selectedSelection` (id | null).
+ * State in appState.selections (ReactiveValues): list, selected (id | null) and statChannel (see selectionPopup.js).
  */
 (function (WS) {
   'use strict';
-  const { store } = WS;
+  const { appState } = WS;
+  const state = appState.selections;
 
   const COLORS = ['#d6336c', '#0ca35b', '#1f9bde', '#e0492f'];
   let seq = 0;
 
-  const list = () => store.get().selections ?? [];
+  const list = () => state.list.value;
   const find = (id) => (id == null ? null : list().find((s) => s.id === id) ?? null);
+  const selected = () => state.selected.value;
 
   function rowKey(r) { return r.kind === 'channel' ? 'c' + r.ch.index : 'd' + r.dec.id + '.' + r.rowId; }
   function channelsOf(sel) { return sel.rows.filter((k) => k[0] === 'c').map((k) => parseInt(k.slice(1), 10)); }
@@ -64,38 +66,43 @@
       color: color ?? COLORS[(seq - 1) % COLORS.length],
       comment: '',
     };
-    store.set((s) => ({ selections: [...(s.selections ?? []), sel], selectedSelection: sel.id, selectedMarker: null }));
+    state.list.set([...list(), sel]);
+    select(sel.id);
     return sel;
   }
 
   function update(id, patch) {
-    store.set((s) => ({ selections: (s.selections ?? []).map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+    const i = list().findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const next = [...list()];
+    next[i] = { ...next[i], ...patch };
+    state.list.set(next);
   }
 
   function remove(id) {
-    store.set((s) => ({
-      selections: (s.selections ?? []).filter((x) => x.id !== id),
-      selectedSelection: s.selectedSelection === id ? null : s.selectedSelection,
-    }));
+    if (selected() === id) state.selected.set(null);
+    state.list.set(list().filter((x) => x.id !== id));
   }
 
   function select(id) {
-    if ((store.get().selectedSelection ?? null) !== id) store.set(id == null ? { selectedSelection: null } : { selectedSelection: id, selectedMarker: null });
+    if (id != null) appState.markers.selected.set(null);
+    state.selected.set(id);
   }
 
   /** The panel's "+" button: a selection in the middle of the view on the first row. */
   function addAtCenter() {
-    const { view, plotWidth, status } = store.get();
+    const view = WS.waveform.getView();
+    const sampleCount = WS.capture.length();
     const rows = WS.uiRows.get();
-    if (!rows.length || !status.sampleCount) return null;
-    const span = view.spp * plotWidth, c = view.start + span / 2;
-    const clamp = (v) => Math.max(0, Math.min(status.sampleCount, Math.round(v)));
+    if (!rows.length || !sampleCount) return null;
+    const span = view.spp * view.plotWidth, c = view.start + span / 2;
+    const clamp = (v) => Math.max(0, Math.min(sampleCount, Math.round(v)));
     let start = clamp(c - span * 0.1), end = clamp(c + span * 0.1);
-    if (end - start < 1) { start = clamp(c); end = Math.min(status.sampleCount, start + 1); }
+    if (end - start < 1) { start = clamp(c); end = Math.min(sampleCount, start + 1); }
     return create({ start, end, rows: [rowKey(rows[0])] });
   }
 
   WS.selections = Object.assign(WS.selections ?? {}, {
-    COLORS, list, find, rowKey, channelsOf, runs, indexRange, keysBetween, create, update, remove, select, addAtCenter,
+    COLORS, list, find, selected, rowKey, channelsOf, runs, indexRange, keysBetween, create, update, remove, select, addAtCenter,
   });
 })(window.WS = window.WS || {});

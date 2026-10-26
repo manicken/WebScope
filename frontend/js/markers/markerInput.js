@@ -8,7 +8,7 @@
 (function (WS) {
   'use strict';
   const T = WS.timeMarkers;
-  const { store } = WS;
+
   const { RULER_H } = WS.theme;
   const FLAG_PX = 9, LINE_PX = 4;
 
@@ -33,7 +33,7 @@
 
     function hit(E, px, py) {
       const tol = py < RULER_H ? FLAG_PX : LINE_PX;
-      const selected = store.get().selectedMarker ?? null;
+      const selected = T.selected();
       let best = null;
       for (const m of T.list()) {
         for (const p of T.positions(m)) {
@@ -84,7 +84,7 @@
     window.addEventListener('keydown', (e) => {
       const t = e.target?.tagName;
       if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
-      const id = store.get().selectedMarker ?? null;
+      const id = T.selected();
       if (id == null) return;
       if (e.key === 'Escape') T.select(null);
       else if (e.key === 'Delete') T.remove(id);

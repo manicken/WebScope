@@ -28,11 +28,11 @@
    *   placement   'after' (default) or 'before': below or above the anchor.
    */
   function layoutRows(channels, decoders) {
-    const visibleChannels = channels.filter((c) => c.visible);
-    const visibleDecoders = decoders.filter((d) => d.visible);
+    const visibleChannels = channels.filter((c) => c.visible.value);
+    const visibleDecoders = decoders.filter((d) => d.visible.value);
 
     // Visible channels a decoder reads: unique and in ascending channel order.
-    const readBy = (d) => [...new Set(decoderChannels(d).filter((i) => channels[i]?.visible))].sort((p, q) => p - q);
+    const readBy = (d) => [...new Set(decoderChannels(d).filter((i) => channels[i]?.visible.value))].sort((p, q) => p - q);
 
     // ---- Step 1: decide the order of the channel rows ------------------------------------
     const blocks = [];                 

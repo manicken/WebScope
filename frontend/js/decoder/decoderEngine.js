@@ -1,43 +1,62 @@
 /**
- * decoderEngine.js — runs decoders over the capture and keeps their results.
- * 
- * annotations/annotationEngine.js.
+ * decoderEngine.js — the list of decoder instances, running them over the capture and keeping their results.
+ *
+ *   WS.decoders.list      ReactiveValue<Decoder[]>, replaced when a decoder is added or removed
+ *   WS.decoders.revision  bumped after decoders ran, so the waveform, the layout and the data table update
+ *
+ * A decoder is re-run when one of its settings changes (decoder.settingsChanged), and all decoders
+ * are re-run when there is new complete capture data (WS.capture.buffer).
+ * Annotation queries are in annotations/annotationEngine.js.
  */
 (function (WS) {
     'use strict';
-    const { store } = WS;
+    const { appState } = WS;
 
     const decodedCache = new Map(); // decoder id -> { anns: Annotation[] }
     const registry = [];
 
+    const list = new ReactiveValue([]);
+    const revision = new ReactiveValue(0);
+    const find = (id) => list.value.find((d) => d.id === id);
+
+    /** Re-run the decoder whenever the user changes one of its settings. */
+    function watchSettings(decoder) {
+        decoder.settingsChanged.subscribe(() => decode(decoder.id));
+    }
+
+    function showInTable(id) {
+        appState.table.rowId.set(null);
+        appState.table.focus.set(null);
+        appState.table.decoder.set(id);
+    }
+
     function addNewDecoder({item, parentDecoder=null}) {
-        const decoders = store.get().decoders;
+        const decoders = list.value;
         const id = decoders.reduce((m, d) => Math.max(m, d.id), 0) + 1; // find the last used id and add 1
         const color = WS.theme.DECODER_COLORS[decoders.length % WS.theme.DECODER_COLORS.length];
         const newDec = new item.class({ id, color, parentDecoder });
         if (parentDecoder != null) {
             parentDecoder.addSubDecoder(newDec);
         }
-        store.set({ decoders: [...decoders, newDec], table: { decoder: id, row: 0, focus: null } });
-        console.log(newDec);
+        watchSettings(newDec);
+        list.set([...decoders, newDec]);
+        showInTable(id);
         decode(id);
         return newDec;
     }
-/*
-    function removeDecoder(id) {
-        console.log("removed decoder:" + id);
-        const d = store.get().decoders.find((x) => x.id === id);
-        if (d) {
-            d.destroy();
-        }
-        const remaining = store.get().decoders.filter((d) => d.id !== id);
-        console.log(remaining);
-        const table = store.get().table;
-        store.set({ decoders: remaining, table: table.decoder === id ? { decoder: remaining[0]?.id ?? null, row: 0, focus: null } : table });
-    }*/
+
+    /** Replaces all decoders (project load). The decoders' parent/subDecoders must already be linked. */
+    function setDecoders(decoders) {
+        list.value.forEach((d) => { d.removed = true; });
+        decodedCache.clear();
+        decoders.forEach(watchSettings);
+        list.set(decoders);
+        showInTable(decoders[0]?.id ?? null);
+        decodeAll();
+    }
 
     function removeDecoder(id) {
-        const all = store.get().decoders;
+        const all = list.value;
         const root = all.find((x) => x.id === id);
         if (!root) return;
 
@@ -47,66 +66,65 @@
         collect(root);
 
         root.destroy();   // unlinks from its parent and destroys all descendants
+        ids.forEach((x) => decodedCache.delete(x));
 
         const remaining = all.filter((x) => !ids.has(x.id));
-        const table = store.get().table;
-        store.set({
-            decoders: remaining,
-            table: ids.has(table.decoder) ? { decoder: remaining[0]?.id ?? null, row: 0, focus: null } : table,
-        });
+        list.set(remaining);
+        if (ids.has(appState.table.decoder.value)) showInTable(remaining[0]?.id ?? null);
     }
+
     function toggleDecoderVisible(id) {
-        const d = store.get().decoders.find((x) => x.id === id);
-        if (!d) return;
-        d.visible = !d.visible;
-        store.set({ decoders: store.get().decoders });
+        const d = find(id);
+        if (d) d.visible.set(!d.visible.value);
     }
-    function updateDecoder(id, patch) {
-        const d = store.get().decoders.find((x) => x.id === id);
-        if (!d) return;
-        d.cfg = { ...d.cfg, ...patch };
-        store.set({ decoders: store.get().decoders });
-        decode(id);
+
+    function bumpRevision() {
+        revision.set(revision.value + 1);
     }
-/*
+
+    function decodeOne(inst, buf) {
+        try {
+            decodedCache.set(inst.id, inst.run(buf));
+        } catch (e) {
+            // e.g. getSource() throwing because the parent produced nothing: drop stale output, keep going
+            console.warn(`decode failed: ${inst.name} (${inst.id})`, e);
+            decodedCache.delete(inst.id);
+        }
+    }
+
+    function decodeBranch(inst, buf) {
+        decodeOne(inst, buf);                                   // parent first, so children read fresh getOutput()
+        for (const sub of inst.subDecoders) decodeBranch(sub, buf);
+    }
+
+    /** The buffer to decode: only complete data, not a capture that is still streaming in. */
+    function decodableBuffer() {
+        const buf = WS.capture.getBuffer();
+        return buf?.complete ? buf : null;
+    }
+
+    /** Runs a decoder and its sub-decoders. Without (complete) data only the revision is bumped (rows may have changed). */
     function decode(id) {
-        //console.log("decode ID:" + id);
-        if (!WS.capture.hasData()) return;
-        const inst = WS.store.get().decoders.find((d) => d.id === id);
+        const inst = find(id);
         if (!inst) return;
-
-        let decRes = inst.run(WS.capture.getBuffer());
-        //console.log(decRes);
-        decodedCache.set(id, decRes);
-        
-        WS.store.set((s) => ({ status: { ...s.status, decodeGen: s.status.decodeGen + 1 } }));
+        const buf = decodableBuffer();
+        if (buf) decodeBranch(inst, buf);
+        bumpRevision(); // one redraw for the whole branch, not one per decoder
     }
-*/
-function decodeOne(inst, buf) {
-    try {
-        decodedCache.set(inst.id, inst.run(buf));
-    } catch (e) {
-        // e.g. getSource() throwing because the parent produced nothing: drop stale output, keep going
-        console.warn(`decode failed: ${inst.name} (${inst.id})`, e);
-        decodedCache.delete(inst.id);
+
+    /** Runs every decoder, e.g. after a new capture. While a capture streams in, the old results are dropped. */
+    function decodeAll() {
+        const buf = decodableBuffer();
+        if (buf) {
+            for (const d of list.value) if (!d.parent) decodeBranch(d, buf);
+        } else {
+            decodedCache.clear();
+        }
+        bumpRevision();
     }
-}
 
-function decodeBranch(inst, buf) {
-    decodeOne(inst, buf);                                   // parent first, so children read fresh getOutput()
-    for (const sub of inst.subDecoders) decodeBranch(sub, buf);
-}
+    WS.capture.buffer.subscribe(decodeAll);
 
-function decode(id) {
-    if (!WS.capture.hasData()) return;
-    const inst = WS.store.get().decoders.find((d) => d.id === id);
-    if (!inst) return;
-
-    decodeBranch(inst, WS.capture.getBuffer());
-
-    // one redraw for the whole branch, not one per decoder
-    WS.store.set((s) => ({ status: { ...s.status, decodeGen: s.status.decodeGen + 1 } }));
-}
 /** new funcitons to be used in the future */
     class DecoderChainError extends Error {}
 
@@ -187,11 +205,15 @@ function decode(id) {
         isWildcard,
         allPaths,
         instanceAccepts,
+        list,
+        revision,
+        find,
         decode,
+        decodeAll,
         addNewDecoder,
+        setDecoders,
         removeDecoder,
-        toggleDecoderVisible, 
-        updateDecoder,
+        toggleDecoderVisible,
         /** Result stored by the decode(id), or undefined. Annotations are in `.anns`. */
         decodedResult(id) { return decodedCache.get(id); }
     });

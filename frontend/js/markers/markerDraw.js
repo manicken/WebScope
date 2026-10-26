@@ -11,7 +11,7 @@
   function drawLines(ctx, w, h, f, x) {
     const list = f.markers;
     if (!list || !list.length) return;
-    const sr = WS.store.get().status.samplerate;
+    const sr = f.samplerate;
     ctx.save();
     ctx.font = '11px "SF Mono", ui-monospace, monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const m of list) {

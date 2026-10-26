@@ -1,19 +1,21 @@
 /**
  * decoderGui.js — the "Analyzers" section of the right panel: add buttons and one config card
- * per decoder instance. (The "Decoded data" table is annotations/annotationGui.js.)
+ * per decoder instance. (The "Decoded data" table is dataTable/DataTable.js.)
+ *
+ * A card is created once per decoder and kept until the decoder is removed. Every form field is
+ * bound to one of decoder.settings (a ReactiveValue); the decoder engine re-runs the decoder when
+ * its settings change, so nothing else is needed here.
  */
 (function (WS) {
     'use strict';
-    const { store } = WS;
-    const { addNewDecoder, updateDecoder, toggleDecoderVisible, removeDecoder } = WS.decoders;
+    const { appState } = WS;
+    const { toggleDecoderVisible, removeDecoder } = WS.decoders;
 
     function el(tag, className, html) { const e = document.createElement(tag); if (className) e.className = className; if (html !== undefined) e.innerHTML = html; return e; }
 
     let addDecoderMenu = null;
 
     function init() {
-        //addDecoderMenu = new AddNewDecoderContextMenu({ itemClickedCb: (p) => { addNewDecoder(p); } });
-
         addDecoderMenu = new AddNewDecoderContextMenu({
             itemClickedCb: ({ path, parentDecoder }) => {
                 try { window.WS.decoders.addChain(path.map(window.WS.decoders.typeOf), { parentDecoder }); }
@@ -24,19 +26,11 @@
     }
 
     /* ---------- caches (persist across re-renders so MinimizeCard state is kept) ---------- */
-    const decoderCards = new Map();   // decoder id -> { el, update(d) }
+    const decoderCards = new Map();   // decoder id -> { el, update() }
     const sections = new Map();       // parent id ('root' for top level) -> { sec, root, hint, cards, parent }
 
-    function collectIds(decoders, out = new Set()) {
-        for (const d of decoders) {
-            out.add(d.id);
-            if (d.subDecoders?.length) collectIds(d.subDecoders, out);
-        }
-        return out;
-    }
-
     function pruneCaches() {
-        const alive = collectIds(store.get().decoders);
+        const alive = new Set(WS.decoders.list.value.map((d) => d.id));
         for (const id of [...decoderCards.keys()]) if (!alive.has(id)) decoderCards.delete(id);
         for (const key of [...sections.keys()]) if (key !== 'root' && !alive.has(key)) sections.delete(key);
     }
@@ -47,12 +41,12 @@
             card = analyzerCard(d);
             decoderCards.set(d.id, card);
         }
-        card.update(d);
+        card.update();
         return card;
     }
 
     /* ============================== Analyzers ============================== */
- 
+
     function getSection({title, parent, panelRoot}) {
         const key = parent ? parent.id : 'root';
         let s = sections.get(key);
@@ -71,7 +65,6 @@
         s.cards = el('div', 'cards');
 
         if (panelRoot) {
-            
             // plain section for the panel root, no minimize card
             s.root = el('section', 'section');
             const head = el('div', 'rp-header');
@@ -89,9 +82,10 @@
         return s;
     }
 
-    function renderAnalyzers({ container, keys, state, subkey, title = 'Analyzers', decoders = store.get().decoders, parent = null, panelRoot = false } = {}) {
+    /** Renders the cards of the decoders whose parent is `parent` (null = the root decoders). */
+    function renderAnalyzers({ container, title = 'Analyzers', parent = null, panelRoot = false } = {}) {
+        const decoders = WS.decoders.list.value;
         if (!parent) pruneCaches();
-        console.log(keys?.map((key)=>state[key]), subkey);
 
         const s = getSection({title, parent, panelRoot});
         s.parent = parent;
@@ -113,6 +107,108 @@
         while (s.cards.children.length > wanted.length) s.cards.lastElementChild.remove();
     }
 
+    /* ============================== form fields ============================== */
+    // Each is bound to one setting (a ReactiveValue): it writes with setting.set(v, input) and
+    // subscribes to it to show changes made elsewhere. Returns { input } (+ fillOptions for channels).
+
+    /** Channel select; the card calls fillOptions() when the channels or their names change. */
+    function channelField(setting, f) {
+        const input = document.createElement('select');
+        const show = () => { input.value = setting.value == null ? '' : String(setting.value); };
+        function fillOptions() {
+            input.innerHTML = '';
+            if (f.type === 'channel?') input.appendChild(new Option('None', ''));
+            for (const ch of appState.channels.value) input.appendChild(new Option(ch.name.value, String(ch.index)));
+            show();
+        }
+        input.addEventListener('change', () => setting.set(input.value === '' ? null : Number(input.value), input));
+        setting.subscribe(({ source }) => { if (source !== input) show(); });
+        fillOptions();
+        return { input, fillOptions };
+    }
+
+    function selectField(setting, f) {
+        const input = document.createElement('select');
+        for (const [k, label] of f.options) input.appendChild(new Option(label, String(k)));
+        input.addEventListener('change', () => {
+            const opt = f.options.find(([k]) => String(k) === input.value);
+            if (opt) setting.set(opt[0], input);
+        });
+        const show = () => { input.value = String(setting.value); };
+        setting.subscribe(({ source }) => { if (source !== input) show(); });
+        show();
+        return { input };
+    }
+
+    function boolField(setting) {
+        const input = createNewElement('input', {
+            type: 'checkbox',
+            onchange: (e) => { setting.set(e.currentTarget.checked, input); }
+        });
+        const show = () => { input.checked = Boolean(setting.value); };
+        setting.subscribe(({ source }) => { if (source !== input) show(); });
+        show();
+        return { input };
+    }
+
+    /** Code editor for CustomDecoder. `onCompiled` is called after a successful compile (the form may change). */
+    function codeField(d, setting, onCompiled) {
+        const input = createNewElement('div', { styles: { width: '100%' } });
+        const compileAndRun = (code) => {
+            setting.set(code);
+            const res = d.compile();
+            if (res !== true) { InfoDialog.Show({ title: 'Custom Code Error', message: res }); return; }
+            onCompiled();
+            WS.decoders.decode(d.id);
+        };
+
+        const codeText = createNewElement('textarea', {
+            styles: { width: '100%', minHeight: '200px', background: '#AAA' },
+            onchange: (e) => setting.set(e.currentTarget.value, codeText)
+        });
+        const codeEditOpenBtn = createNewElement('button', {
+            textContent: 'Open Code Editor',
+            styles: { width: '100%', background: '#494949' },
+            onclick: () => {
+                WS.customDecoderEditor.open({
+                    code: codeText.value,
+                    onSave: (code) => setting.set(code),
+                    onRunDecoder: compileAndRun
+                });
+            }
+        });
+        const codeRunBtn = createNewElement('button', {
+            textContent: 'run',
+            styles: { width: '100%', background: '#494949' },
+            onclick: () => compileAndRun(codeText.value)
+        });
+        const buttons = createNewElement('div', { className: 'form-row' });
+        buttons.append(codeEditOpenBtn, codeRunBtn);
+        input.append(codeText, buttons);
+
+        const show = () => { codeText.value = String(setting.value ?? ''); };
+        setting.subscribe(({ source }) => { if (source !== codeText) show(); });
+        show();
+        return { input };
+    }
+
+    function numberField(setting, f) {
+        const input = document.createElement('input');
+        input.title = "Unknown settings type: " + f.type;
+        input.className = 'mono';
+        const show = () => { input.value = String(setting.value); };
+        const commit = () => {
+            const n = Number(input.value);
+            if (isFinite(n) && n > 0) setting.set(n, input);
+            show(); // normalises the text, or reverts an invalid value
+        };
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+        setting.subscribe(({ source }) => { if (source !== input) show(); });
+        show();
+        return { input };
+    }
+
     /* ============================== One decoder card ============================== */
     function analyzerCard(d) {
         const dot = createNewElement('span', { className: 'dot' });
@@ -123,159 +219,76 @@
             className: 'icon-btn danger', textContent: '✕', title: 'Remove',
             onclick: () => { removeDecoder(d.id); }
         });
-        
+
         const card = MinimizeCard({ headItems: [dot, titleEl, subEl, eyeBtn, delBtn] });
 
-        // Form lives in its own div: it can be rebuilt without touching the MinimizeCard shell/state.
         const form = el('div', 'card-body');
         card.bodyAppendChild(form);
 
-        let formSig = null;
-        let updaters = new Map(); // cfg key -> (decoder) => void
+        // One row per setting, created the first time the setting is in getCfgGui() and then kept:
+        // a CustomDecoder's fields can change after a compile, rows that are gone are only hidden.
+        const formRows = new Map();   // key -> row element
+        const channelFields = [];     // { fillOptions } of the channel selects
+        let subSection = null;        // row with the sub-decoder cards, if this decoder has an output
 
-        function guiSignature(dec, channels) {
-            const gui = dec.getCfgGui();
-            return JSON.stringify([
-                Object.entries(gui).map(([k, f]) => [k, f.type, f.label, f.options ?? null]),
-                channels.map(c => [c.index, c.name]),
-            ]);
+        function fieldFor(key, f, row) {
+            const setting = d.setting(key, f.default);
+            if (f.type === 'channel' || f.type === 'channel?') {
+                const field = channelField(setting, f);
+                channelFields.push(field);
+                return field;
+            }
+            if (f.type === 'select') return selectField(setting, f);
+            if (f.type === 'bool') return boolField(setting);
+            if (f.type === 'js_code_edit') { row.className = 'form-col'; return codeField(d, setting, updateForm); }
+            return numberField(setting, f);
         }
 
-        function update(dec) {
-            d = dec; // always point at the latest decoder object
-            const channels = store.get().channels;
+        function updateForm() {
+            const keys = Object.keys(d.getCfgGui());
+            for (const [key, f] of Object.entries(d.getCfgGui())) {
+                if (formRows.has(key)) continue;
+                const row = el('label', 'form-row' + (f.type === 'bool' ? ' bool' : ''));
+                row.appendChild(el('span', null, f.label));
+                row.appendChild(fieldFor(key, f, row).input);
+                formRows.set(key, row);
+                form.appendChild(row);
+            }
+            for (const [key, row] of formRows) row.hidden = !keys.includes(key);
 
-            // head
+            if (!subSection && typeof d.getOutput === 'function' && d.getOutput() != null) {
+                subSection = el('label', 'form-col');
+                subSection.appendChild(createNewElement('div', { styles: { width: '100%' } }));
+            }
+            if (subSection) form.appendChild(subSection); // (re)appended, so it stays below the fields
+            renderSubDecoders();
+        }
+
+        function renderSubDecoders() {
+            if (subSection) renderAnalyzers({ container: subSection.firstChild, parent: d, title: "Sub Decoders" });
+        }
+
+        function updateHead() {
             dot.style.background = d.color;
             titleEl.textContent = d.name;
-            subEl.textContent = d.summary(channels);
-            eyeBtn.textContent = d.visible ? '👁' : '🚫';
-            eyeBtn.title = d.visible ? 'Hide rows' : 'Show rows';
-
-            // body
-            const sig = guiSignature(d, channels);
-            if (sig !== formSig) {
-                formSig = sig;
-                buildForm();
-            }
-            for (const fn of updaters.values()) fn(d);
+            // the decoders' summary() takes plain channels: [{ index, name }]
+            subEl.textContent = d.summary(appState.channels.value.map((ch) => ({ index: ch.index, name: ch.name.value })));
+            eyeBtn.textContent = d.visible.value ? '👁' : '🚫';
+            eyeBtn.title = d.visible.value ? 'Hide rows' : 'Show rows';
         }
 
-        function buildForm() {
-            form.innerHTML = '';
-            updaters = new Map();
-            const channels = store.get().channels;
+        d.settingsChanged.subscribe(updateHead);
+        d.visible.subscribe(updateHead);
+        // the channels outlive the decoder: stop updating once it is removed
+        ReactiveValue.subscribeItems(appState.channels, (ch) => [ch.name], () => {
+            if (d.removed) return;
+            channelFields.forEach((f) => f.fillOptions());
+            updateHead();
+        });
 
-            for (const [key, f] of Object.entries(d.getCfgGui())) {
-                const row = el('label', 'form-row' + (f.type === 'bool' ? ' bool' : ''));
-                if (f.type !== 'subDecoders') row.appendChild(el('span', null, f.label));
-
-                const upd = (val) => updateDecoder(d.id, { [key]: val });
-                const isActive = (node) => document.activeElement === node;
-                let input;
-
-                if (f.type === 'channel' || f.type === 'channel?') {
-                    input = document.createElement('select');
-                    if (f.type === 'channel?') input.appendChild(new Option('None', ''));
-                    for (const ch of channels) input.appendChild(new Option(ch.name, String(ch.index)));
-                    input.addEventListener('change', () => upd(input.value === '' ? null : Number(input.value)));
-                    updaters.set(key, (dec) => {
-                        const v = dec.cfg[key];
-                        input.value = v == null ? '' : String(v);
-                    });
-
-                } else if (f.type === 'select') {
-                    input = document.createElement('select');
-                    for (const [k, label] of f.options) input.appendChild(new Option(label, String(k)));
-                    input.addEventListener('change', () => {
-                        const opt = f.options.find(([k]) => String(k) === input.value);
-                        if (opt) upd(opt[0]);
-                    });
-                    updaters.set(key, (dec) => { input.value = String(dec.cfg[key]); });
-
-                } else if (f.type === 'bool') {
-                    input = createNewElement('input', {
-                        type: 'checkbox',
-                        onchange: (e) => { upd(e.currentTarget.checked); }
-                    });
-                    updaters.set(key, (dec) => { input.checked = Boolean(dec.cfg[key]); });
-
-                } else if (f.type === 'js_code_edit') {
-                    row.className = 'form-col';
-                    input = createNewElement('div', { styles: { width: '100%' } });
-
-                    const codeText = createNewElement('textarea', {
-                        styles: { width: '100%', minHeight: '200px', background: '#AAA' },
-                        onchange: (e) => upd(e.currentTarget.value)
-                    });
-                    const compileAndReport = () => {
-                        const res = d.compile();
-                        if (res !== true) InfoDialog.Show({ title: 'Custom Code Error', message: res });
-                    };
-                    const codeEditOpenBtn = createNewElement('button', {
-                        textContent: 'Open Code Editor',
-                        styles: { width: '100%', background: '#494949' },
-                        onclick: () => {
-                            WS.customDecoderEditor.open({
-                                code: codeText.value,
-                                onSave: (code) => { upd(code); },
-                                onRunDecoder: (code) => { upd(code); compileAndReport(); }
-                            });
-                        }
-                    });
-                    const codeRunBtn = createNewElement('button', {
-                        textContent: 'run',
-                        styles: { width: '100%', background: '#494949' },
-                        onclick: () => { upd(codeText.value); compileAndReport(); }
-                    });
-                    const buttons = createNewElement('div', { className: 'form-row' });
-                    buttons.append(codeEditOpenBtn, codeRunBtn);
-                    input.append(codeText, buttons);
-
-                    updaters.set(key, (dec) => {
-                        const v = String(dec.cfg[key] ?? '');
-                        if (!isActive(codeText) && codeText.value !== v) codeText.value = v;
-                    });
-
-                }/* else if (f.type === 'subDecoders') {
-                    row.className = 'form-col';
-                    input = createNewElement('div', { styles: { width: '100%' } });
-                    updaters.set(key, (dec) => {
-                        renderAnalyzers({ container: input, decoders: store.get().decoders, parent: dec, title: f.label });
-                    });
-
-                } */else {
-                    input = document.createElement('input');
-                    input.title = "Unknown settings type: " + f.type;
-                    input.className = 'mono';
-                    const commit = () => {
-                        const cur = d.cfg[key];
-                        const n = Number(input.value);
-                        if (isFinite(n) && n > 0 && n !== cur) upd(n); else input.value = String(cur);
-                    };
-                    input.addEventListener('blur', commit);
-                    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
-                    updaters.set(key, (dec) => {
-                        if (!isActive(input)) input.value = String(dec.cfg[key]);
-                    });
-                }
-
-                row.appendChild(input);
-                form.appendChild(row);
-            }
-            if (typeof d.getOutput === 'function' && d.getOutput() != null) {
-                const row = el('label', 'form-col');
-                let input = createNewElement('div', { styles: { width: '100%' } }); 
-                updaters.set('__subDecoders', (dec) => {
-                    renderAnalyzers({ container: input, decoders: store.get().decoders, parent: d, title: "Sub Decoders" });
-                });
-                row.appendChild(input);
-                form.appendChild(row);
-            }
-        }
-
-        update(d);
-        return { el: card.card, update };
+        updateForm();
+        updateHead();
+        return { el: card.card, update: renderSubDecoders };
     }
 
     WS.decoders = WS.decoders ?? {};

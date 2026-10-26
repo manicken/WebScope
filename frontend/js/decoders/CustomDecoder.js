@@ -34,7 +34,7 @@ class CustomDecoder extends Decoder {
     }
     
     getCfgGui() {
-        return {...CustomDecoder.GuiConfigData, ...this.#decoder?.getCfgGui()};
+        return {...CustomDecoder.GuiConfigData, ...this.#decoder?.getCfgGui?.(this)};
     }
 
     /** static method, no filter */

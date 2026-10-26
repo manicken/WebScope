@@ -1,20 +1,22 @@
 /**
  * markers/markerModel.js — time markers (single or paired), Logic 2 style.
- * Replaces the old fixed A/B pair (store key `markers`, now unused) with a list in the store:
- *   markers      [{ id, kind:'single', name, color, comment, at }
- *                    { id, kind:'pair',   name, color, comment, a, b }]     positions are sample indexes
- *   selectedMarker  id | null
+ * State in appState.markers (ReactiveValues):
+ *   list      [{ id, kind:'single', name, color, comment, at }
+ *              { id, kind:'pair',   name, color, comment, a, b }]     positions are sample indexes
+ *   selected  id | null      (selecting a marker deselects the selected measurement selection)
  * Display tags: single → "A"; pair → "A1" / "A2".
  */
 (function (WS) {
   'use strict';
-  const { store } = WS;
+  const { appState } = WS;
+  const state = appState.markers;
 
   const COLORS = ['#22d3ee', '#ff9f43', '#a78bfa', '#51cf66', '#f783ac', '#ffd43b'];
   let seq = 0;
 
-  const list = () => store.get().markers ?? [];
+  const list = () => state.list.value;
   const find = (id) => (id == null ? null : list().find((m) => m.id === id) ?? null);
+  const selected = () => state.selected.value;
 
   function positions(m) {
     return m.kind === 'pair'
@@ -34,40 +36,44 @@
   }
 
   function add(kind) {
-    const { view, plotWidth, status } = store.get();
-    if (!status.sampleCount) return null;
-    const span = view.spp * plotWidth, c = view.start + span / 2;
-    const clamp = (v) => Math.max(0, Math.min(status.sampleCount, Math.round(v)));
+    const view = WS.waveform.getView();
+    const sampleCount = WS.capture.length();
+    if (!sampleCount) return null;
+    const span = view.spp * view.plotWidth, c = view.start + span / 2;
+    const clamp = (v) => Math.max(0, Math.min(sampleCount, Math.round(v)));
     seq++;
     const m = { id: 'm' + Date.now().toString(36) + seq, kind, name: nextName(), color: COLORS[(seq - 1) % COLORS.length], comment: '' };
     if (kind === 'pair') {
       m.a = clamp(c - span * 0.1); m.b = clamp(c + span * 0.1);
-      if (m.b <= m.a) m.b = Math.min(status.sampleCount, m.a + 1);
+      if (m.b <= m.a) m.b = Math.min(sampleCount, m.a + 1);
     } else m.at = clamp(c);
-    store.set((s) => ({ markers: [...(s.markers ?? []), m], selectedMarker: m.id, selectedSelection: null }));
+    state.list.set([...list(), m]);
+    select(m.id);
     return m;
   }
 
   function update(id, patch) {
-    store.set((s) => ({ markers: (s.markers ?? []).map((m) => (m.id === id ? { ...m, ...patch } : m)) }));
+    const i = list().findIndex((m) => m.id === id);
+    if (i < 0) return;
+    const next = [...list()];
+    next[i] = { ...next[i], ...patch };
+    state.list.set(next);
   }
   function remove(id) {
-    store.set((s) => ({
-      markers: (s.markers ?? []).filter((m) => m.id !== id),
-      selectedMarker: s.selectedMarker === id ? null : s.selectedMarker,
-    }));
+    if (selected() === id) state.selected.set(null);
+    state.list.set(list().filter((m) => m.id !== id));
   }
   function select(id) {
-    if ((store.get().selectedMarker ?? null) === id) return;
-    store.set(id == null ? { selectedMarker: null } : { selectedMarker: id, selectedSelection: null });
+    if (id != null) appState.selections.selected.set(null);
+    state.selected.set(id);
   }
 
   /** Bring a marker (or the span of a pair) into view. */
   function goTo(m) {
-    const { view, plotWidth } = store.get();
+    const view = WS.waveform.getView();
     if (m.kind === 'pair') { WS.waveform.frameSpan(Math.min(m.a, m.b), Math.max(m.a, m.b)); return; }
-    store.set({ view: WS.waveform.clampView(m.at - (view.spp * plotWidth) / 2, view.spp), follow: false });
+    WS.waveform.setView(WS.waveform.clampView(m.at - (view.spp * view.plotWidth) / 2, view.spp));
   }
 
-  WS.timeMarkers = { COLORS, list, find, positions, add, update, remove, select, goTo };
+  WS.timeMarkers = { COLORS, list, find, selected, positions, add, update, remove, select, goTo };
 })(window.WS = window.WS || {});

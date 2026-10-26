@@ -20,7 +20,7 @@
         ctx.fillStyle = THEME.bg;
         ctx.fillRect(0, 0, w, h);
 
-        const origin = f.trigger ?? 0;
+        const origin = f.timeOrigin ?? 0;   // sample index where t = 0
         const secPerPx = view.spp / f.samplerate;
         const step = niceStep(secPerPx * 120);
         const t0 = (view.start - origin) / f.samplerate;
@@ -65,18 +65,18 @@
         if (f.burst && burstRow) {
         const x0 = Math.max(x(f.burst.start), -10), x1 = Math.min(x(f.burst.end), w + 10);
         const bw = Math.max(x1 - x0, 1);
-        ctx.fillStyle = hexA(burstRow.ch.color, 0.18);
+        ctx.fillStyle = hexA(burstRow.ch.color.value, 0.18);
         ctx.fillRect(x0, burstRow.y + 2, bw, burstRow.h - 4);
-        ctx.strokeStyle = burstRow.ch.color; ctx.lineWidth = 1.5;
+        ctx.strokeStyle = burstRow.ch.color.value; ctx.lineWidth = 1.5;
         ctx.strokeRect(x0 + 0.75, burstRow.y + 2.75, Math.max(bw - 1.5, 0), burstRow.h - 5.5);
         }
 
         for (const r of f.rows) {
             if (r.y + r.h < f.scrollY || r.y > f.scrollY + h) continue;
             if (r.kind === 'channel') {
-                drawChannel(ctx, w, dpr, r.ch.index, r.ch.color, r.y, r.h, f);
+                drawChannel(ctx, w, dpr, r.ch.index, r.ch.color.value, r.y, r.h, f);
             } else { // decoder
-                const hl = f.highlight && f.highlight.decoder === r.dec.id && f.highlight.row === r.row ? f.highlight : null;
+                const hl = f.highlight && f.highlight.decoder === r.dec.id && f.highlight.row === r.rowId ? f.highlight : null;
                 
             // console.log(f.annotations, f.annotations.get(annKey(r)));
                 

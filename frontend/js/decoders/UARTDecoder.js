@@ -22,19 +22,6 @@ class UARTDecoder extends Decoder {
         return UARTDecoder.GuiConfigData;
     }
 
-    loadDefaultConfig() {
-        this.cfg = {
-            channel: UARTDecoder.GuiConfigData.channel.default,
-            baud: UARTDecoder.GuiConfigData.baud.default,
-            dataBits: UARTDecoder.GuiConfigData.dataBits.default,
-            parity: UARTDecoder.GuiConfigData.parity.default,
-            stopBits: UARTDecoder.GuiConfigData.stopBits.default,
-            msbFirst: UARTDecoder.GuiConfigData.msbFirst.default,
-            invert: UARTDecoder.GuiConfigData.invert.default,
-            format: UARTDecoder.GuiConfigData.format.default,
-        }
-    }
-
     constructor(p) {
         super(p);
         this.signals = ['channel'];

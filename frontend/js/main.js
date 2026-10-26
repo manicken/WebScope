@@ -14,7 +14,7 @@ let mainMenuItems = [
                         const file = out.file;
                         
                         if (file.ext == 'sr') {
-                            await loadSamplesFromSigrokFile({filedata:file.data, decode:true});
+                            await loadSamplesFromSigrokFile({filedata:file.data});
                         } else if (file.ext == 'ws.zip') {
                             await loadWebScopeProjectFile(file.data);
                         } else {
@@ -54,7 +54,7 @@ let mainMenuItems = [
                             onConfirm: (args) => {
                                 let importData = importSaleae(args);
                                 console.log(importData);
-                                setSamples({...importData, decode:true});
+                                setSamples(importData);
                              }   // args = { items:[{data,ch}], sampleRate, maxSamples }
                         });
                         
@@ -142,7 +142,6 @@ let mainMenuItems = [
     WS.statusbar.init({ samples: 'stSamples', rate: 'stRate', view: 'stView', sampleResolution:'stSampleResolution' });
     WS.overview.init(document.getElementById('overviewCanvas'));
     WS.keymap.init(document.getElementById('keyHints'));
-    WS.uiRows.recompute();
     WS.decoders.ui.init();
 
     WS.customDecoderEditor = new CustomDecoderEditor();
@@ -150,26 +149,6 @@ let mainMenuItems = [
 
     let menu = createMenu(document.getElementById('mainMenu'), mainMenuItems);
 
-
-    
-    WS.capturePanel.onChange((cfg, key) => { 
-        console.log({key, changed:cfg[key]});
-        if (key == 'samplerate') {
-            WS.store.update('status', {
-                samplerate: cfg[key]
-            });
-        } else if (key == 'timer') {
-            WS.store.update('status', {
-                captureDuration: cfg[key].seconds
-            });
-
-        } else if (key == 'channels') {
-            for (let ch of cfg[key]) {
-                WS.waveform.updateChannel(ch.index, { visible: ch.enabled??true })
-            }
-        }
-        /* key: 'channels' | 'samplerate' | 'mode' | … */
-    });
     /*
     let test = {hello:true};
     let checkbox = createNewElement('input', {type:'checkbox', checked:test.hello});

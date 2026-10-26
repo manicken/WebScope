@@ -147,6 +147,7 @@ body.rp-dragging { user-select: none; cursor: col-resize; }
 .card-body { display: grid; grid-template-columns: 1fr; gap: 5px; padding: 4px 4px 4px; border-top: 1px solid var(--border); }
 .card-body.hidden { display: none !important; }
 .form-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; }
+.form-row[hidden], .form-col[hidden] { display: none; }
 .form-row.bool { justify-content: flex-start; }
 .form-row.bool input { order: -1; margin-right: 4px; }
 .form-row select, .form-row input { max-width: 140px; }

@@ -1,5 +1,10 @@
+/**
+ * statusbar.js — facts about the data on screen (WS.capture.buffer), "—" when there is none.
+ * The settings for the next capture are shown in the Capture panel, not here.
+ */
 (function (WS) {
   'use strict';
+  const { appState } = WS;
   const { fmtCount, fmtRate, fmtTime, fmtSampleResolution } = WS.format;
 
   function init(ids) {
@@ -7,17 +12,22 @@
     const rateEl = document.getElementById(ids.rate);
     const sampleResolutionEl = document.getElementById(ids.sampleResolution);
     const viewEl = document.getElementById(ids.view);
-    function render({keys, subkey}={}) {
-     // console.log(keys, subkey);
-      if (keys && keys.includes('view') == false && keys.includes('status') == false && keys.includes('samplerate') == false) return;
-      const { status, view } = WS.store.get();
-      samplesEl.textContent = fmtCount(status.sampleCount);
-      rateEl.textContent = fmtRate(status.samplerate);
-      sampleResolutionEl.textContent = fmtSampleResolution(status.samplerate);
-      viewEl.textContent = `${fmtTime(view.spp / status.samplerate)}/px`;
+
+    function showBuffer() {
+      const buf = WS.capture.buffer.value;
+      samplesEl.textContent = buf ? fmtCount(buf.length) : '—';
+      rateEl.textContent = buf ? fmtRate(buf.samplerate) : '—';
+      sampleResolutionEl.textContent = buf ? fmtSampleResolution(buf.samplerate) : '—';
+      showView();
     }
-    WS.store.store.subscribe(render);
-    render();
+    function showView() {
+      const buf = WS.capture.buffer.value;
+      viewEl.textContent = buf ? `${fmtTime(appState.view.spp.value / buf.samplerate)}/px` : '—';
+    }
+
+    WS.capture.buffer.subscribe(showBuffer);
+    appState.view.spp.subscribe(showView);
+    showBuffer();
   }
 
   WS.statusbar = { init };

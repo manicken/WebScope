@@ -9,12 +9,12 @@
 (function (WS) {
   'use strict';
   const T = WS.timeMarkers;
-  const { store } = WS;
+  const { appState } = WS;
   const { fmtTime, fmtFreq } = WS.format;
 
   function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; }
 
-  let ui = null, lastKey = '', current = null;
+  let ui = null, current = null;
   const expanded = new Set();
 
   /* ---------------- edit box (double-click a row) ---------------- */
@@ -91,14 +91,13 @@
     head.append(title, add, menu);
 
     const listEl = el('div', 'sel-list');
-    // delegated, because rows are rebuilt whenever the store changes (the first click of a double-click selects)
+    // delegated, because rows are rebuilt whenever the markers change (the first click of a double-click selects)
     listEl.addEventListener('dblclick', (e) => {
       const row = e.target.closest('.sel-item');
       if (row && !e.target.closest('button')) openEditor(row.dataset.id, row);
     });
     container.append(head, listEl);
     ui = { container, add, menu, listEl };
-    lastKey = '';
   }
 
   function details(m, origin, sr) {
@@ -117,9 +116,10 @@
   }
 
   function rebuildList() {
-    const st = store.get();
-    const markers = st.markers ?? [];
-    const sr = st.status.samplerate, origin = st.status.trigger ?? 0;
+    const markers = T.list();
+    const selected = T.selected();
+    const buf = WS.capture.getBuffer();
+    const sr = buf?.samplerate ?? 1, origin = buf?.timeOrigin ?? 0;
     ui.listEl.innerHTML = '';
     if (!markers.length) {
       ui.listEl.appendChild(el('div', 'hint sel-empty', 'Press + to add a marker pair or a single marker. Drag the flags on the ruler to move them. Double-click a row to rename it or add a comment.'));
@@ -127,7 +127,7 @@
     }
     for (const m of markers) {
       const open = expanded.has(m.id);
-      const item = el('div', 'sel-item' + (st.selectedMarker === m.id ? ' on' : ''));
+      const item = el('div', 'sel-item' + (selected === m.id ? ' on' : ''));
       item.dataset.id = m.id; item.title = 'Double-click to edit';
       const caret = el('button', 'sel-caret', open ? '▾' : '▸');
       const sw = el('span', 'sel-swatch'); sw.style.background = m.color;
@@ -138,7 +138,7 @@
       const del = el('button', 'sel-del', '✕'); del.title = 'Delete';
       item.append(caret, sw, name, val, go, del);
 
-      caret.addEventListener('click', (e) => { e.stopPropagation(); open ? expanded.delete(m.id) : expanded.add(m.id); lastKey = ''; if (current) render(current); });
+      caret.addEventListener('click', (e) => { e.stopPropagation(); open ? expanded.delete(m.id) : expanded.add(m.id); if (current) render({ container: current }); });
       go.addEventListener('click', (e) => { e.stopPropagation(); T.goTo(m); });
       del.addEventListener('click', (e) => { e.stopPropagation(); expanded.delete(m.id); T.remove(m.id); });
       item.addEventListener('click', () => T.select(m.id));
@@ -147,15 +147,12 @@
     }
   }
 
-  function render({container, keys}) {
-    if (keys && keys.includes('markers') == false && keys.includes('view') == false) return;
+  /** Called by the rightpanel when the panel is opened and when the markers or the capture data changed. */
+  function render({ container }) {
     current = container;
     if (!ui || ui.container !== container) build(container);
-    const st = store.get();
-    // render() runs on every store update; only rebuild the list when something it shows changed
-    const key = JSON.stringify([st.markers ?? [], st.selectedMarker ?? null, [...expanded], st.status.samplerate, st.status.trigger ?? 0, st.status.captureId]);
-    if (key !== lastKey) { lastKey = key; rebuildList(); }
-    ui.add.disabled = !st.status.sampleCount;
+    rebuildList();
+    ui.add.disabled = !WS.capture.hasData();
     syncEditor();
   }
 

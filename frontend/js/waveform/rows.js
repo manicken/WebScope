@@ -1,42 +1,43 @@
 /**
  * ui/rows.js — the current visible-rows layout, shared by the gutter and the waveform canvas.
- * Recomputed whenever channels or decoders change; listeners are notified only when the row
- * *shape* actually changed (not on every store update, which would repaint the gutter needlessly).
+ * Recomputed when channels or decoders change; listeners are notified only when the row
+ * *shape* actually changed (not on every change, which would repaint the gutter needlessly).
  */
 (function (WS) {
   'use strict';
 
-  const { store } = WS.store;
+  const { appState } = WS;
   const { layoutRows } = WS.uiRowsLayout;
 
   let rows = [];
   let shapeKey = '';
+  let shownChannels = null;  // the channel list `rows` was made from
   const listeners = new Set();
 
-  function rowShapeKey(rs) { 
-    return rs.map((r) => r.kind + ':' + (r.kind === 'channel' ? r.ch.index : r.dec.id + '.' + r.row??0)).join(',');
+  function rowShapeKey(rs) {
+    return rs.map((r) => r.kind + ':' + (r.kind === 'channel' ? r.ch.index : r.dec.id + '.' + r.rowId)).join(',');
   }
 
   function recompute() {
-    const s = store.get();
-    //console.log(s.decoders);
-   // console.log(s.channels, s.decoders);
-    rows = layoutRows(s.channels, s.decoders);
-    //console.trace(rows);
+    rows = layoutRows(appState.channels.value, WS.decoders.list.value);
     const key = rowShapeKey(rows);
-    //console.log(key);
-    if (key !== shapeKey) { 
+    // new channel objects (e.g. another device with as many channels) are a new shape too
+    if (key !== shapeKey || shownChannels !== appState.channels.value) {
       shapeKey = key;
+      shownChannels = appState.channels.value;
       listeners.forEach((fn) => fn(rows));
     }
   }
 
-  store.subscribe(recompute);
+  // which channels and decoders are shown; a decoder's rows can change when it ran (settings, compile)
+  ReactiveValue.subscribeItems(appState.channels, (ch) => [ch.visible], recompute);
+  ReactiveValue.subscribeItems(WS.decoders.list, (d) => [d.visible], recompute);
+  WS.decoders.revision.subscribe(recompute);
+  recompute();
 
   WS.uiRows = {
     get: () => rows,
-    recompute,
-    onShapeChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
+    onShapeChange: (fn) => { listeners.add(fn); },
     rowAt(y, scrollY, rulerH) {
       const yy = y - rulerH + scrollY;
       return rows.find((r) => yy >= r.y && yy < r.y + r.h);

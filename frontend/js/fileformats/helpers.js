@@ -30,32 +30,24 @@ async function uploadFile(url, file) {
     return response;
 }
 
-function setSamples({samples, samplerate, channelCount, decode, names}) {
-
+/** Shows loaded samples: new channels (with the file's names) and a new capture buffer. The
+ *  decoders re-run and the view fits by themselves when the buffer changes. */
+function setSamples({samples, samplerate, channelCount, names}) {
     const WS = window.WS;
+    // file readers give one Uint32 per sample; with few channels a smaller type is enough
+    const type = CaptureBuffer.sampleType(channelCount);
+    if (samples.BYTES_PER_ELEMENT > type.BYTES_PER_ELEMENT) samples = new type(samples);
+    WS.appState.channels.set(WS.makeChannels({count:channelCount, names}));
     WS.capture.setBuffer(new CaptureBuffer(samples, samplerate, channelCount));
-    const store = WS.store;
-    console.log(channelCount, store.makeChannels({count:channelCount, names}));
-    store.set({ channels: store.makeChannels({count:channelCount, names}) });
-    console.log(store.get());
-    store.set((s) => ({ status: { ...s.status, state: 'done', sampleCount:samples.length, samplerate, trigger: null } }));
-    if (decode) {
-        for (const d of store.get().decoders) WS.decoders.decode(d.id);
-    }
-    if (store.get().follow) WS.waveform.fit();
-    
-    WS.uiRows.recompute();
-    WS.gutter.ui.render();
-    WS.waveform.ui.requestDraw();
 }
 
-async function loadSamplesFromSigrokFile({filedata, decode=false}) {
+async function loadSamplesFromSigrokFile({filedata}) {
     const cap = await loadSr(filedata);
     const { samplerate, channelCount, names, unitsize, length, data } = cap;
     
     const samples = unpackSamples(cap);
     //console.log({ samplerate, channelCount, names, unitsize, length, data, samples });
-    setSamples({samples, samplerate, channelCount, decode, names});
+    setSamples({samples, samplerate, channelCount, names});
 }
 
 function loadDecoderStates(decoderStateData) {
@@ -79,10 +71,7 @@ function loadDecoderStates(decoderStateData) {
     for (let d of decoderStateData) {
         findById(d.id).setState(d, decoders);
     }
-    const store = WS.store
-    store.set({ decoders });
-    //console.log(decoders);
-    for (const d of store.get().decoders) WS.decoders.decode(d.id);
+    WS.decoders.setDecoders(decoders);
 }
 
 async function saveToLocation({name, data, location}) {
@@ -101,7 +90,6 @@ async function saveToLocation({name, data, location}) {
 
 async function getSigrokData() {
     let buf = window.WS.capture.getBuffer();
-    const channels = window.WS.store.get().channels;
-    let names = Object.values(channels).map(item=>item.name);
+    const names = window.WS.appState.channels.value.map(item=>item.name.value);
     return await saveSr({samplerate:buf.samplerate, channels:buf.channelCount, data:buf.samples, names});
-}
+}

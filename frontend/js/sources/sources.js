@@ -8,20 +8,17 @@
  *   server -> client: binary frames, each a run of little-endian uint32 sample words,
  *                      appended in order to the capture buffer
  *   server -> client: {"type":"done","samples":N} | {"type":"error","message":"..."}
+ *
+ * Selecting a device sets appState.channels and appState.captureSettings from the device's info.
  */
 (function (WS) {
     'use strict';
+    const { appState, makeChannels } = WS;
 
-    //let devices = new Map();
-    //let selectedDevice = null;
+    const devices = new Map(); // id -> device info, see DemoSource.info()
+    let selectedDevice = null;
+
     let deviceSelect_el = document.getElementById("deviceSelect");
-    /*let samplerateSelect_el = document.getElementById("samplerateSelect");
-    samplerateSelect_el.onchange = (e) => {
-        const {store} = WS;
-        store.update('status', {
-            samplerate: Number(samplerateSelect_el.value)
-        });
-    }*/
     deviceSelect_el.onchange = deviceSelected;
     deviceSelect_el.onclick = deviceSelected;
 
@@ -33,55 +30,38 @@
 
     function clearDevicesList() {
         deviceSelect_el.innerHTML = "";
-        WS.store.get().devices.clear();
+        devices.clear();
     }
 
     function addDevice(device) {
-        if (WS.store.get().devices.has(device.id)) return;
-        WS.store.get().devices.set(device.id, device);
+        if (devices.has(device.id)) return;
+        devices.set(device.id, device);
         appendNewElement(deviceSelect_el, 'option', {textContent:device.name, value:device.id});
-        //selectedDevice = device;
         deviceSelect_el.value = device.id;
         deviceSelect_el.value = DemoSource.info().id; // development only
         deviceSelected();
     }
 
     function deviceSelected(e) {
-        let id = deviceSelect_el.value;
-        
-        const selectedDevice = WS.store.get().devices.get(id);
-        WS.store.set({selectedDevice});
+        const device = devices.get(deviceSelect_el.value);
+        if (!device || device === selectedDevice) return;
+        selectedDevice = device;
 
-       /* samplerateSelect_el.innerHTML = "";
-        for (let rate of selectedDevice.samplerates) {
-            appendNewElement(samplerateSelect_el, 'option', {textContent:WS.format.fmtRate(rate), value:rate})
-        }*/
-        console.log(selectedDevice);
-
-        WS.store.set({ channels: WS.store.makeChannels({items:selectedDevice.channels}) });
-        //for (let rate of selectedDevice.)
-
-        //console.log(selectedDevice);
-
-        WS.capturePanel.setConfig({           
-            deviceName: selectedDevice.name,
-            channels: selectedDevice.channels,
-            samplerates: selectedDevice.samplerates, samplerate: selectedDevice.samplerates.at(-1),
-            mode: 'looping',                    // 'looping' | 'timer' | 'trigger'
-            timer:   { seconds: WS.store.get().status.captureDuration },
-            trigger: { channel: 0, type: 'L2H', pulseWidth: 1e-5,/* conditions: [
-                '','','','','','','','',
-            ]*/ },   // L2H | H2L | PulseH | PulseL
-            preTrigger: 1, postTrigger: 1,      // sekunder
-            memoryMB: 1024,
-        });
-        WS.store.update('status', {
-            samplerate: selectedDevice.samplerates.at(-1)
-        });
+        appState.channels.set(makeChannels({items:device.channels}));
+        const s = appState.captureSettings;
+        s.deviceName.set(device.name);
+        s.samplerates.set(device.samplerates);
+        s.samplerate.set(device.samplerates.at(-1));
+        s.mode.set('looping');
+        s.trigger.set({ channel: 0, type: 'L2H', pulseWidth: 1e-5, conditions: {} });
+        s.preTrigger.set(1);    // seconds
+        s.postTrigger.set(1);
+        s.memoryMB.set(1024);
     }
 
     function refresh() {
         clearDevicesList();
+        selectedDevice = null;
         addDevice(DemoSource.info());
         refresh_cb();
     }
@@ -91,11 +71,11 @@
     }
 
     function getSelectedId() {
-        return WS.store.get().selectedDevice.id;
+        return selectedDevice?.id;
     }
 
     function getSelectedInfo() {
-        return WS.store.get().selectedDevice;
+        return selectedDevice;
     }
 
     WS.sources = { setRefreshCallback, addDevice, refresh, getSelectedId, getSelectedInfo };

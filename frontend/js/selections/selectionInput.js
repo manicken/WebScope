@@ -14,7 +14,7 @@
 (function (WS) {
   'use strict';
   const S = WS.selections;
-  const { store } = WS;
+
   const { RULER_H } = WS.theme;
   const EDGE = 5, MIN_DRAG = 3;
   const CURSOR = { left: 'ew-resize', right: 'ew-resize', top: 'ns-resize', bottom: 'ns-resize', body: 'move', create: 'crosshair' };
@@ -36,7 +36,7 @@
 
     function hit(E, px, py) {
       const cy = contentY(E, py);
-      const selected = store.get().selectedSelection ?? null;
+      const selected = S.selected();
       const order = [...S.list()].reverse().sort((a, b) => (b.id === selected) - (a.id === selected));
       for (const s of order) {
         const rs = S.runs(s, E.rows);
@@ -138,7 +138,7 @@
     window.addEventListener('keydown', (e) => {
       const t = e.target?.tagName;
       if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
-      const id = store.get().selectedSelection ?? null;
+      const id = S.selected();
       if (id == null) return;
       if (e.key === 'Escape') S.select(null);
       else if (e.key === 'Delete') S.remove(id);

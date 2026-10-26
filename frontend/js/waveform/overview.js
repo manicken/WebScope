@@ -4,10 +4,11 @@
  */
 (function (WS) {
   'use strict';
-  const { store } = WS;
+  const { appState } = WS;
+  const { view } = appState;
 
   function init(canvas) {
-    const cache = { key: '', cols: null };
+    const cache = { buffer: null, width: 0, cols: null };
 
     function paint() {
       const dpr = window.devicePixelRatio || 1;
@@ -16,11 +17,11 @@
       const ctx = canvas.getContext('2d');
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
-      const { status, view, plotWidth, channels } = store.get();
-      const n = status.sampleCount;
+      const v = WS.waveform.getView();
+      const n = WS.capture.length();
       const cols = cache.cols;
       if (n > 0 && cols) {
-        const mask = channels.filter((c) => c.visible).reduce((m, c) => m | (1 << c.index), 0);
+        const mask = appState.channels.value.filter((c) => c.visible.value).reduce((m, c) => m | (1 << c.index), 0);
         const count = cols.length / 2;
         for (let i = 0; i < count; i++) {
           const toggles = cols[2 * i + 1] & mask;
@@ -31,8 +32,8 @@
           ctx.fillStyle = `rgba(124,108,255,${0.35 + 0.08 * bits})`;
           ctx.fillRect(i / dpr, (h - bh) / 2, 1 / dpr, bh);
         }
-        const x0 = (view.start / n) * w;
-        const x1 = ((view.start + view.spp * plotWidth) / n) * w;
+        const x0 = (v.start / n) * w;
+        const x1 = ((v.start + v.spp * v.plotWidth) / n) * w;
         ctx.fillStyle = 'rgba(255,255,255,0.08)';
         ctx.strokeStyle = 'rgba(255,255,255,0.45)';
         ctx.beginPath();
@@ -41,30 +42,39 @@
       }
     }
 
+    /** Re-reads the activity columns when the data or the canvas size changed, then paints. */
     function refresh() {
-      const { status } = store.get();
-      //const key = `${status.captureId}:${status.sampleCount}:${canvas.width}`;
-      const key = `${status.captureId}:${status.sampleCount}:${canvas.width}:${WS.capture.hasData()}`;
-      if (key !== cache.key && status.sampleCount > 0) {
-        cache.key = key;
-        cache.cols = WS.capture.render(0, status.sampleCount / Math.max(canvas.width, 1), Math.max(canvas.width, 1));
+      const buf = WS.capture.buffer.value;
+      if (buf && (cache.buffer !== buf || cache.width !== canvas.width)) {
+        cache.buffer = buf;
+        cache.width = canvas.width;
+        cache.cols = WS.capture.render(0, buf.length / Math.max(canvas.width, 1), Math.max(canvas.width, 1));
       }
+      if (!buf) cache.cols = null;
       paint();
     }
 
     function jump(e) {
       if (e.buttons !== 1) return;
       const r = canvas.getBoundingClientRect();
-      const { status, view, plotWidth } = store.get();
-      if (status.sampleCount === 0) return;
-      const center = ((e.clientX - r.left) / r.width) * status.sampleCount;
-      store.set({ view: WS.waveform.clampView(center - (view.spp * plotWidth) / 2, view.spp), follow: false });
+      const n = WS.capture.length();
+      if (n === 0) return;
+      const center = ((e.clientX - r.left) / r.width) * n;
+      const spp = view.spp.value;
+      WS.waveform.setView(WS.waveform.clampView(center - (spp * view.plotWidth.value) / 2, spp));
     }
     canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); jump(e); });
     canvas.addEventListener('pointermove', jump);
 
     new ResizeObserver(refresh).observe(canvas);
-    WS.store.store.subscribe(refresh);
+    // paint at most once per frame: a zoom changes both view.start and view.spp
+    let paintPending = false;
+    const requestPaint = () => {
+      if (!paintPending) { paintPending = true; requestAnimationFrame(() => { paintPending = false; paint(); }); }
+    };
+    WS.capture.buffer.subscribe(refresh);
+    ReactiveValue.subscribeAll([view.start, view.spp, view.plotWidth], requestPaint);
+    ReactiveValue.subscribeItems(appState.channels, (ch) => [ch.visible], requestPaint);
     refresh();
   }
 

@@ -1,68 +1,51 @@
 (function (WS) {
   'use strict';
-  const { store } = WS;
+  const { appState } = WS;
+  const { acquisition } = appState;
+
+  /** The source's start config, from the Capture panel's settings. */
+  function captureConfig(device) {
+    const s = appState.captureSettings;
+    const samplerate = s.samplerate.value;
+    const toSamples = (sec) => Math.round(sec * samplerate);
+
+    // the memory size limits Looping and One shot
+    const cfg = { mode: s.mode.value, samplerate, channels: device.channels, memoryBytes: s.memoryMB.value * 1024 * 1024 };
+
+    if (s.mode.value === 'timer') {
+      cfg.duration = s.timerSeconds.value;
+    } else if (s.mode.value === 'trigger') {
+      const t = s.trigger.value, pulse = t.type === 'PulseH' || t.type === 'PulseL';
+      const pre = toSamples(s.preTrigger.value), post = toSamples(s.postTrigger.value);
+      cfg.triggerOn = { channel: t.channel, type: t.type, ...(pulse && { pulseLength: Math.max(1, toSamples(t.pulseWidth)) }) };
+      cfg.preTrigger = pre;
+      cfg.postTrigger = post;
+      cfg.duration = (pre + 1 + post) / samplerate;     // frontend allocates its buffer from this
+    }
+    return cfg;
+  }
 
   function init(ids) {
-
-    //const rateIn = document.getElementById(ids.samplerate);
-   // const durIn = document.getElementById(ids.duration);
     const captureBtn = document.getElementById(ids.captureBtn);
     const fitBtn = document.getElementById(ids.fitBtn);
     const pill = document.getElementById(ids.statusPill);
 
-
-    /*captureBtn.addEventListener('click', () => {
-      if (store.get().status.state === 'running') { WS.capture.stopCapture(); captureBtn.textContent = 'Start'; }
-      else {
-        //const samplerate = Number(rateIn.value) || 8_000_000;
-        //const duration = Number(durIn.value) || 0.02;
-        const device = WS.sources.getSelectedInfo();
-        const mode = WS.capturePanel.getConfig().mode;
-
-        const cfg = {
-          samplerate:WS.store.get().status.samplerate, 
-          duration:(mode!=='looping')?WS.store.get().status.captureDuration:undefined, 
-          channels:device.channels,
-          triggerOn:mode === 'trigger'
-        };
-        console.log(cfg);
-        WS.capture.startCapture(device.sourceKind, cfg);
-        captureBtn.textContent = 'Stop';
-      }
-    });*/
     captureBtn.addEventListener('click', () => {
-      const st = store.get().status.state;
-      if (st === 'running' || st === 'waiting') { WS.capture.stopCapture(); captureBtn.textContent = 'Start'; return; }
-
-      const panel  = WS.capturePanel.getConfig();
+      const st = acquisition.state.value;
+      if (st === 'running' || st === 'waiting') { WS.capture.stopCapture(); return; }
       const device = WS.sources.getSelectedInfo();
-      const samplerate = panel.samplerate;
-      const toSamples = (sec) => Math.round(sec * samplerate);
-
-      const cfg = { samplerate, channels: device.channels };
-
-      if (panel.mode === 'timer') {
-        cfg.duration = panel.timer.seconds;
-      } else if (panel.mode === 'trigger') {
-        const t = panel.trigger, pulse = t.type === 'PulseH' || t.type === 'PulseL';
-        const pre = toSamples(panel.preTrigger), post = toSamples(panel.postTrigger);
-        cfg.triggerOn = { channel: t.channel, type: t.type, ...(pulse && { pulseLength: Math.max(1, toSamples(t.pulseWidth)) }) };
-        cfg.preTrigger = pre;
-        cfg.postTrigger = post;
-        cfg.duration = (pre + 1 + post) / samplerate;     // frontend allocates its buffer from this
-      } else {
-        //return WS.store.toast('Looping is not supported yet');
-      }
-
-      WS.capture.startCapture(device.sourceKind, cfg);
-      captureBtn.textContent = 'Stop';
+      WS.capture.startCapture(device.sourceKind, captureConfig(device));
     });
     fitBtn.addEventListener('click', () => {WS.waveform.fit(); });
-    
-    WS.store.store.subscribe(({state}) => {
-      pill.textContent = state.status.state; pill.className = 'status-pill ' + state.status.state;
-      if (state.status.state !== 'running' && captureBtn.textContent === 'Stop') captureBtn.textContent = 'Start';
-    });
+
+    function showState() {
+      const st = acquisition.state.value;
+      pill.textContent = st; pill.className = 'status-pill ' + st;
+      captureBtn.textContent = st === 'running' || st === 'waiting' ? 'Stop' : 'Start';
+    }
+    acquisition.state.subscribe(showState);
+    showState();
+
     WS.topbar.toggleCapture = () => captureBtn.click();
   }
 
