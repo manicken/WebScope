@@ -3,8 +3,11 @@
  * A module subscribes directly to the values it shows, e.g. a gutter row to its channel's
  * `name`, the status bar to WS.capture.buffer and appState.view.spp.
  *
- *   channels         ReactiveValue<Channel[]>, replaced when the device or the capture changes
- *                    Channel = { index, name, color, visible }  (name, color, visible are ReactiveValues)
+ *   channels         ReactiveValue<Channel[]>, the rows of the data on screen: replaced when the device
+ *                    or the capture changes. Channel = { index, name, color, visible }  (name, color,
+ *                    visible are ReactiveValues), index = the channel's bit in a sample = its position
+ *   deviceChannels   ReactiveValue<Channel[]>, all channels of the selected device (the Capture panel's
+ *                    chips). A capture's rows are its active ones, sharing name, color and visible.
  *   acquisition      the capture that is running, not the data on screen
  *   captureSettings  what the next capture should use (edited in the Capture panel)
  *   view             the visible part of the capture
@@ -12,6 +15,7 @@
  *   markers          time markers, see markers/markerModel.js
  *   selections       measurement selections, see selections/selectionModel.js
  *   table            what the "Decoded data" table shows
+ *   toasts           log of every toast message, see toastLog.js
  *
  * Owned by their modules instead:
  *   WS.capture.buffer     ReactiveValue<CaptureBuffer|null>, the data on screen (samplerate, length, trigger)
@@ -40,6 +44,7 @@
 
     const appState = {
         channels: rv([]),
+        deviceChannels: rv([]),
         acquisition: {
             state: rv('idle'),          // 'idle' | 'running' | 'done' | 'error'
             message: rv(''),
@@ -48,12 +53,13 @@
             deviceName: rv(''),
             samplerates: rv([]),
             samplerate: rv(null),
+            activeChannels: rv([]),     // device channel indexes to capture, ascending
             mode: rv('timer'),          // 'looping' | 'oneshot' | 'timer' | 'trigger'
             timerSeconds: rv(1),
             /** { channel, type, pulseWidth, conditions }  type: 'L2H' | 'H2L' | 'PulseH' | 'PulseL',
-             *  pulseWidth in s (pulses only), conditions: { channelIndex: 'lo'|'hi' } */
+             *  pulseWidth in s (pulses only), conditions: { channelIndex: 'lo'|'hi' }; channels are device indexes */
             trigger: rv({ channel: 0, type: 'L2H', pulseWidth: 1e-5, conditions: {} }),
-            preTrigger: rv(1),          // seconds
+            preTrigger: rv(0.02),          // seconds
             postTrigger: rv(1),         // seconds
             memoryMB: rv(1024),         // Looping: how much is kept; One shot: when it stops
         },
@@ -81,14 +87,21 @@
             rowId: rv(null),
             focus: rv(null),
         },
+        toasts: rv([]),                 // every toast shown: { time: Date, message, details? }, oldest first
     };
 
-    function toast(msg) {
+    const TOAST_LOG_MAX = 500;          // the oldest toasts are dropped from the log after this many
+
+    /** Shows `msg` for a moment and logs it. `details`: an extended message, only shown in the log (Messages panel). */
+    function toast(msg, details) {
         const el = document.createElement('div');
         el.className = 'toast';
         el.textContent = msg;
         document.body.appendChild(el);
         setTimeout(() => el.remove(), 3500);
+        console.log({toast:msg});
+        const entry = { time: new Date(), message: String(msg), ...(details && { details: String(details) }) };
+        appState.toasts.set([...appState.toasts.value, entry].slice(-TOAST_LOG_MAX));
     }
 
     WS.appState = appState;

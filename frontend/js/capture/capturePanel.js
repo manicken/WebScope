@@ -3,8 +3,9 @@
  * channel chips (All / Clear), samplerate, mode tabs (Looping / One shot / Timer / Trigger), trigger pattern +
  * channel, capture duration after / before the trigger, memory buffer size.
  *
- * Shows and edits appState.captureSettings (see appState.js) and the channels' `visible` (the channel
- * chips; a hidden channel is also hidden in the waveform). Times are always SECONDS.
+ * Shows and edits appState.captureSettings (see appState.js). The channel chips are the device's
+ * channels (appState.deviceChannels) and choose the ones to capture (captureSettings.activeChannels);
+ * hiding a row in the waveform (`visible`) is separate. Times are always SECONDS.
  * The rightpanel calls render() when one of the values in watch() changes.
  */
 (function (WS) {
@@ -28,7 +29,7 @@
 
   // plain copies, set at the start of every rebuild(): the state the panel is drawn from
   let cfg = null;         // { samplerate, mode, trigger, ... }
-  let channels = [];      // [{ index, name, color, visible }]
+  let channels = [];      // the device's channels: [{ index, name, color, active }]
   let deviceInfoHandler = null;
   let host = null, lastKey = '';
   let patternMenuOpen = true, conditionsOpen = true;
@@ -49,14 +50,21 @@
     for (const [key, v] of Object.entries(settings)) out[key] = v.value;
     return out;
   }
-  const readChannels = () => appState.channels.value.map((ch) =>
-    ({ index: ch.index, name: ch.name.value, color: ch.color.value, visible: ch.visible.value }));
+  const readChannels = () => {
+    const active = new Set(settings.activeChannels.value);
+    return appState.deviceChannels.value.map((ch) =>
+      ({ index: ch.index, name: ch.name.value, color: ch.color.value, active: active.has(ch.index) }));
+  };
 
   const keyOf = () => JSON.stringify([readSettings(), readChannels(), patternMenuOpen, conditionsOpen, !!deviceInfoHandler]);
 
   const setSetting = (key, value) => settings[key].set(value);
   const setTrigger = (patch) => settings.trigger.set({ ...settings.trigger.value, ...patch });
-  const setChannelVisible = (index, visible) => appState.channels.value[index].visible.set(visible);
+  function setChannelActive(index, active) {
+    const set = new Set(settings.activeChannels.value);
+    if (active) set.add(index); else set.delete(index);
+    settings.activeChannels.set([...set].sort((a, b) => a - b));
+  }
 
   /** For text fields: they already show the new value, so the panel is not rebuilt under the user's
    *  pointer (a replaced element would swallow the next click). `write` changes the setting. */
@@ -65,14 +73,14 @@
     lastKey = keyOf();
   }
 
-  function setAllChannelsVisible(visible) {
-    channels.forEach((ch) => setChannelVisible(ch.index, visible));
+  function setAllChannelsActive(active) {
+    settings.activeChannels.set(active ? channels.map((ch) => ch.index) : []);
   }
 
   /** Called once by the rightpanel: `changed` is called when anything the panel shows changes. */
   function watch(changed) {
     ReactiveValue.subscribeAll(Object.values(settings), changed);
-    ReactiveValue.subscribeItems(appState.channels, (ch) => [ch.name, ch.color, ch.visible], changed);
+    ReactiveValue.subscribeItems(appState.deviceChannels, (ch) => [ch.name, ch.color], changed);
   }
 
   /* ---------------- building blocks ---------------- */
@@ -124,15 +132,15 @@
     const s = el('div', 'cp-block');
     const tools = el('div', 'cp-pills');
     tools.append(
-      pill('All', () => setAllChannelsVisible(true)),
-      pill('Clear', () => setAllChannelsVisible(false)),
+      pill('All', () => setAllChannelsActive(true), 'Capture all channels'),
+      pill('Clear', () => setAllChannelsActive(false), 'Capture no channels'),
     );
     s.appendChild(label('Digital', tools));
     const chips = el('div', 'cp-chips');
     for (const ch of channels) {
-      const b = el('button', 'cp-chip' + (ch.visible ? ' on' : '')); b.textContent = String(ch.index);
-      b.style.setProperty('--c', colorOf(ch)); b.title = ch.name ?? '';
-      b.addEventListener('click', () => setChannelVisible(ch.index, !ch.visible));
+      const b = el('button', 'cp-chip' + (ch.active ? ' on' : '')); b.textContent = String(ch.index);
+      b.style.setProperty('--c', colorOf(ch)); b.title = (ch.name ?? '') + (ch.active ? ' (captured)' : ' (not captured)');
+      b.addEventListener('click', () => setChannelActive(ch.index, !ch.active));
       chips.appendChild(b);
     }
     s.appendChild(chips);
@@ -185,8 +193,12 @@
 
   function triggerSection() {
     const s = el('div', 'cp-sec');
+    s.append(label('Capture duration before trigger'), timeField(cfg.preTrigger, (v) => setQuietly(() => setSetting('preTrigger', v))));
+    
+    s.append(label('Capture duration after trigger'), timeField(cfg.postTrigger, (v) => setQuietly(() => setSetting('postTrigger', v))));
+    
     const reset = pill('reset', () => {
-      const first = channels.find((x) => x.visible);
+      const first = channels.find((x) => x.active);
       setSetting('trigger', { channel: first?.index ?? 0, type: 'L2H', pulseWidth: DEFAULT_PULSE_WIDTH, conditions: {} });
     }, 'Reset the trigger pattern');
     s.appendChild(label('Pattern and Channel', reset));
@@ -194,9 +206,9 @@
     const row = el('div', 'cp-row');
     row.appendChild(patternDropdown());
     const sel = el('select', 'cp-select');
-    const list = channels.filter((c) => c.visible);
+    const list = channels.filter((c) => c.active);
     if (!list.some((c) => c.index === cfg.trigger.channel)) { const miss = channels.find((c) => c.index === cfg.trigger.channel); if (miss) list.push(miss); }
-    for (const c of list) { const o = el('option'); o.value = c.index; o.textContent = `${String(c.index).padStart(2, '0')}. ${c.name ?? 'Channel ' + c.index}` + (c.visible ? '' : ' (off)'); sel.appendChild(o); }
+    for (const c of list) { const o = el('option'); o.value = c.index; o.textContent = `${String(c.index).padStart(2, '0')}. ${c.name ?? 'Channel ' + c.index}` + (c.active ? '' : ' (not captured)'); sel.appendChild(o); }
     sel.value = String(cfg.trigger.channel);
     sel.addEventListener('change', () => setTrigger({ channel: Number(sel.value) }));
     sel.addEventListener('keydown', (e) => e.stopPropagation());
@@ -207,10 +219,10 @@
       s.append(label('Pulse length'), timeField(cfg.trigger.pulseWidth ?? DEFAULT_PULSE_WIDTH, (v) => setQuietly(() => setTrigger({ pulseWidth: v })), { positive: true }));
     }
 
+    
+
     s.appendChild(conditionsBlock());
 
-    s.append(label('Capture duration after trigger'), timeField(cfg.postTrigger, (v) => setQuietly(() => setSetting('postTrigger', v))));
-    s.append(label('Capture duration before trigger'), timeField(cfg.preTrigger, (v) => setQuietly(() => setSetting('preTrigger', v))));
     return s;
   }
 
@@ -221,7 +233,7 @@
     box.appendChild(head);
     if (!conditionsOpen) return box;
     const conditions = cfg.trigger.conditions ?? {};
-    for (const ch of channels.filter((c) => c.visible && c.index !== cfg.trigger.channel)) {
+    for (const ch of channels.filter((c) => c.active && c.index !== cfg.trigger.channel)) {
       const row = el('div', 'cp-cond-row');
       const nm = el('span', 'cp-cond-name');
       nm.innerHTML = `<i style="color:${colorOf(ch)}"></i>`;

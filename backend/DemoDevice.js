@@ -1,4 +1,5 @@
 import { DemoWave } from './DemoWave.js'
+import { makeRepacker } from './channels.js'
 
 export class DemoDevice {
 
@@ -71,28 +72,34 @@ export class DemoDevice {
         return w.render(rate);
     }
 
-    static stopped = false;
-    
+    // id of the running acquisition, 0 = stopped. A stream loop ends as soon as it is not the
+    // current run, so a stop() directly followed by a start() never leaves two loops running.
+    static run = 0;
+    static #runs = 0;
+
     static start(cfg, onData, onDone) {
         console.log("Demo Device acquire started");
-        DemoDevice.stopped = false;
+        const run = DemoDevice.run = ++DemoDevice.#runs;
 
         const rate = cfg.samplerate;
         const buffer = DemoDevice.pattern(rate);
         const total = cfg.samplecount ?? Infinity;   // no samplecount = run until stop() (triggered capture)
         const chunk = Math.max(1, Math.floor(rate / 100));
+        // the pattern has all 8 channels (1 byte per sample): send only the ones asked for
+        const channels = cfg.channels ?? [0, 1, 2, 3, 4, 5, 6, 7];
+        const repack = makeRepacker(1, channels);
 
         let pos = 0;
         let sent = 0;
 
         const streamChunk = () => {
-            if (DemoDevice.stopped) return;
+            if (DemoDevice.run !== run) return;
 
             const count = Math.min(chunk, total - sent);
 
             if (count <= 0) {
-                DemoDevice.stopped = true;
-                onDone({ samples: sent, samplerate: rate, channels: 8 });
+                DemoDevice.run = 0;
+                onDone({ samples: sent, samplerate: rate, channels: channels.length });
                 return;
             }
 
@@ -108,7 +115,7 @@ export class DemoDevice {
                 pos = (pos + take) % buffer.length;
             }
 
-            onData(tmp, sent);
+            onData(repack.run(tmp), sent);
             sent += count;
 
             const dueMs = sent / rate * 1000;
@@ -124,7 +131,7 @@ export class DemoDevice {
     }
 
     static stop() {
-        DemoDevice.stopped = true;
+        DemoDevice.run = 0;
         console.log("Demo Device acquire stopped");
     }
 }

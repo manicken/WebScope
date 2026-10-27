@@ -25,8 +25,10 @@
     /* ---- capture orchestration ---- */
     let activeSource = null;
     let storage = null;  // LinearStorage | RingStorage the running capture writes to, see CaptureStorage.js
-    let meta = null;     // { samplerate, channelCount } of the running capture
+    let meta = null;     // { samplerate, channelCount, trigger, rows } of the running capture, trigger = sample index or null
     let live = false;    // a capture is streaming in
+    let remoteTrigger = false;  // the source triggers itself and sends the capture once the trigger fired
+    let stopRequested = false;
     let showPending = false;
 
     const liveBuffer = () => (buffer.value?.complete === false ? buffer.value : null);
@@ -37,23 +39,37 @@
         showPending = true;
         requestAnimationFrame(() => {
             showPending = false;
-            if (live && storage.length > 0) setBuffer(storage.liveBuffer(meta, liveBuffer()));
+            if (live && storage.length > 0) setBuffer(storage.liveBuffer(meta, liveBuffer()), meta.rows);
         });
     }
 
     /** The capture ended (done, stopped, or the memory is full): show what was received as a complete buffer. */
     function finish() {
         live = false;
-        if (storage.length > 0) setBuffer(storage.finalBuffer(meta, liveBuffer()));
+        if (storage.length > 0) setBuffer(storage.finalBuffer(meta, liveBuffer()), meta.rows);
         storage = null;
     }
 
-    /** Shows the new data. The channels are recreated only when the channel count changed. */
-    function setBuffer(buf) {
-        if (buf && appState.channels.value.length !== buf.channelCount) {
+    /** Shows the new data. `rows`: the channels it holds (see captureRows), else the channels are
+     *  recreated only when the channel count changed. */
+    function setBuffer(buf, rows = null) {
+        if (rows) {
+            if (appState.channels.value !== rows) appState.channels.set(rows);
+        } else if (buf && appState.channels.value.length !== buf.channelCount) {
             appState.channels.set(makeChannels({ count: buf.channelCount }));
         }
         buffer.set(buf);
+    }
+
+    /** The rows of a capture of `channels` (device Channel objects in bit order): row k = bit k, with
+     *  the device channel's name, color and visible (the same ReactiveValues, so a rename is kept).
+     *  The current rows when they already are these channels. */
+    function captureRows(channels) {
+        if (!Array.isArray(channels) || !(channels[0]?.name instanceof ReactiveValue)) return null;
+        const rows = channels.map((ch, k) => (ch.index === k ? ch : { ...ch, index: k }));
+        const cur = appState.channels.value;
+        const same = rows.length === cur.length && rows.every((r, k) => r.name === cur[k].name && r.index === cur[k].index);
+        return same ? cur : rows;
     }
 
     /** The storage for a capture: Looping keeps the newest samples, the other modes stop when it is full.
@@ -77,22 +93,36 @@
     }
 
     /**
-     * cfg = { mode, samplerate, channels, duration?, memoryBytes, ...source specific }
-     * duration (s) is set for Timer and Trigger; memoryBytes limits Looping and One shot.
+     * cfg = { mode, samplerate, channels, activeChannels?, duration?, memoryBytes, triggerOn?, preTrigger?, postTrigger?, ...source specific }
+     * channels: a count, or the captured channels (device Channel objects, bit k of a sample = channels[k]);
+     * activeChannels: their device indexes when not all channels are captured (the source sends only those).
+     * duration (s) is set for Timer; memoryBytes limits Looping and One shot.
+     * Trigger: triggerOn = { channel, type, pulseLength?, conditions? } with device channel indexes, preTrigger / postTrigger in samples,
+     * see TriggerCapture.js. A source with `handlesTrigger` triggers itself (the backend does it for
+     * WebSocketSource), any other source runs until stopped and is triggered here.
+     * acquisition.state is 'waiting' until the trigger fires, then 'running'.
      */
     function startCapture(source, cfg) {
-        const { mode, samplerate, duration, channels, memoryBytes } = cfg;
-        const total = duration ? Math.max(64, Math.round(samplerate * duration)) : undefined;
+        const { mode, samplerate, duration, channels, activeChannels, memoryBytes, triggerOn, preTrigger = 0, postTrigger = 0 } = cfg;
+        const total = triggerOn ? preTrigger + 1 + postTrigger
+            : duration ? Math.max(64, Math.round(samplerate * duration)) : undefined;
         const channelCount = Array.isArray(channels) ? channels.length : channels;
         if (channelCount > 32) console.warn("channel count capped at 32");
+        let trigger = null;
         try {
             storage = makeStorage({ mode, total, memoryBytes, channelCount });
+            if (triggerOn && !source.handlesTrigger) {
+                trigger = new TriggerCapture({ ...triggerAsBits(triggerOn, activeChannels), preTrigger, sampleType: CaptureBuffer.sampleType(channelCount) });
+            }
         } catch (e) {
-            // e.g. RangeError: more memory than the browser can give one array
-            toast(`Cannot allocate the capture memory: ${e.message}`);
+            // e.g. RangeError: more memory than the browser can give one array; or a trigger on a channel that is not captured
+            storage = null;
+            toast(e instanceof RangeError ? `Cannot allocate the capture memory: ${e.message}` : e.message);
             return;
         }
-        meta = { samplerate, channelCount };
+        remoteTrigger = !!triggerOn && !trigger;
+        stopRequested = false;
+        meta = { samplerate, channelCount, trigger: null, rows: captureRows(channels) };
         live = true;
         appState.view.follow.set(true);
         appState.markers.selected.set(null);
@@ -100,33 +130,78 @@
         appState.selections.selected.set(null);
         appState.selections.list.set([]);
         appState.pointer.measurement.set(null);
-        acquisition.state.set('running');
+        acquisition.state.set(triggerOn ? 'waiting' : 'running');
         activeSource = source;
         activeSource.start(
-            { ...cfg, samplecount:total, channels:channelCount },
+            // the software trigger needs the source to run until it is stopped
+            { ...cfg, samplecount: trigger ? undefined : total, channels:channelCount },
             /* onData: chunks arrive in order, the source's offset is not needed */
             (chunk) => {
                 if (!live) return;
-                const samples = toSamples(chunk, channelCount);
+                let samples = toSamples(chunk, channelCount);
+                if (trigger) {
+                    const wasArmed = !trigger.triggered;
+                    samples = trigger.push(samples);
+                    if (!trigger.triggered) return;
+                    if (wasArmed) triggered(preTrigger);
+                }
                 const written = storage.write(samples);
                 requestShowLive();
+                if (trigger && storage.length === total) {       // pre + trigger + post are complete
+                    activeSource.stop();
+                    finish();
+                    acquisition.state.set('done');
+                    return;
+                }
                 if (written < samples.length) {
                     if (total === undefined) stopCapture();       // one shot: the memory is full
                     else console.warn(`capture overflow: ${samples.length - written} samples more than the ${total} expected`);
                 }
             },
-            /* onDone */
-            () => {
+            /* onDone: info = { samples, samplerate, channels, trigger?, warning?, details? } */
+            (info) => {
                 if (!live) return; // already stopped by the user
+                if (info?.warning) toast(info.warning, info.details);
+                if (remoteTrigger && Number.isInteger(info?.trigger)) meta.trigger = info.trigger;
+                const received = storage.length;
                 finish();
-                acquisition.state.set('done');
+                acquisition.state.set(received > 0 ? 'done' : 'idle');
             },
-            /* onError */
-            (msg) => { live = false; acquisition.message.set(msg); acquisition.state.set('error'); toast(msg); }
+            /* onError: details = the source's extended message, shown in the message log */
+            (msg, details) => { live = false; acquisition.message.set(msg); acquisition.state.set('error'); toast(msg, details); },
+            /* onStatus, from a source that triggers itself: { state: 'armed' | 'triggered' } */
+            (status) => {
+                if (live && remoteTrigger && status.state === 'triggered') triggered(preTrigger);
+            }
         );
     }
 
+    /** The local trigger works on the samples: its channels as bits instead of device indexes. */
+    function triggerAsBits(triggerOn, activeChannels) {
+        const bitOf = (ch) => {
+            const bit = activeChannels ? activeChannels.indexOf(ch) : ch;
+            if (bit < 0) throw new Error(`The trigger uses channel ${ch}, which is not captured`);
+            return bit;
+        };
+        const conditions = Object.fromEntries(Object.entries(triggerOn.conditions ?? {}).map(([ch, level]) => [bitOf(Number(ch)), level]));
+        return { ...triggerOn, channel: bitOf(triggerOn.channel), conditions };
+    }
+
+    /** The trigger fired: it will be at `index` in the capture. */
+    function triggered(index) {
+        meta.trigger = index;
+        acquisition.state.set('running');
+    }
+
     function stopCapture() {
+        // A source that triggers itself sends the capture after the trigger fired: stopping then
+        // makes it send what it has (pre-trigger + trigger + part of the post-trigger), which ends
+        // the capture in onDone. Stopping again does not wait for it any more.
+        if (live && remoteTrigger && meta.trigger !== null && !stopRequested) {
+            stopRequested = true;
+            activeSource.stop();
+            return;
+        }
         activeSource?.stop();
         if (!live) return;
         const received = storage.length;

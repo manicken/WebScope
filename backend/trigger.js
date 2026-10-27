@@ -4,7 +4,9 @@
 // bytes per sample, channel n = bit (n & 7) of byte (n >> 3), exactly what sigrok-cli and DemoDevice emit).
 // No dependency on any driver: startTriggered() only needs an object with start()/stop().
 //
-//   TriggerEngine    finds the trigger sample in a stream of chunks (state survives chunk boundaries)
+//   TriggerEngine    finds the trigger sample in a stream of chunks (state survives chunk boundaries):
+//                    an edge / pulse on one channel, optionally with "other channel conditions"
+//                    (levels other channels must have at the trigger sample)
 //   TriggerCapture   ring buffer for the pre-trigger samples + collection of the post-trigger samples
 //   startTriggered   glue: runs a device continuously, feeds TriggerCapture, delivers the finished capture
 //
@@ -26,8 +28,9 @@ export class TriggerEngine {
      * @param {number} o.channel      bit index of the monitored channel within a sample
      * @param {string} o.type         'L2H' | 'H2L' | 'PulseH' | 'PulseL'
      * @param {number} [o.pulseLength] samples, PulseH / PulseL only
+     * @param {object} [o.conditions]  { channelIndex: 'lo' | 'hi' }, checked at the trigger sample
      */
-    constructor({ unitSize, channel, type, pulseLength = 0 }) {
+    constructor({ unitSize, channel, type, pulseLength = 0, conditions = {} }) {
         this.unit = unitSize;
         this.byteIdx = channel >> 3;
         this.mask = 1 << (channel & 7);
@@ -40,6 +43,22 @@ export class TriggerEngine {
         this.run = 0;        // length of the current level, counted from an observed edge (0 = start unknown)
         this.pos = 0;        // global index of the next sample
         this.fireIndex = -1; // global index of the trigger sample once found
+
+        // conditions as [byte, mask, value] per byte of a sample that has any
+        const cm = new Uint8Array(unitSize), cv = new Uint8Array(unitSize);
+        for (const [ch, level] of Object.entries(conditions)) {
+            const b = Number(ch) >> 3, m = 1 << (Number(ch) & 7);
+            cm[b] |= m;
+            if (level === 'hi') cv[b] |= m;
+        }
+        this.cond = [];
+        for (let b = 0; b < unitSize; b++) if (cm[b]) this.cond.push([b, cm[b], cv[b]]);
+    }
+
+    /** Do the other channels match the conditions in the sample that starts at byte `s`? */
+    condOk(chunk, s) {
+        for (const [b, m, v] of this.cond) if ((chunk[s + b] & m) !== v) return false;
+        return true;
     }
 
     /**
@@ -51,13 +70,14 @@ export class TriggerEngine {
         const { unit, mask } = this;
         const n = (chunk.length / unit) | 0;
         const base = this.pos;
-        let prev = this.prev, run = this.run, o = this.byteIdx, hit = -1;
+        const bi = this.byteIdx;
+        let prev = this.prev, run = this.run, o = bi, hit = -1;
 
         if (this.kind === 'edge') {
             const from = this.from, to = this.to;
             for (let i = 0; i < n; i++, o += unit) {
                 const cur = (chunk[o] & mask) !== 0 ? 1 : 0;
-                if (prev === from && cur === to && base + i >= armedFrom) { hit = i; break; }
+                if (prev === from && cur === to && base + i >= armedFrom && this.condOk(chunk, o - bi)) { hit = i; break; }
                 prev = cur;
             }
         } else {
@@ -70,7 +90,7 @@ export class TriggerEngine {
                 if (prev === -1) run = 0;
                 else if (cur !== prev) run = 1;
                 else if (run > 0) run++;
-                if (cur === level && run === len && base + i >= armedFrom) { hit = i; break; }
+                if (cur === level && run === len && base + i >= armedFrom && this.condOk(chunk, o - bi)) { hit = i; break; }
                 prev = cur;
             }
         }
@@ -186,25 +206,40 @@ export class TriggerCapture {
 
 /* ============================== validation ============================== */
 
-function channelCountOf(msg, info) {
-    const c = msg.channels ?? info.channels;           // number, or array of names / channel objects
-    if (Array.isArray(c)) return c.length;
-    if (Number.isInteger(c) && c > 0) return c;
-    return 0;
+/** Device indexes of the captured channels, in stream order (bit k of a sample = list[k]), see channels.js.
+ *  msg.channels: a list of channel indexes; without it (or with a count / list of names) channels 0 .. n-1. */
+function capturedChannels(msg, info) {
+    const c = msg.channels ?? info.channels;
+    if (Array.isArray(c)) return c.every(Number.isInteger) ? c : c.map((_, i) => i);
+    if (Number.isInteger(c) && c > 0) return Array.from({ length: c }, (_, i) => i);
+    return [];
 }
 
 /** Returns a validated config or throws Error(message). */
 export function parseTriggerConfig(msg, info) {
     const t = msg.triggerOn;
     if (!t || typeof t !== 'object') throw new Error('triggerOn is missing');
-    const channelCount = channelCountOf(msg, info);
+    // the trigger channel and the conditions name device channels: the engine needs their bit in the stream
+    const captured = capturedChannels(msg, info);
+    const channelCount = captured.length;
     if (!channelCount) throw new Error('cannot determine the number of captured channels');
-    if (!Number.isInteger(t.channel) || t.channel < 0 || t.channel >= channelCount) throw new Error('bad trigger channel');
+    const bitOf = (ch) => captured.indexOf(ch);
+    if (!Number.isInteger(t.channel) || bitOf(t.channel) < 0) throw new Error('bad trigger channel: it is not captured');
     if (!TRIGGER_TYPES.includes(t.type)) throw new Error('bad trigger type');
     let pulseLength = 0;
     if (t.type === 'PulseH' || t.type === 'PulseL') {
         pulseLength = t.pulseLength;
         if (!Number.isInteger(pulseLength) || pulseLength < 1) throw new Error('bad pulseLength');
+    }
+    const conditions = {};
+    if (t.conditions !== undefined) {
+        if (!t.conditions || typeof t.conditions !== 'object' || Array.isArray(t.conditions)) throw new Error('bad trigger conditions');
+        for (const [key, level] of Object.entries(t.conditions)) {
+            const ch = Number(key);
+            if (!Number.isInteger(ch) || bitOf(ch) < 0 || ch === t.channel) throw new Error('bad trigger condition channel: it is not captured or it is the trigger channel');
+            if (level !== 'lo' && level !== 'hi') throw new Error('bad trigger condition level');
+            conditions[bitOf(ch)] = level;
+        }
     }
     const preTrigger = msg.preTrigger ?? 0, postTrigger = msg.postTrigger ?? 0;
     if (!Number.isInteger(preTrigger) || preTrigger < 0) throw new Error('bad preTrigger');
@@ -212,7 +247,7 @@ export function parseTriggerConfig(msg, info) {
     if (msg.samplerate !== undefined && !(msg.samplerate > 0)) throw new Error('bad samplerate');
     const unitSize = Math.ceil(channelCount / 8);
     if ((preTrigger * 2 + 1 + postTrigger) * unitSize > MAX_CAPTURE_BYTES) throw new Error('pre/post trigger too large');
-    return { unitSize, channel: t.channel, type: t.type, pulseLength, preTrigger, postTrigger, channelCount, samplerate: msg.samplerate };
+    return { unitSize, channel: bitOf(t.channel), type: t.type, pulseLength, conditions, preTrigger, postTrigger, channelCount, samplerate: msg.samplerate };
 }
 
 /* ============================== glue to a device ============================== */
@@ -223,7 +258,7 @@ export function parseTriggerConfig(msg, info) {
  *
  *   onData(chunk, offsetInSamples)           the finished capture, in pieces, after the post-trigger is complete
  *   onDone({samples, samplerate, channels, trigger, stopped, ok})   trigger = sample index of the trigger
- *   onError(message)
+ *   onError(message, details?)               details: the device's extended message, passed on
  *   onStatus({state:'armed'|'triggered'})    optional
  *
  * @returns {{stop():void}|null}  null when the config was rejected (onError has been called)
@@ -277,7 +312,7 @@ export function startTriggered(info, msg, { onData, onDone, onError, onStatus })
             if (!userStopped) onError('capture ended before the trigger fired');
         },
         /* onError */
-        (message) => { if (finished) return; finished = true; onError(message); },
+        (message, details) => { if (finished) return; finished = true; onError(message, details); },
     );
 
     return {

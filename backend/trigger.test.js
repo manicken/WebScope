@@ -193,3 +193,35 @@ test('startTriggered rejects bad configuration', () => {
     assert.equal(dev.started, null);
     assert.ok(parseTriggerConfig({ triggerOn: { channel: 1, type: 'H2L' }, channels: ['D0', 'D1'] }, dev));
 });
+
+test('other channel conditions: the trigger only fires while the other channels match', () => {
+    // ch0 rises at 2, 5 and 8; ch1 is high at 5 and 8, ch2 is high only at 8
+    const lv = [0, 0, 1, 0, 0, 3, 0, 0, 7, 0];
+    let cap = new TriggerCapture({ unitSize: 1, channel: 0, type: 'L2H', conditions: { 1: 'hi' }, preTrigger: 0, postTrigger: 0 });
+    assert.equal(cap.push(Uint8Array.from(lv)), true);
+    assert.equal(cap.engine.fireIndex, 5);
+    cap = new TriggerCapture({ unitSize: 1, channel: 0, type: 'L2H', conditions: { 1: 'hi', 2: 'hi' }, preTrigger: 0, postTrigger: 0 });
+    cap.push(Uint8Array.from(lv));
+    assert.equal(cap.engine.fireIndex, 8);
+    cap = new TriggerCapture({ unitSize: 1, channel: 0, type: 'L2H', conditions: { 1: 'lo' }, preTrigger: 0, postTrigger: 0 });
+    cap.push(Uint8Array.from(lv));
+    assert.equal(cap.engine.fireIndex, 2);
+});
+
+test('other channel conditions in another byte of the sample, pulse trigger', () => {
+    // 2 bytes per sample, trigger PulseL 2 on ch0, condition ch12 (bit 4 of byte 1) high
+    const s = (b0, b1) => [b0, b1];
+    const bytes = [...s(1, 0), ...s(0, 0), ...s(0, 0), ...s(1, 0), ...s(0, 0x10), ...s(0, 0x10), ...s(1, 0)];
+    const cap = new TriggerCapture({ unitSize: 2, channel: 0, type: 'PulseL', pulseLength: 2, conditions: { 12: 'hi' }, preTrigger: 1, postTrigger: 0 });
+    assert.equal(cap.push(Uint8Array.from(bytes)), true);
+    assert.equal(cap.engine.fireIndex, 5);
+});
+
+test('parseTriggerConfig validates the conditions', () => {
+    const dev = { channels: 8 };
+    const ok = parseTriggerConfig({ triggerOn: { channel: 0, type: 'L2H', conditions: { 3: 'hi', '4': 'lo' } } }, dev);
+    assert.deepEqual(ok.conditions, { 3: 'hi', 4: 'lo' });
+    for (const conditions of [{ 0: 'hi' }, { 8: 'hi' }, { 1: 'high' }, { x: 'lo' }, [], null]) {
+        assert.throws(() => parseTriggerConfig({ triggerOn: { channel: 0, type: 'L2H', conditions } }, dev), JSON.stringify(conditions));
+    }
+});

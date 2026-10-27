@@ -9,7 +9,8 @@
  *                      appended in order to the capture buffer
  *   server -> client: {"type":"done","samples":N} | {"type":"error","message":"..."}
  *
- * Selecting a device sets appState.channels and appState.captureSettings from the device's info.
+ * Selecting a device sets appState.deviceChannels, appState.channels and appState.captureSettings
+ * from the device's info; all its channels are active.
  */
 (function (WS) {
     'use strict';
@@ -47,16 +48,24 @@
         if (!device || device === selectedDevice) return;
         selectedDevice = device;
 
-        appState.channels.set(makeChannels({items:device.channels}));
+        const channels = makeChannels({items:device.channels});
+        appState.deviceChannels.set(channels);
+        appState.channels.set(channels);
         const s = appState.captureSettings;
+        s.activeChannels.set(channels.map((ch) => ch.index));
         s.deviceName.set(device.name);
         s.samplerates.set(device.samplerates);
-        s.samplerate.set(device.samplerates.at(-1));
-        s.mode.set('looping');
-        s.trigger.set({ channel: 0, type: 'L2H', pulseWidth: 1e-5, conditions: {} });
-        s.preTrigger.set(1);    // seconds
-        s.postTrigger.set(1);
-        s.memoryMB.set(1024);
+        s.samplerate.set(device.defaultSamplerate ?? device.samplerates.at(-1));
+
+        if (s.trigger.value.channel >= device.channels.length) {
+            s.trigger.set({ ...s.trigger.value, channel: 0 });
+        }
+
+        //s.mode.set('looping');
+        //s.trigger.set({ channel: 0, type: 'L2H', pulseWidth: 1e-5, conditions: {} });
+        //s.preTrigger.set(1);    // seconds
+        //s.postTrigger.set(1);
+        //s.memoryMB.set(1024);
     }
 
     function refresh() {

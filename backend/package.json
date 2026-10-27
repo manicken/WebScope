@@ -7,13 +7,14 @@
   "scripts": {
     "start": "node index.js",
     "astart": "node index.js --open",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "open": "^11.0.4",
+    "serialport": "^13.0.0",
     "ws": "^8.22.0"
   }
 }

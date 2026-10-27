@@ -1,8 +1,12 @@
 class WebSocketSource {
+    /** The backend triggers itself (backend/trigger.js): it sends only the finished capture. */
+    static handlesTrigger = true;
+
     static #ws = null;
     static #onData = null;
     static #onDone = null;
     static #onError = null;
+    static #onStatus = null;
     static #cfg = null;
     static #offset = 0;
 
@@ -94,10 +98,16 @@ class WebSocketSource {
                     WebSocketSource.#onDone({
                         samples: msg.samples,
                         samplerate: WebSocketSource.#cfg.samplerate,
-                        channels: Array.isArray(WebSocketSource.#cfg.channels)?WebSocketSource.#cfg.channels.length:WebSocketSource.#cfg.channels
+                        channels: Array.isArray(WebSocketSource.#cfg.channels)?WebSocketSource.#cfg.channels.length:WebSocketSource.#cfg.channels,
+                        trigger: msg.trigger,   // sample index of the trigger (triggered capture only)
+                        warning: msg.warning,   // e.g. the device sent fewer samples than asked for
+                        details: msg.details,   // the warning's extended message, for the message log
                     });
+                } else if (msg.type === 'trigger') {
+                    // triggered capture: {state:'armed'} then {state:'triggered', sample}
+                    WebSocketSource.#onStatus?.(msg);
                 } else if (msg.type === 'error') {
-                    WebSocketSource.#onError(msg.message);
+                    WebSocketSource.#onError(msg.message, msg.details);
                 } else {
                     console.log("unknown type for: " + ev.data);
                 }
@@ -121,18 +131,26 @@ class WebSocketSource {
             type: 'start',
             deviceId: window.WS.sources.getSelectedId(),
             samplerate: cfg.samplerate,
-            //channels: Array.from({ length: cfg.channels }, (_, i) => `D${i}`),
+            // device channel indexes to capture; without it the backend captures all channels
+            ...(cfg.activeChannels && { channels: cfg.activeChannels }),
             samplecount: cfg.samplecount,
+            // triggered capture, see backend/trigger.js
+            ...(cfg.triggerOn && {
+                triggerOn: cfg.triggerOn,
+                preTrigger: cfg.preTrigger,
+                postTrigger: cfg.postTrigger,
+            }),
         }));
     }
 
-    static start(cfg, onData, onDone, onError) {
+    static start(cfg, onData, onDone, onError, onStatus) {
         console.trace(cfg);
         WebSocketSource.#offset = 0;
         WebSocketSource.#cfg = cfg;
         WebSocketSource.#onData = onData;
         WebSocketSource.#onDone = onDone;
         WebSocketSource.#onError = onError;
+        WebSocketSource.#onStatus = onStatus;
         WebSocketSource.connect();
 
         const ws = WebSocketSource.#ws;

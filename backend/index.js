@@ -23,10 +23,13 @@ import { fileURLToPath } from 'node:url';
 import { DemoDevice } from './DemoDevice.js'
 import { scanSigrok } from './SigrokDevice.js';
 import { startTriggered } from './trigger.js';
+import { resolveChannels } from './channels.js';
 
 import { WebSocketServer, WebSocket } from 'ws';
 
 import open from 'open';
+
+import readline from 'node:readline';
 
 const args = process.argv.slice(2);
 
@@ -315,36 +318,42 @@ server.on('connection', (ws) => {
             const msg = JSON.parse(data);
 
             if (msg.type === 'start') {
-                console.log(msg);
+                console.log({msg});
                 let device = devices.get(msg.deviceId);
-                
+
+                // a new start replaces whatever this client still had running
+                sessions.get(ws)?.stop();
+                sessions.delete(ws);
+
                 const onData = (chunk, offset) => {
                     ws.send(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength));
                 };
-                const onDone = (info) => { sendTo(ws, {type:"done", ...info}); };
-                const onError = (m) => {
-                    sendTo(ws, {type:"error", message:m});
+                const onDone = (info) => { sendTo(ws, {type:"done", ...info, channels: msg.channels}); };
+                // details: the device's extended message (e.g. sigrok-cli's whole stderr), shown in the frontend's message log
+                const onError = (m, details) => {
+                    sendTo(ws, {type:"error", message:m, ...(details && { details })});
                     console.log("Error: " + m);
                 };
 
+                if (!device) { onError('unknown device'); return; }
+                // the devices always get the channel list: the one asked for, or all channels (see channels.js)
+                try { msg.channels = resolveChannels(msg, device); }
+                catch (err) { onError(err.message); return; }
+
                 if (msg.triggerOn) {
                     // triggered capture: the device runs continuously, trigger.js decides what is kept
-                    if (!device) onError('unknown device');
-                    else {
-                        const handle = startTriggered(device, msg, {
-                            onData, onDone, onError,
-                            onStatus: (s) => sendTo(ws, { type: 'trigger', ...s }),   // {state:'armed'} / {state:'triggered', sample}
-                        });
-                        if (handle) sessions.set(ws, handle); else sessions.delete(ws);
-                    }
+                    const handle = startTriggered(device, msg, {
+                        onData, onDone, onError,
+                        onStatus: (s) => sendTo(ws, { type: 'trigger', ...s }),   // {state:'armed'} / {state:'triggered', sample}
+                    });
+                    if (handle) sessions.set(ws, handle); else sessions.delete(ws);
                 } else {
-                    sessions.delete(ws);
-                    device?.deviceKind.start(msg, onData, onDone, onError);
+                    device.deviceKind.start(msg, onData, onDone, onError);
                 }
             }
 
             if (msg.type === 'stop') {
-                console.log(msg);
+                console.log({msg});
                 let device = devices.get(msg.deviceId);
                 const session = sessions.get(ws);
                 if (session) { session.stop(); sessions.delete(ws); }
@@ -358,4 +367,40 @@ server.on('connection', (ws) => {
             console.error(ex);
         }
     });
+});
+
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    prompt: 'WebScope> '
+});
+
+rl.prompt();
+
+rl.on('line', (line) => {
+    const command = line.trim().toLowerCase();
+
+    switch (command) {
+        case 'help':
+            console.log('Commands: help, e/exit');
+            break;
+
+        case 'e':
+        case 'exit':
+            console.log('Stopping WebScope...');
+            rl.close();
+            server.close(() => {
+                process.exit(0);
+            });
+            return;
+
+        default:
+            console.log(`Unknown command: ${command}`);
+    }
+
+    rl.prompt();
+});
+
+rl.on('close', () => {
+    console.log('Console closed.');
 });

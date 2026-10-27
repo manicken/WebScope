@@ -178,6 +178,12 @@
     },
     render: (c) => WS.dataTable.renderDataTable(c),
   });
+  register({
+    id: 'messages', title: 'Messages',
+    icon: svg('<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>'),
+    watch: (changed) => WS.toastLog.watch(changed),
+    render: (c) => WS.toastLog.render(c),
+  });
 
   WS.rightpanel = { init, section, register, open, close, toggle };
 })(window.WS = window.WS || {});

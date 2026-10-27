@@ -1,7 +1,10 @@
-// SigrokDevice.js - use sigrok-cli from the Node.js backend (no native addon needed).
+// SigrokDevice.js - use sigrok-cli from the Node.js backend (no native addon needed; listing the USB serial ports for sigrok-pico uses the serialport package).
 //
-//   scanSigrok()  -> Promise<info[]>   one info object per device found by `sigrok-cli --scan`
+//   scanSigrok()  -> Promise<info[]>   one info object per device found by `sigrok-cli --scan`,
+//                                      plus sigrok-pico boards found on the USB serial ports
 //   info.deviceKind.start(msg, onData, onDone, onError) / .stop()   (same shape as DemoDevice)
+//   onError(message, details) and onDone({ ..., warning?, details? }): details is the extended message
+//   for the frontend's message log (the sigrok-cli command line, exit code and its whole stderr)
 //
 // Only logic channels are handled (raw packed bytes via `-O binary`).
 // sigrok-cli is located automatically (env SIGROK_CLI, PATH, next to this file, usual install folders).
@@ -10,6 +13,7 @@ import { spawn, execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { makeRepacker } from './channels.js';
 
 // ---- locating sigrok-cli ----------------------------------------------------
 // Tried in this order, the first one that answers `--version` wins:
@@ -65,6 +69,13 @@ export async function resolveSigrokCli() {
 // sigrok-cli --scan does not report channel types. Treat D0, D1, ... / 0, 1, ... as logic.
 const isLogicChannel = (name) => /^D?\d+$/.test(name);
 
+// How sigrok-cli's binary output holds the enabled channels (-C) depends on the driver (measured):
+//   raw     the device's own sample: channel n = bit n, ceil(all logic channels / 8) bytes, the bits of
+//           disabled channels are not cleared (fx2lafw; sigrok-pico, which always sends 4 bytes) -
+//           libsigrok's own convention, so the default
+//   packed  only the enabled channels: the k-th enabled channel = bit k, ceil(enabled / 8) bytes (demo)
+const PACKED_DRIVERS = ['demo'];
+
 class SigrokKind {
     constructor(driverSpec, channels) {
         this.driverSpec = driverSpec;   // what goes after -d, e.g. "demo" or "fx2lafw:conn=1.5"
@@ -84,16 +95,17 @@ class SigrokKind {
             if (!Number.isInteger(msg.samplerate) || msg.samplerate <= 0) return onError('SigrokDevice - bad samplerate');
             args.push('--config', `samplerate=${msg.samplerate}`);
         }
-        if (!msg.channels) {
-            console.log("warning msg.channels is undefined - using defaults from: ", this.channels);
-        } 
-        const wanted = msg.channels ?? this.channels.filter(isLogicChannel);
-        console.log(wanted);
-        if (!Array.isArray(wanted) || wanted.length === 0 ||
-            !wanted.every((c) => this.channels.includes(c) && isLogicChannel(c))) {
+        // msg.channels: indexes into the logic channels (= the device info's channels), all when missing
+        const logic = this.channels.filter(isLogicChannel);
+        const indexes = msg.channels ?? logic.map((_, i) => i);
+        if (!Array.isArray(indexes) || indexes.length === 0 || !indexes.every((i) => Number.isInteger(i) && logic[i] !== undefined)) {
             return onError('SigrokDevice - bad channel list');
         }
-        args.push('-C', wanted.join(','));
+        const driver = this.driverSpec.split(':')[0];
+        if (driver === PICO_DRIVER && !indexes.every((ch, k) => ch === k)) {
+            return onError(`sigrok-pico can only capture channels that start at ${logic[0]} and have no gaps, e.g. ${logic[0]}-${logic[7]}`);
+        }
+        args.push('-C', indexes.map((i) => logic[i]).join(','));
 
         if (msg.samplecount !== undefined) {
             if (!Number.isInteger(msg.samplecount) || msg.samplecount <= 0) return onError('SigrokDevice - bad samplecount');
@@ -103,8 +115,10 @@ class SigrokKind {
         }
         args.push('-O', 'binary');
 
-        // sigrok packs logic channels into ceil(n/8) bytes per sample
-        const unitSize = Math.ceil(wanted.length / 8);
+        // what sigrok-cli sends, and how to turn it into the browser's format (only the enabled channels, see channels.js)
+        const packed = PACKED_DRIVERS.includes(driver);
+        const unitSize = Math.ceil((packed ? indexes.length : logic.length) / 8);   // bytes per sample from sigrok-cli
+        const repack = makeRepacker(unitSize, packed ? indexes.map((_, k) => k) : indexes);
 
         // stdin must stay OPEN ('pipe'): sigrok-cli quits immediately when stdin is closed/EOF,
         // which is what stdio 'ignore' (/dev/null) gives it.
@@ -117,6 +131,12 @@ class SigrokKind {
         let leftover = Buffer.alloc(0);
         let stderr = '';
         this.stopRequested = () => { stopped = true; };
+        // the extended message for the frontend's message log: what was run and everything sigrok-cli said
+        const details = (code) => [
+            `"${sigrokCli}" ${args.join(' ')}`,
+            `exit code: ${code}`,
+            stderr.trim() || '(nothing on stderr)',
+        ].join('\n\n');
 
         proc.stdout.on('data', (data) => {
             // chunk boundaries are arbitrary: only forward whole samples
@@ -137,28 +157,38 @@ class SigrokKind {
 
             const chunk = buf.subarray(0, bytes);
 
-            onData(chunk, totalBytes / unitSize);
+            onData(repack.run(chunk), totalBytes / unitSize);
             totalBytes += bytes;
         });
 
-        proc.stderr.on('data', (d) => { stderr = (stderr + d).slice(-2000); });
+        proc.stderr.on('data', (d) => { stderr = (stderr + d).slice(-20000); });
 
         proc.on('error', (err) => {   // e.g. ENOENT when sigrok-cli is not installed / not on PATH
             failed = true;
             this.proc = null;
-            onError(`SigrokDevice - could not run ${sigrokCli}: ${err.message}`);
+            onError(`SigrokDevice - could not run ${sigrokCli}: ${err.message}`, `"${sigrokCli}" ${args.join(' ')}\n\n${err.stack ?? err.message}`);
             onDone({ deviceId: this.driverSpec, samples: 0, stopped: false, ok: false });
         });
 
-        proc.on('close', (code) => {
+        proc.on('close', async (code) => {
             if (failed) return;
+            // killed in the middle of a capture, a sigrok-pico keeps sending for a few seconds and does
+            // not answer until it has finished: stop and reset it first, so it can be used again directly
+            if (stopped && this.driverSpec.startsWith(PICO_DRIVER + ':')) await resetPico(this.driverSpec);
             this.proc = null;
-            if (code !== 0 && !stopped) onError('SigrokDevice - ' + stderr.trim() || `sigrok-cli exited with code ${code}`);
+            if (code !== 0 && !stopped) onError('SigrokDevice - ' + (errorText(stderr) || `sigrok-cli exited with code ${code}`), details(code));
+            const samples = totalBytes / unitSize;
+            // some devices end early without an error (sigrok-pico: its memory is full, or it cannot send the data fast enough)
+            const short = !stopped && code === 0 && msg.samplecount !== undefined && samples < msg.samplecount;
             onDone({
                 deviceId: this.driverSpec,
-                samples: totalBytes / unitSize,
+                samples,
                 stopped,
                 ok: stopped || code === 0,
+                ...(short && {
+                    warning: `The device sent only ${samples} of ${msg.samplecount} samples: use a lower samplerate or a shorter capture`,
+                    details: details(code),
+                }),
             });
         });
     }
@@ -167,6 +197,31 @@ class SigrokKind {
         if (!this.proc) return;
         this.stopRequested?.();
         this.proc.kill();   // SIGTERM on Linux, terminates the process on Windows
+    }
+}
+
+/** sigrok-cli's error message without its debug lines (sigrok-pico prints "Drain reads" on every run). */
+function errorText(stderr) {
+    const lines = stderr.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const plain = lines.filter((l) => !l.startsWith('sr: '));
+    return (plain.length ? plain : lines.filter((l) => !/Drain reads/.test(l))).join('\n');
+}
+
+/** Stop a sigrok-pico's stream ('+') and reset it ('*'), the commands its sigrok driver uses. */
+async function resetPico(driverSpec) {
+    const port = driverSpec.match(/:conn=([^:]+)/)?.[1];
+    if (!port) return;
+    try {
+        const { SerialPort } = await import('serialport');
+        const sp = new SerialPort({ path: port, baudRate: 115200 });
+        await new Promise((resolve, reject) => sp.once('open', resolve).once('error', reject));
+        sp.on('data', () => {});   // throw away what the board still sends
+        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+        sp.write('+'); await sleep(200);
+        sp.write('*'); await sleep(300);
+        await new Promise((resolve) => sp.close(resolve));
+    } catch (err) {
+        console.warn(`Sigrok: could not reset the sigrok-pico on ${port}:`, err.message);
     }
 }
 
@@ -184,86 +239,148 @@ async function run(args) {
 //   The following devices were found:
 //   demo - Demo device with 13 channels: D0 D1 D2 ...
 //   fx2lafw:conn=1.5 - Saleae Logic with 8 channels: D0 D1 ...
+function parseScanLines(out) {
+    const found = [];
+    for (const line of out.split(/\r?\n/)) {
+        const m = line.match(/^(\S+) - (.+)$/);
+        if (!m) continue;
+        const [, spec, rest] = m;
+        const d = rest.match(/^(.*?) with (\d+) channels?: (.*)$/);
+        found.push({ spec, name: d ? d[1] : rest, channels: d ? d[3].trim().split(/\s+/) : [] });
+    }
+    return found;
+}
+
+// ---- sigrok-pico (Raspberry Pi Pico running the sigrok-pico firmware) -------
+// It is a USB serial device: sigrok only probes it when it is given the port (conn=COM5,
+// conn=/dev/ttyACM0, ...), and its serial scan cannot tell which port is a Pico. So the USB
+// serial ports are listed first (vendor / product id), and sigrok then probes only those. The
+// driver asks the board to identify itself, so a Pico running other firmware is not listed.
+const PICO_DRIVER = 'raspberrypi-pico';
+const PICO_USB_IDS = [{ vendorId: '2e8a', productId: '000a' }];   // Raspberry Pi, Pico SDK USB serial
+
+async function picoPorts() {
+    let SerialPort;
+    try {
+        ({ SerialPort } = await import('serialport'));
+    } catch {
+        console.warn('Sigrok: the serialport package is not installed (npm install), sigrok-pico devices are not scanned');
+        return [];
+    }
+    const ports = await SerialPort.list();
+    return ports
+        .filter((p) => PICO_USB_IDS.some((id) =>
+            p.vendorId?.toLowerCase() === id.vendorId && p.productId?.toLowerCase() === id.productId))
+        .map((p) => p.path);
+}
+
+async function scanPicos() {
+    const found = [];
+    for (const port of await picoPorts()) {
+        const spec = `${PICO_DRIVER}:conn=${port}`;
+        try {
+            // the scan line says just "raspberrypi-pico": the port has to stay in the spec
+            for (const dev of parseScanLines(await run(['-d', spec, '--scan']))) {
+                found.push({ ...dev, spec, name: `${dev.name} (${port})` });
+            }
+        } catch (err) {
+            // e.g. the port is in use (a capture is running) or the board has other firmware
+            console.warn(`Sigrok: no sigrok-pico on ${port}:`, err.message);
+        }
+    }
+    return found;
+}
+
+/** Device info for the browser, from `--show` of one device. */
+async function describe({ spec, name, channels }) {
+    const deviceInfoOut = await run(['-d', spec, '--show']);
+    const deviceInfoLines = deviceInfoOut.split(/\r?\n/);
+    const samplerates = [];
+    let defaultSamplerate;   // the rate the device is set to now, marked "(current)" in the list
+    let li = 0;
+    for (; li < deviceInfoLines.length; li++) {
+        if (deviceInfoLines[li].trim() === 'samplerate - supported samplerates:')
+        {
+            li++;
+            //console.log('found sampleRates');
+            break;
+        }
+    }
+    for (; li < deviceInfoLines.length; li++) {
+        let line = deviceInfoLines[li];
+        //console.log("scanning:" + line);
+        let currentEntryMaybeIndex = line.indexOf('(current)');
+        const isCurrent = currentEntryMaybeIndex != -1;
+        if (isCurrent) {
+            line = line.substring(0, currentEntryMaybeIndex);
+        }
+        line = line.trim();
+        currentEntryMaybeIndex = line.indexOf('Hz');
+        if (currentEntryMaybeIndex != -1) {
+            currentEntryMaybeIndex--;
+            let prefix = line[currentEntryMaybeIndex];
+            let mult = 1;
+            if (prefix >= '0' && prefix <= '9') {
+                currentEntryMaybeIndex++;
+            } else if (prefix == 'k' || prefix == 'K') {
+                mult = 1_000;
+            } else if (prefix == 'M') {
+                mult = 1_000_000;
+            } else if (prefix == 'G') {
+                mult = 1_000_000_000;
+            } // not sure there is any hobby logic analyzer that support terahertz hehe
+            samplerates.push(Math.round(Number(line.substring(0, currentEntryMaybeIndex).trim())*mult));
+            if (isCurrent) defaultSamplerate = samplerates.at(-1);
+            //sampleRates.push(line.substring(0, line.length-3));
+        } else {
+            break;
+        }
+    }
+    // some drivers give a range instead of a list (the demo driver: "1 Hz - 1 GHz in steps of 1 Hz"),
+    // without a "(current)" mark: ask for the current rate, which --get prints in Hz, e.g. "200000"
+    if (defaultSamplerate === undefined) {
+        try {
+            const rate = Number((await run(['-d', spec, '--get', 'samplerate'])).trim());
+            if (Number.isInteger(rate) && rate > 0) defaultSamplerate = rate;
+        } catch (err) {
+            console.warn(`Sigrok: could not get the samplerate of ${spec}:`, err.message);
+        }
+    }
+    let triggerOptions = [];
+    let triggerOptionsSearchText = 'Supported triggers:';
+    for (li = 0; li < deviceInfoLines.length; li++) {
+        let line = deviceInfoLines[li].trim();
+        if (line.startsWith(triggerOptionsSearchText)) {
+            line = line.substring(triggerOptionsSearchText.length).trim();
+            triggerOptions = line.split(' ');
+            break;
+        }
+    }
+
+    const info = {
+        id: 'sigrok:' + spec,
+        name,
+        samplerates,
+        defaultSamplerate,
+        triggerOptions,
+        driver: spec.split(':')[0],
+        channels: channels.filter(isLogicChannel).map((n, i) => ({ index: i, name: n, type: 'logic' })),
+    };
+    //console.log(info);
+    // non-enumerable so JSON.stringify(info) sends it to the browser without the kind object
+    Object.defineProperty(info, 'deviceKind', {
+        value: new SigrokKind(spec, channels),
+        enumerable: false,
+    });
+    return info;
+}
+
 export async function scanSigrok(driver /* optional, e.g. "fx2lafw" */) {
     try {
-        const out = await run(driver ? ['-d', driver, '--scan'] : ['--scan']);
-        const outLines = out.split(/\r?\n/);
+        const found = driver === PICO_DRIVER ? [] : parseScanLines(await run(driver ? ['-d', driver, '--scan'] : ['--scan']));
+        if (!driver || driver === PICO_DRIVER) found.push(...await scanPicos());
         const devices = [];
-        for (const line of outLines) {
-            const m = line.match(/^(\S+) - (.+)$/);
-            if (!m) continue;
-            const [, spec, rest] = m;
-            const d = rest.match(/^(.*?) with (\d+) channels?: (.*)$/);
-            const name = d ? d[1] : rest;
-            const channels = d ? d[3].trim().split(/\s+/) : [];
-
-            const deviceInfoOut = await run(['-d', spec, '--show']);
-            const deviceInfoLines = deviceInfoOut.split(/\r?\n/);
-            const samplerates = [];
-            let li = 0;
-            for (; li < deviceInfoLines.length; li++) {
-                if (deviceInfoLines[li].trim() === 'samplerate - supported samplerates:')
-                {
-                    li++;
-                    //console.log('found sampleRates');
-                    break;
-                }
-            }
-            for (; li < deviceInfoLines.length; li++) {
-                let line = deviceInfoLines[li];
-                //console.log("scanning:" + line);
-                let currentEntryMaybeIndex = line.indexOf('(current)');
-                if (currentEntryMaybeIndex != -1) {
-                    line = line.substring(0, currentEntryMaybeIndex);
-                }
-                line = line.trim();
-                currentEntryMaybeIndex = line.indexOf('Hz');
-                if (currentEntryMaybeIndex != -1) {
-                    currentEntryMaybeIndex--;
-                    let prefix = line[currentEntryMaybeIndex];
-                    let mult = 1;
-                    if (prefix >= '0' && prefix <= '9') {
-                        currentEntryMaybeIndex++;
-                    } else if (prefix == 'k' || prefix == 'K') {
-                        mult = 1_000;
-                    } else if (prefix == 'M') {
-                        mult = 1_000_000;
-                    } else if (prefix == 'G') {
-                        mult = 1_000_000_000;
-                    } // not sure there is any hobby logic analyzer that support terahertz hehe
-                    samplerates.push(Number(line.substring(0, currentEntryMaybeIndex).trim())*mult);
-                    //sampleRates.push(line.substring(0, line.length-3));
-                } else {
-                    break;
-                }
-            }
-            let triggerOptions = [];
-            let triggerOptionsSearchText = 'Supported triggers:';
-            for (li = 0; li < deviceInfoLines.length; li++) {
-                let line = deviceInfoLines[li].trim();
-                if (line.startsWith(triggerOptionsSearchText)) {
-                    line = line.substring(triggerOptionsSearchText.length).trim();
-                    triggerOptions = line.split(' ');
-                    break;
-                }
-            }
-                    
-            const info = {
-                id: 'sigrok:' + spec,
-                name,
-                samplerates,
-                triggerOptions,
-                driver: spec.split(':')[0],
-                channels: channels.filter(isLogicChannel).map((n, i) => ({ index: i, name: n, type: 'logic' })),
-            };
-            console.log(info);
-            // non-enumerable so JSON.stringify(info) sends it to the browser without the kind object
-            Object.defineProperty(info, 'deviceKind', {
-                value: new SigrokKind(spec, channels),
-                enumerable: false,
-            });
-            devices.push(info);
-        }
+        for (const dev of found) devices.push(await describe(dev));
         return devices;
     } catch (err) {
         console.warn('Sigrok scan failed:', err);

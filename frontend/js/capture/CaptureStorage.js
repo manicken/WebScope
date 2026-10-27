@@ -11,7 +11,7 @@
  *   liveBuffer(meta, prev)    CaptureBuffer (complete:false) showing the data so far; `prev` is the
  *                             previous live buffer
  *   finalBuffer(meta, prev)   plain linear CaptureBuffer (complete:true), when the capture ended
- * meta = { samplerate, channelCount }
+ * meta = { samplerate, channelCount, trigger }   trigger = sample index of the trigger, or null
  * `type` is the array type of one sample (Uint8Array for up to 8 channels, see CaptureBuffer.sampleType),
  * capacities are in samples.
  */
@@ -38,13 +38,13 @@ class LinearStorage {
         return n;
     }
 
-    liveBuffer({ samplerate, channelCount }, previous) {
+    liveBuffer({ samplerate, channelCount, trigger = null }, previous) {
         // a view, not a copy: a frame only costs the chunks that arrived since the last one
-        return new CaptureBuffer(this.samples.subarray(0, this.length), samplerate, channelCount, null, { complete: false, previous });
+        return new CaptureBuffer(this.samples.subarray(0, this.length), samplerate, channelCount, trigger, { complete: false, previous });
     }
 
-    finalBuffer({ samplerate, channelCount }, previous) {
-        return new CaptureBuffer(this.samples.slice(0, this.length), samplerate, channelCount, null, { previous });
+    finalBuffer({ samplerate, channelCount, trigger = null }, previous) {
+        return new CaptureBuffer(this.samples.slice(0, this.length), samplerate, channelCount, trigger, { previous });
     }
 }
 

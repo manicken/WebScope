@@ -149,6 +149,7 @@ let mainMenuItems = [
 
     let menu = createMenu(document.getElementById('mainMenu'), mainMenuItems);
 
+
     /*
     let test = {hello:true};
     let checkbox = createNewElement('input', {type:'checkbox', checked:test.hello});

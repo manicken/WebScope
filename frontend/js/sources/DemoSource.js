@@ -109,27 +109,32 @@ class DemoSource {
         return w.render({rate});
     }
 
-    static stopped = false;
+    // id of the running acquisition, 0 = stopped. A stream loop ends as soon as it is not the
+    // current run, so a stop() directly followed by a start() never leaves two loops running.
+    static run = 0;
+    static #runs = 0;
 
     static start(cfg, onData, onDone) {
-        DemoSource.stopped = false;
+        const run = DemoSource.run = ++DemoSource.#runs;
 
         const rate = cfg.samplerate;
         const buffer = new Uint32Array(DemoSource.pattern(rate).buffer);
         const total = cfg.samplecount??Number.MAX_VALUE;
         console.log({total, samplecount:cfg.samplecount});
         const chunk = Math.max(1, Math.floor(rate / 100));
+        // the pattern has all channels: send only the active ones (bit k = cfg.activeChannels[k])
+        const pick = cfg.activeChannels ? DemoSource.picker(cfg.activeChannels) : null;
 
         let pos = 0;
         let sent = 0;
 
         const streamChunk = () => {
-            if (DemoSource.stopped) return;
+            if (DemoSource.run !== run) return;
 
             const count = Math.min(chunk, total - sent);
 
             if (count <= 0) {
-                DemoSource.stopped = true;
+                DemoSource.run = 0;
                 onDone({
                     samples: sent,
                     samplerate: rate,
@@ -150,7 +155,7 @@ class DemoSource {
                 pos = (pos + take) % buffer.length;
             }
 
-            onData(tmp, sent);
+            onData(pick ? pick(tmp) : tmp, sent);
             sent += count;
 
             const dueMs = sent / rate * 1000;
@@ -164,7 +169,26 @@ class DemoSource {
         streamChunk();
     }
 
+    /** A function that keeps the given channels of 32-bit samples: bit k of the result = bit bits[k]. */
+    static picker(bits) {
+        // per byte of a sample: its 256 values -> the result bits they set
+        const luts = [0, 1, 2, 3].map(() => new Uint32Array(256));
+        bits.forEach((b, k) => {
+            const lut = luts[b >> 3], m = 1 << (b & 7);
+            for (let v = 0; v < 256; v++) if (v & m) lut[v] |= 2 ** k;
+        });
+        const [l0, l1, l2, l3] = luts;
+        return (src) => {
+            const out = new Uint32Array(src.length);
+            for (let i = 0; i < src.length; i++) {
+                const v = src[i];
+                out[i] = l0[v & 255] | l1[(v >>> 8) & 255] | l2[(v >>> 16) & 255] | l3[v >>> 24];
+            }
+            return out;
+        };
+    }
+
     static stop() {
-        DemoSource.stopped = true;
+        DemoSource.run = 0;
     }
 }
