@@ -83,10 +83,15 @@
     }
 
     /** One value per sample. A source sends either that (DemoSource) or raw bytes (WebSocketSource),
-     *  where a sample is 1, 2 or 4 bytes depending on the channel count. */
+     *  where a sample is ceil(channels / 8) bytes, little endian (the backend's format, see backend/channels.js). */
     function toSamples(chunk, channelCount) {
         const type = CaptureBuffer.sampleType(channelCount);
         if (chunk.BYTES_PER_ELEMENT !== 1 || type === Uint8Array) return chunk;
+        if (Math.ceil(channelCount / 8) === 3) {     // 17-24 channels: 3 bytes per sample, widened to Uint32
+            const n = Math.floor(chunk.length / 3), out = new Uint32Array(n);
+            for (let i = 0, o = 0; i < n; i++, o += 3) out[i] = chunk[o] | (chunk[o + 1] << 8) | (chunk[o + 2] << 16);
+            return out;
+        }
         const n = Math.floor(chunk.byteLength / type.BYTES_PER_ELEMENT);
         if (chunk.byteOffset % type.BYTES_PER_ELEMENT === 0) return new type(chunk.buffer, chunk.byteOffset, n);
         return new type(chunk.slice(0, n * type.BYTES_PER_ELEMENT).buffer);
