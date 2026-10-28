@@ -34,9 +34,30 @@ This project should therefore be considered a derivative work rather than an unr
 
 Please see the original Edgewise repository and its license for the original project's licensing and attribution information.
 
-## Architecture
+## Getting started
 
-The intended architecture is roughly:
+The backend is a small Node.js program (Node 18 or newer). It serves the frontend and talks to the hardware.
+
+```sh
+cd backend
+npm install
+npm start              # or: node index.js --open --port 8080
+```
+
+Then open <http://localhost:8080>. `--open` opens the browser for you, `--port` picks another port (default 8080). The frontend connects to the backend's WebSocket on the same port (the address field in the top bar, `ws://localhost:8080` by default).
+
+The only dependencies are `ws` (WebSocket), `serialport` (USB serial boards) and `open` (`--open`). The frontend has no build step and no dependencies.
+
+Optional settings, as environment variables:
+
+| Variable | What it does |
+|---|---|
+| `SIGROK_CLI` | Full path to `sigrok-cli`, when it is not on `PATH` or in a usual install folder |
+| `LOGICANALYZER_HOSTS` | WiFi LogicAnalyzer boards to look for, e.g. `192.168.1.20:4045,192.168.1.21:4045` |
+
+The backend tests run with `npm test` in `backend/`.
+
+## Architecture
 
 ```text
                     Web Browser
@@ -48,24 +69,99 @@ The intended architecture is roughly:
                  │ Data export   │
                  └───────┬───────┘
                          │
-                    HTTP / WebSocket
+                 HTTP / WebSocket
                          │
                  ┌───────▼───────┐
-                 │    Backend    │
+                 │    Backend    │  backend/index.js (Node.js)
                  │               │
-                 │ Capture       │
-                 │ Buffering     │
-                 │ Hardware I/O  │
+                 │ Device drivers│  one file per kind of device
+                 │ SW trigger    │  backend/trigger.js
                  └───────┬───────┘
                          │
-                    USB / SPI / ...
+                 USB serial / TCP / sigrok-cli
                          │
                  ┌───────▼───────┐
                  │ Logic Analyzer│
                  └───────────────┘
 ```
 
-The backend is intended to capture data as quickly as possible and buffer it independently of the frontend. The browser can then consume and render the captured data at its own pace.
+The backend captures the data and streams it to the browser over the WebSocket. The browser keeps the whole capture in its own memory, draws it and runs the decoders on it.
+
+The backend sends every sample in the same format, whatever the device: **bit n = channel n**, 1, 2 or 4 bytes per sample (little endian). The width depends on the highest captured channel (up to channel 8, 16 or 32). The bits of channels that were not captured are 0. Each driver turns its device's own format into this one (`backend/channels.js`).
+
+## How capturing works
+
+All capture settings are in the **Capture** panel on the right:
+
+* **Device**: the device selector at the top. It lists the devices the backend found; ↻ looks for devices again. *Device Information* shows what the backend knows about the device.
+* **Channels**: one chip per channel. A chip that is on is captured. A chip is the same setting as the channel's row in the waveform, so hiding a row turns its chip off and the other way round. The channel-count selector turns on the first 1, 2, 4, 8, 16, 24 or 32 channels.
+* **Samplerate**: the rates the device supports.
+* **Mode**:
+  * **Looping** keeps capturing until stopped and keeps the newest samples that fit in the memory buffer.
+  * **One shot** captures until the memory buffer is full (or until stopped).
+  * **Timer** captures for a set time.
+  * **Trigger** waits for a rising edge, falling edge, high pulse or low pulse on one channel, optionally only while other channels are high or low, and keeps a set time before and after the trigger.
+* **Memory buffer size**: how much browser memory Looping and One shot may use.
+
+The panel works out what the device can do with the current settings *before* the capture starts. Modes and trigger types the device cannot do are grayed out, and a note under the mode tabs gives the limit, e.g. *Fits the board's buffer (219,644 samples = 2.2 ms at 100 MS/s): works at any samplerate*. The note turns orange when the settings will not work as they are. Each device driver describes its limits (`limits` in its device info), and `frontend/js/capture/captureLimits.js` does the calculation.
+
+### Memory use
+
+A sample takes 1, 2 or 4 bytes in the browser, **chosen by the highest captured channel**, also when the channels below it are not captured. Capturing CH5–CH12 takes 2 bytes per sample, the same as CH1–CH16. To fit the most samples, connect signals to the lowest channels. The note under the memory buffer size shows how many samples fit with the current selection.
+
+### Channels after a capture
+
+The waveform always lists all of the device's channels. Channels you hide are collected under *Show x hidden* in the gutter. When you turn on a channel that is not in the capture on screen, its row stays empty and the gutter tags it **not captured**: it will be in the next capture. The capture on screen is only replaced by a new capture or a loaded file. Switching to another device keeps it.
+
+### Decoders
+
+Decoders run in the browser on the capture on screen: UART, I²C, SPI, RGB LED (WS281x), USB signalling / packet / request, USB Power Delivery, and a custom decoder you can write in JavaScript. A decoder's channel lists only offer active channels. When a decoder reads a channel without data (not active, or not in the capture), its card says so and the Analyzers tab shows an orange dot.
+
+### Files
+
+WebScope project files (the capture as a sigrok `.sr` file plus the decoder setup) can be loaded. Captures can be imported from sigrok session files (`.sr`) and Saleae Logic 2 binary files.
+
+## Devices
+
+| Device | Driver | Needs |
+|---|---|---|
+| Local demo device | in the browser (`frontend/js/sources/DemoSource.js`) | nothing |
+| Remote demo device | in the backend (`backend/DemoDevice.js`) | nothing |
+| [gusmanb/logicanalyzer](https://github.com/gusmanb/logicanalyzer) boards | `backend/LogicAnalyzerDevice.js`, talks to the board directly | firmware V6_x |
+| [pico-coder/sigrok-pico](https://github.com/pico-coder/sigrok-pico) boards | `backend/PicoCoderSigrokPicoDevice.js`, talks to the board directly | the sigrok-pico firmware |
+| Anything [sigrok](https://sigrok.org) supports (fx2lafw / Saleae Logic clones, …) | `backend/SigrokDevice.js`, runs `sigrok-cli` | `sigrok-cli` installed |
+
+Neither Pico driver needs sigrok-cli, and neither changes anything on the board: WebScope uses the firmware as it is.
+
+### gusmanb LogicAnalyzer
+
+A Raspberry Pi Pico (or another board) with the [LogicAnalyzer](https://github.com/gusmanb/logicanalyzer) firmware, on USB (found by its USB id `1209:3020`) or on WiFi (`LOGICANALYZER_HOSTS`).
+
+The board does **not stream**: it captures into its own memory and sends the capture when it is done. That sets its limits:
+
+* **Memory**: on a Pico, 131,072 samples with channels 1–8, 65,536 up to channel 16, 32,768 above, at any samplerate. Timer captures longer than that are shortened (with a warning), One shot fills the memory.
+* **No Looping**: it cannot run continuously.
+* **Trigger in hardware**: rising and falling edge only, no pulse triggers and no conditions on other channels. The edge trigger really fires on the level: at the first sample where the channel is high (rising) or low (falling), also when it is already at that level when the capture starts.
+* **Before the trigger**: at most a tenth of the memory (the LogicAnalyzer software's own limit).
+* **Without a trigger** the board starts on its external trigger input (GPIO1 on a Pico) being low, which it is when nothing is connected. If something drives it high, the capture does not start.
+* **Samplerates**: 1-2-5 steps up to the board's maximum (the firmware reports it).
+* **Stop**: the board only looks for the stop every 2 seconds, so a new capture right after a stop waits until the board is free.
+
+### pico-coder sigrok-pico
+
+A Raspberry Pi Pico (RP2040 / RP2350) with the [sigrok-pico](https://github.com/pico-coder/sigrok-pico) firmware, found by the Pico SDK's USB id (`2e8a:000a`) when it answers the firmware's identify command. Depending on the firmware build it has 21, 26 or 32 digital channels, named after their pins (GP0, GP1, …). Analog channels are not used.
+
+The board **streams** over USB, so all modes work, with these limits:
+
+* **Samplerate**: 5 kHz – 120 MHz. The firmware's notes: with 8 or more channels it is reliable up to 60 MS/s (the panel warns above that).
+* **Timer captures that fit the board's buffer work at any samplerate**: up to 219,644 samples with channels up to D7, 109,052 up to D15, 53,244 above. That is the RP2040's buffer. The board does not say whether it is an RP2350, which has a larger buffer, so WebScope always assumes the smaller one.
+* **Everything longer, and Looping, One shot and Trigger, is streamed**: USB gives roughly 400–800 KB/s. With signals that change on every sample that is about 500 kS/s with up to 7 channels, 250 kS/s with 8–14 and 167 kS/s with 15–21 (the firmware's user guide). Newer firmware compresses runs (RLE), so quiet signals stream faster. When the board cannot keep up, it stops the capture: WebScope keeps what arrived and says so. The panel does not gray out rates above the streaming limit yet.
+* **Trigger**: the firmware has no trigger of its own, so the backend triggers in software on the stream (`backend/trigger.js`). All trigger types and conditions work, within the streaming limit.
+* **Channels**: the firmware needs its channels turned on from D0 upward without gaps, so the driver turns on D0 up to the highest channel you selected and drops the others. It always turns on at least D0–D4: with only D0–D3 the firmware uses a 4-bit mode that returned wrong data on the boards tested (sigrok-cli shows the same).
+
+### sigrok devices
+
+Every device `sigrok-cli --scan` finds is listed, with the samplerates `sigrok-cli` reports. The backend runs `sigrok-cli` for each capture and triggers in software on its stream. Drivers that cannot run until stopped are given a very large sample count instead. Some devices always sample all their channels; WebScope still only shows the channels you selected.
 
 ## Decoder architecture
 
@@ -92,24 +188,26 @@ The decoded result can contain both presentation annotations and structured data
 
 ## Current status
 
-This project is currently under development.
-
-The browser frontend, capture buffer, demo source and initial UART/I²C/SPI decoding are being developed first. Hardware backends and the final browser-to-backend protocol will be added separately.
+This project is under development. The browser frontend, the capture buffer, the decoders and the Node.js backend with the drivers above work. 
+Other backends (`backend_cpp`, `backend_rust`) are experiments and currently use old structures, 
+they will be updated when the node.js variant is stable in structure, i will probably only use rust as it's easier to setup and use.
 
 Expect things to change.
 
 ## License
 
-See the original [Edgewise repository](https://github.com/mtharrison/edgewise) and the license included with this project for licensing information.
+WebScope is free software, released under the GNU General Public License, version 3 or (at your option) any later version (`GPL-3.0-or-later`). See [LICENCE](LICENCE).
+
+The parts of WebScope that come from [Edgewise](https://github.com/mtharrison/edgewise) are also covered by Edgewise's MIT license, which has to stay with them. See [LICENSE-EDGEWISE](LICENSE-EDGEWISE).
 
 ## Credits
 
 WebScope is based on code from
 [mtharrison/edgewise](https://github.com/mtharrison/edgewise).
 
-Copyright © 2025 Matthew Harrison for the original Edgewise code.
+Copyright © 2026 Matthew Harrison for the original Edgewise code.
 
 Additional code, modifications and new components in WebScope are
 Copyright © 2026 Jannik Svensson.
 
-WebScope is released under the MIT License.
+WebScope is released under the GPL-3.0-or-later license.

@@ -15,10 +15,14 @@
  *
  * Sample i was sample number firstSample + i of the capture (looping drops the oldest samples),
  * and the time axis starts at the capture's first sample: see timeOrigin.
+ *
+ * `captured`: bit mask of the channels the capture holds (bit n = channel n); the others were not
+ * captured and have no data, see has(). Default: all channelCount channels (a loaded file).
  */
 class CaptureBuffer {
     constructor(samples, samplerate, channelCount, trigger = null,
-                { complete = true, previous = null, length = samples.length, start = 0, chunks = null, firstSample = 0 } = {}) {
+                { complete = true, previous = null, length = samples.length, start = 0, chunks = null, firstSample = 0,
+                  captured = channelCount >= 32 ? 0xffffffff : 2 ** channelCount - 1 } = {}) {
         this.samples = samples; // 1 element/sample, 1 bit/channel: see CaptureBuffer.sampleType()
         this.samplerate = samplerate;
         this.channelCount = channelCount;
@@ -27,6 +31,7 @@ class CaptureBuffer {
         this.length = length;
         this.start = start;
         this.firstSample = firstSample;
+        this.captured = captured >>> 0;
         this.chunkCount = Math.ceil(length / CHUNK);
         this.chunks = chunks ?? this._buildChunks(previous);
     }
@@ -34,6 +39,11 @@ class CaptureBuffer {
     /** The smallest array type that holds one sample of `channelCount` channels (1 bit each). */
     static sampleType(channelCount) {
         return channelCount <= 8 ? Uint8Array : channelCount <= 16 ? Uint16Array : Uint32Array;
+    }
+
+    /** The capture holds data of channel ch. */
+    has(ch) {
+        return ch >= 0 && ch < 32 && ((this.captured >>> ch) & 1) === 1;
     }
 
     /** Sample index where the time axis is 0: the trigger, else the capture's first sample. */

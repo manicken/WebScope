@@ -111,18 +111,36 @@
     // Each is bound to one setting (a ReactiveValue): it writes with setting.set(v, input) and
     // subscribes to it to show changes made elsewhere. Returns { input } (+ fillOptions for channels).
 
-    /** Channel select; the card calls fillOptions() when the channels or their names change. */
+    /** The channels decoder d reads that give it no data: not active (hidden, so not in the next capture)
+     *  or not in the capture on screen. One text per channel, empty when all is fine. */
+    function channelProblems(d) {
+        const buf = WS.capture.buffer.value;
+        return WS.uiRowsLayout.decoderChannels(d).flatMap((i) => {
+            const ch = appState.channels.value.find((c) => c.index === i);
+            if (!ch) return [];
+            if (!ch.visible.value) return [`${ch.name.value} is not active`];
+            if (buf && !buf.has(i)) return [`${ch.name.value} is not captured`];
+            return [];
+        });
+    }
+
+    /** Channel select: the active channels (and the chosen one when it is not active, marked so);
+     *  the card calls fillOptions() when the channels, their names or which are active change. */
     function channelField(setting, f) {
         const input = document.createElement('select');
         const show = () => { input.value = setting.value == null ? '' : String(setting.value); };
         function fillOptions() {
             input.innerHTML = '';
             if (f.type === 'channel?') input.appendChild(new Option('None', ''));
-            for (const ch of appState.channels.value) input.appendChild(new Option(ch.name.value, String(ch.index)));
+            for (const ch of appState.channels.value) {
+                if (ch.visible.value) input.appendChild(new Option(ch.name.value, String(ch.index)));
+                else if (ch.index === setting.value) input.appendChild(new Option(`${ch.name.value} (not active)`, String(ch.index)));
+            }
             show();
         }
         input.addEventListener('change', () => setting.set(input.value === '' ? null : Number(input.value), input));
-        setting.subscribe(({ source }) => { if (source !== input) show(); });
+        // refill: an inactive channel that is no longer chosen leaves the list
+        setting.subscribe(({ source }) => { if (source !== input) fillOptions(); else show(); });
         fillOptions();
         return { input, fillOptions };
     }
@@ -224,6 +242,9 @@
 
         const form = el('div', 'card-body');
         card.bodyAppendChild(form);
+        const warnEl = el('div', 'card-warn');     // the channels that give this decoder no data, see channelProblems()
+        warnEl.hidden = true;
+        form.appendChild(warnEl);
 
         // One row per setting, created the first time the setting is in getCfgGui() and then kept:
         // a CustomDecoder's fields can change after a compile, rows that are gone are only hidden.
@@ -275,16 +296,20 @@
             subEl.textContent = d.summary(appState.channels.value.map((ch) => ({ index: ch.index, name: ch.name.value })));
             eyeBtn.textContent = d.visible.value ? '👁' : '🚫';
             eyeBtn.title = d.visible.value ? 'Hide rows' : 'Show rows';
+            const problems = channelProblems(d);
+            warnEl.hidden = problems.length === 0;
+            warnEl.textContent = problems.length ? `No data: ${problems.join(', ')}` : '';
         }
 
         d.settingsChanged.subscribe(updateHead);
         d.visible.subscribe(updateHead);
         // the channels outlive the decoder: stop updating once it is removed
-        ReactiveValue.subscribeItems(appState.channels, (ch) => [ch.name], () => {
+        ReactiveValue.subscribeItems(appState.channels, (ch) => [ch.name, ch.visible], () => {
             if (d.removed) return;
             channelFields.forEach((f) => f.fillOptions());
             updateHead();
         });
+        WS.capture.buffer.subscribe(() => { if (!d.removed) updateHead(); });
 
         updateForm();
         updateHead();
@@ -294,6 +319,7 @@
     WS.decoders = WS.decoders ?? {};
     WS.decoders.ui = Object.assign(WS.decoders.ui ?? {}, {
         init,
+        channelProblems,
         renderAnalyzers,
         addDecoderMenu,
     });

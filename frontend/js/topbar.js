@@ -57,11 +57,21 @@
       WS.capture.startCapture(device.sourceKind, cfg);
     });
     fitBtn.addEventListener('click', () => {WS.waveform.fit(); });
-
+    
+    function svgAndText(color, svg, text) {
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+                  <path fill="${color}" d="${svg}"/>
+                </svg><span>${text}</span>`;
+    }
     function showState() {
       const st = acquisition.state.value;
       pill.textContent = st; pill.className = 'status-pill ' + st;
-      captureBtn.textContent = st === 'running' || st === 'waiting' ? 'Stop' : 'Start';
+      const running = st === 'running' || st === 'waiting';
+      const text = running ? 'Stop' : 'Start';
+      const color = running ? '#F00' : '#0F0';
+      //const svg = running ? 'M3 3h10v10H3z' : 'M5 3v10l8-5z';
+      const svg = running ? 'M0 0h16v16H0z' : 'M0 0v16l16-8z';
+      captureBtn.innerHTML = svgAndText(color, svg, text);
     }
     acquisition.state.subscribe(showState);
     showState();

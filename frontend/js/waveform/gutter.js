@@ -38,6 +38,7 @@
         <span class="ch-bar"></span>
         <span class="ch-index">CH${ch.index+1}</span>
         <span class="ch-name"></span>
+        <span class="ch-tag" hidden>not captured</span>
         <span class="ch-actions">
           <button class="icon-btn hide" title="Hide channel">✕</button>
         </span>`;
@@ -46,10 +47,15 @@
 
       const showColor = () => { barEl.style.background = ch.color.value ?? ''; };
       const showName = () => { nameEl.textContent = ch.name.value ?? ''; };
+      // a capture that does not hold this channel (chosen after the capture): say so; no capture, no tag
+      const tagEl = row.querySelector('.ch-tag');
+      const showTag = () => { const b = WS.capture.buffer.value; tagEl.hidden = !b || b.has(ch.index); };
       showColor();
       showName();
+      showTag();
       ch.color.subscribe(showColor);
       ch.name.subscribe(showName);
+      WS.capture.buffer.subscribe(showTag);
 
       row.querySelector('.hide').addEventListener('click', () => ch.visible.set(false));
 

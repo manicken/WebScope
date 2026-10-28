@@ -21,7 +21,7 @@
       const n = WS.capture.length();
       const cols = cache.cols;
       if (n > 0 && cols) {
-        const mask = appState.channels.value.filter((c) => c.visible.value).reduce((m, c) => m | (1 << c.index), 0);
+        const mask = appState.channels.value.filter((c) => c.visible.value && WS.capture.has(c.index)).reduce((m, c) => m | (1 << c.index), 0);
         const count = cols.length / 2;
         for (let i = 0; i < count; i++) {
           const toggles = cols[2 * i + 1] & mask;

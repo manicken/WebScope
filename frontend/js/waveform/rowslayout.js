@@ -8,10 +8,11 @@
   'use strict';
   const { CH_H, DEC_H } = WS.theme;
 
-  /** Channel indexes a decoder reads, taken from the config fields named in cfg.signals. */
+  /** Channel indexes a decoder reads: the values of its settings named in decoder.signals. */
   function decoderChannels(decoder) {
     const keys = decoder.signals || [];
-    return keys.map((k) => decoder[k]).filter((v) => typeof v === 'number');
+    const cfg = decoder.cfg ?? {};
+    return keys.map((k) => cfg[k]).filter((v) => typeof v === 'number');
   }
 
   /**

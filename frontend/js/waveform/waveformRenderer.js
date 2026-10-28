@@ -128,7 +128,7 @@
 
     function drawChannel(ctx, w, dpr, ch, color, y, h, f) {
         const wave = f.wave;
-        if (!wave) return;
+        if (!wave || !WS.capture.has(ch)) return;     // not captured: no data, the row stays empty (the gutter says why)
         const hi = y + 9, lo = y + h - 9, bit = 1 << ch;
         ctx.lineWidth = 1.5; ctx.strokeStyle = color; ctx.lineJoin = 'miter';
 

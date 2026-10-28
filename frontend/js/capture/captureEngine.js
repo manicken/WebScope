@@ -25,7 +25,7 @@
     /* ---- capture orchestration ---- */
     let activeSource = null;
     let storage = null;  // LinearStorage | RingStorage the running capture writes to, see CaptureStorage.js
-    let meta = null;     // { samplerate, channelCount, trigger, rows } of the running capture, trigger = sample index or null
+    let meta = null;     // { samplerate, channelCount, trigger, captured, rows } of the running capture, trigger = sample index or null
     let live = false;    // a capture is streaming in
     let remoteTrigger = false;  // the source triggers itself and sends the capture once the trigger fired
     let stopRequested = false;
@@ -61,17 +61,18 @@
         buffer.set(buf);
     }
 
-    /** The rows of a capture of `channels` (device Channel objects): bit n of a sample = device channel n,
-     *  so the rows are the device's channels 0 .. the highest captured one (row n = bit n). The ones not
-     *  captured are hidden: a row's `visible` is its capture chip. The current rows when they already are these. */
+    /** The rows of a capture of `channels` (device Channel objects): all the device's channels (row n = bit n
+     *  of a sample = device channel n), also the ones not captured, which the buffer marks (CaptureBuffer.has()):
+     *  the gutter still lists them and they can be chosen for the next capture. */
     function captureRows(channels) {
         if (!Array.isArray(channels) || !(channels[0]?.name instanceof ReactiveValue)) return null;
-        const highest = channels.at(-1).index;
-        const rows = appState.deviceChannels.value.filter((ch) => ch.index <= highest);
-        const cur = appState.channels.value;
-        const same = rows.length === cur.length && rows.every((r, k) => r === cur[k]);
-        return same ? cur : rows;
+        return appState.deviceChannels.value;
     }
+
+    /** Bit mask of the captured channels (device Channel objects, or a count = channels 0 .. count-1). */
+    const capturedMask = (channels) => (Array.isArray(channels)
+        ? channels.reduce((m, ch) => (m | (1 << ch.index)) >>> 0, 0)
+        : (channels >= 32 ? 0xffffffff : 2 ** channels - 1));
 
     /** The storage for a capture: Looping keeps the newest samples, the other modes stop when it is full.
      *  A sample takes 1, 2 or 4 bytes depending on the channel count, so 8 channels fit 4x more samples. */
@@ -122,7 +123,7 @@
         }
         remoteTrigger = !!triggerOn && !trigger;
         stopRequested = false;
-        meta = { samplerate, channelCount, trigger: null, rows: captureRows(channels) };
+        meta = { samplerate, channelCount, trigger: null, captured: capturedMask(channels), rows: captureRows(channels) };
         live = true;
         appState.view.follow.set(true);
         appState.markers.selected.set(null);
@@ -220,11 +221,13 @@
         /** samples in the buffer, 0 without data */
         length: () => buf()?.length ?? 0,
         render(start, spp, width) { return buf() ? buf().render(start, spp, width) : new Uint32Array(width * 2); },
+        /** The buffer holds data of channel ch (it was captured): the others have none, see CaptureBuffer.has(). */
+        has(channel) { return !!buf()?.has(channel); },
         samples(start, count) { return buf() ? buf().rawSlice(start, count) : { first: 0, data: new Uint32Array(0) }; },
-        measure(channel, sample) { return buf() ? buf().measure(channel, sample) : null; },
-        findEdge(channel, from, forward) { return buf() ? buf().findEdge(channel, from, forward) : null; },
-        edges(channel, from, to) { return buf() ? buf().edges(channel, from, to) : { pos: [], rising: [] }; },
-        burstAt(channel, sample, maxGap, tol) { return buf() ? buf().burstAt(channel, sample, maxGap, tol) : null; },
+        measure(channel, sample) { return buf()?.has(channel) ? buf().measure(channel, sample) : null; },
+        findEdge(channel, from, forward) { return buf()?.has(channel) ? buf().findEdge(channel, from, forward) : null; },
+        edges(channel, from, to) { return buf()?.has(channel) ? buf().edges(channel, from, to) : { pos: [], rising: [] }; },
+        burstAt(channel, sample, maxGap, tol) { return buf()?.has(channel) ? buf().burstAt(channel, sample, maxGap, tol) : null; },
         getBuffer: buf,
     });
 })(window.WS = window.WS || {});

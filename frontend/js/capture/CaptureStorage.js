@@ -11,7 +11,8 @@
  *   liveBuffer(meta, prev)    CaptureBuffer (complete:false) showing the data so far; `prev` is the
  *                             previous live buffer
  *   finalBuffer(meta, prev)   plain linear CaptureBuffer (complete:true), when the capture ended
- * meta = { samplerate, channelCount, trigger }   trigger = sample index of the trigger, or null
+ * meta = { samplerate, channelCount, trigger, captured }   trigger = sample index of the trigger, or null;
+ *        captured = bit mask of the captured channels (see CaptureBuffer)
  * `type` is the array type of one sample (Uint8Array for up to 8 channels, see CaptureBuffer.sampleType),
  * capacities are in samples.
  */
@@ -38,13 +39,13 @@ class LinearStorage {
         return n;
     }
 
-    liveBuffer({ samplerate, channelCount, trigger = null }, previous) {
+    liveBuffer({ samplerate, channelCount, trigger = null, captured }, previous) {
         // a view, not a copy: a frame only costs the chunks that arrived since the last one
-        return new CaptureBuffer(this.samples.subarray(0, this.length), samplerate, channelCount, trigger, { complete: false, previous });
+        return new CaptureBuffer(this.samples.subarray(0, this.length), samplerate, channelCount, trigger, { complete: false, previous, captured });
     }
 
-    finalBuffer({ samplerate, channelCount, trigger = null }, previous) {
-        return new CaptureBuffer(this.samples.slice(0, this.length), samplerate, channelCount, trigger, { previous });
+    finalBuffer({ samplerate, channelCount, trigger = null, captured }, previous) {
+        return new CaptureBuffer(this.samples.slice(0, this.length), samplerate, channelCount, trigger, { previous, captured });
     }
 }
 
@@ -88,13 +89,13 @@ class RingStorage {
         return src.length;
     }
 
-    liveBuffer({ samplerate, channelCount }) {
+    liveBuffer({ samplerate, channelCount, captured }) {
         return new CaptureBuffer(this.samples, samplerate, channelCount, null, {
-            complete: false, length: this.length, start: this.start, chunks: this.chunks, firstSample: this.dropped,
+            complete: false, length: this.length, start: this.start, chunks: this.chunks, firstSample: this.dropped, captured,
         });
     }
 
-    finalBuffer({ samplerate, channelCount }) {
+    finalBuffer({ samplerate, channelCount, captured }) {
         const s = this.samples, k0 = this.start / CHUNK;
         if (this.start > 0) {
             // rotate left by `start`, in place: reverse both parts, then the whole
@@ -105,6 +106,6 @@ class RingStorage {
         const count = Math.ceil(this.length / CHUNK);
         const chunks = Array.from({ length: count }, (_, k) => this.chunks[(k0 + k) % this.chunks.length]);
         this.start = 0;
-        return new CaptureBuffer(s.subarray(0, this.length), samplerate, channelCount, null, { chunks, firstSample: this.dropped });
+        return new CaptureBuffer(s.subarray(0, this.length), samplerate, channelCount, null, { chunks, firstSample: this.dropped, captured });
     }
 }

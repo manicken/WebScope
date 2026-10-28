@@ -67,6 +67,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 .ch-index { color: var(--muted); font-size: 10px; width: 20px; flex-shrink: 0; }
 .ch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; margin-left: 8px; }
 .ch-name input { width: 100%; }
+.ch-tag { flex-shrink: 0; margin-left: 6px; padding: 0 5px; border-radius: 3px; font-size: 10px; line-height: 15px; color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
 .ch-actions { display: flex; gap: 2px; }
 .icon-btn { padding: 3px 5px; font-size: 10px; border-radius: 4px; }
 .icon-btn.on { background: rgba(255,85,119,0.18); border-color: var(--trigger); color: var(--trigger); }
@@ -127,6 +128,9 @@ kbd { background: var(--panel-2); border: 1px solid var(--border); border-radius
   background: none; border: 1px solid transparent; border-radius: 6px; color: var(--muted); }
 .rp-tab:hover { background: var(--panel-3); color: var(--text-2); }
 .rp-tab.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text-2); }
+.rp-tab { position: relative; }
+.rp-tab.badge::after { content: ''; position: absolute; top: 10px; right: 10px; width: 9px; height: 9px; border-radius: 50%;
+  background: #ffa94d; box-shadow: 0 0 0 2px var(--panel); }
 .rp-tab svg { width: 32px; height: 32px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 body.rp-dragging { user-select: none; cursor: col-resize; }
 .rp-content[hidden], .rp-resizer[hidden] { display: none; }
@@ -143,6 +147,7 @@ body.rp-dragging { user-select: none; cursor: col-resize; }
 .card-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; }
 .card-head .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .card-title { font-weight: 600; font-size: 12px; }
+.card-warn { margin-bottom: 8px; padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #ffa94d; background: rgba(255, 169, 77, 0.1); }
 .card-sub { color: var(--muted); font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-body { display: grid; grid-template-columns: 1fr; gap: 5px; padding: 4px 4px 4px; border-top: 1px solid var(--border); }
 .card-body.hidden { display: none !important; }
@@ -203,3 +208,11 @@ body.rp-dragging { user-select: none; cursor: col-resize; }
 /* ---- status bar ---- */
 .statusbar { display: flex; gap: 16px; align-items: center; padding: 5px 10px; background: var(--panel); border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
 .statusbar b { color: var(--text); font-weight: 500; }
+
+#captureBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 14px;
+}

@@ -1,6 +1,7 @@
 /**
  * ui/rightpanel.js — Saleae-style right sidebar: icon tab bar + one panel at a time.
- * Panels are registered with WS.rightpanel.register({ id, title, icon, render, watch, fill }).
+ * Panels are registered with WS.rightpanel.register({ id, title, icon, render, watch, fill, badge }).
+ * badge = { watch(changed), get() }: get() returns a text when the tab should show a dot (its tooltip), else null.
  *   render({ container })  draws the panel; called when it is opened and when watched values change
  *   watch(changed)         called once: subscribes `changed` to the values the panel shows, e.g.
  *                            (changed) => ReactiveValue.subscribeAll([appState.markers.list, WS.capture.buffer], changed)
@@ -43,6 +44,15 @@
     ui.body.appendChild(view);
     views.set(def.id, { def, tab, view });
     def.watch?.(() => { if (activeId === def.id) scheduleRender(); });
+    if (def.badge) {
+      const showBadge = () => {
+        const text = def.badge.get();
+        tab.classList.toggle('badge', !!text);
+        tab.title = text ? `${def.title}: ${text}` : def.title;
+      };
+      def.badge.watch(showBadge);
+      showBadge();
+    }
   }
 
   function renderActive() {
@@ -152,6 +162,18 @@
     icon: svg('<path d="M3 12h3l2-6 4 12 3-9 2 3h4"/>'),
     watch: (changed) => WS.decoders.list.subscribe(changed),
     render: (c) => WS.decoders.ui.renderAnalyzers({ ...c, panelRoot:true }),
+    // a dot when a decoder reads a channel that gives it no data (not active / not captured)
+    badge: {
+      watch: (changed) => {
+        ReactiveValue.subscribeItems(WS.decoders.list, (d) => [d.settingsChanged], changed);
+        ReactiveValue.subscribeItems(appState.channels, (ch) => [ch.visible, ch.name], changed);
+        WS.capture.buffer.subscribe(changed);
+      },
+      get: () => {
+        const bad = WS.decoders.list.value.filter((d) => WS.decoders.ui.channelProblems(d).length);
+        return bad.length ? `${bad.map((d) => d.name).join(', ')} ${bad.length > 1 ? 'have' : 'has'} channels without data` : null;
+      },
+    },
   });
   register({
     id: 'measurements', title: 'Measurements',
