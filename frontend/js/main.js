@@ -145,6 +145,7 @@ let mainMenuItems = [
     WS.decoders.ui.init();
 
     WS.customDecoderEditor = new CustomDecoderEditor();
+    //WS.scriptEditor = new ScriptEditor();
     //WS.customDecoderEditor.open(); // dev test
 
     let menu = createMenu(document.getElementById('mainMenu'), mainMenuItems);

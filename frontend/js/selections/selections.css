@@ -22,7 +22,7 @@
 .sel-swatch-btn.on::after { content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; line-height: 1; }
 
 /* ---- Measurements panel ---- */
-.sel-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 10px; }
+.sel-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 10px; border-bottom: 1px solid #69696e; }
 .sel-panel-title { font-size: 18px; font-weight: 600; color: var(--text-2); }
 .sel-add { background: none; border: none; font-size: 22px; line-height: 1; padding: 0 6px; color: var(--text); }
 .sel-add:hover { background: none; color: #fff; }
@@ -32,7 +32,7 @@
 .sel-item { display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 8px; cursor: pointer; }
 .sel-item:hover { background: rgba(255,255,255,0.04); }
 .sel-item.on { background: rgba(255,255,255,0.09); }
-.sel-caret { background: none; border: none; padding: 0 4px; font-size: 9px; color: var(--muted); }
+.sel-caret { background: none; border: none; padding: 0 4px; font-size: 22px; color: var(--muted); }
 .sel-caret:hover { background: none; color: var(--text-2); }
 .sel-swatch { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
 .sel-name { font-weight: 600; color: var(--text-2); }

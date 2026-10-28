@@ -101,6 +101,11 @@
         document.body.appendChild(el);
         setTimeout(() => el.remove(), 3500);
         console.log({toast:msg});
+        logMessage(msg, details);
+    }
+
+    /** Adds `msg` to the log (Messages panel) without showing it, e.g. a script's output. */
+    function logMessage(msg, details) {
         const entry = { time: new Date(), message: String(msg), ...(details && { details: String(details) }) };
         appState.toasts.set([...appState.toasts.value, entry].slice(-TOAST_LOG_MAX));
     }
@@ -108,4 +113,5 @@
     WS.appState = appState;
     WS.makeChannels = makeChannels;
     WS.toast = toast;
+    WS.logMessage = logMessage;
 })(window.WS = window.WS || {});

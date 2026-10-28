@@ -54,7 +54,7 @@
 .cp-dd { position: relative; flex-shrink: 0; }
 .cp-dd-btn { width: 84px; height: 36px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; border-radius: 6px; border: 1px solid transparent; background: #2b2b2e; color: var(--text-2); }
 .cp-dd-btn:hover { background: #323236; }
-.cp-caret { font-size: 9px; color: var(--muted); }
+.cp-caret { font-size: 22px; color: var(--muted); }
 .cp-dd-menu { position: absolute; left: 0; top: calc(100% + 4px); z-index: 20; min-width: 170px; padding: 4px; display: flex; flex-direction: column;
   background: #2b2b2e; border: 1px solid var(--border-2); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
 .cp-dd-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: none; background: none; border-radius: 5px; color: var(--text-2); font-size: 12px; text-align: left; }

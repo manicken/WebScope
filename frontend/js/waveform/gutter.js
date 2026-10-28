@@ -12,6 +12,50 @@
 
   const channelRows = new WeakMap(); // channel -> row element, gone together with the channel
 
+  /* ---------------- width: drag its right edge, like the right panel (rightpanel.js) ---------------- */
+  const LS_KEY = 'ws.gutter.width';
+  const MIN_W = 120;
+
+  /** A handle on the gutter's right edge; the width is kept in localStorage. */
+  function initResize(gutterEl) {
+    const resizer = document.createElement('div');
+    resizer.className = 'rp-resizer gutter-resizer';
+    resizer.title = 'Drag to resize';
+    gutterEl.after(resizer);
+
+    const setWidth = (w) => {
+      const max = Math.max(MIN_W, Math.floor(window.innerWidth * 0.5));
+      w = Math.min(max, Math.max(MIN_W, w));
+      gutterEl.style.width = w + 'px';
+      return w;
+    };
+    let startX = 0, startW = 0, w = 0;
+    resizer.addEventListener('pointerdown', (e) => {
+      startX = e.clientX; startW = gutterEl.getBoundingClientRect().width; w = startW;
+      resizer.setPointerCapture(e.pointerId);
+      resizer.classList.add('dragging');
+      document.body.classList.add('rp-dragging');
+    });
+    resizer.addEventListener('pointermove', (e) => {
+      if (!resizer.hasPointerCapture(e.pointerId)) return;
+      w = setWidth(startW + (e.clientX - startX)); // dragging right widens the gutter
+      window.dispatchEvent(new Event('resize'));
+    });
+    const end = (e) => {
+      if (!resizer.hasPointerCapture(e.pointerId)) return;
+      resizer.releasePointerCapture(e.pointerId);
+      resizer.classList.remove('dragging');
+      document.body.classList.remove('rp-dragging');
+      try { localStorage.setItem(LS_KEY, String(Math.round(w))); } catch (_) {}
+    };
+    resizer.addEventListener('pointerup', end);
+    resizer.addEventListener('pointercancel', end);
+
+    let saved = NaN;
+    try { saved = parseInt(localStorage.getItem(LS_KEY), 10); } catch (_) {}
+    if (saved) setWidth(saved);
+  }
+
   let _render = null;
   function init(gutterBodyEl, onScroll) {
 
@@ -91,6 +135,7 @@
     }
 
     gutterBodyEl.parentElement.addEventListener('scroll', (e) => onScroll(e.currentTarget.scrollTop));
+    initResize(gutterBodyEl.parentElement);
     WS.uiRows.onShapeChange(render);
     render(WS.uiRows.get());
     _render = render;

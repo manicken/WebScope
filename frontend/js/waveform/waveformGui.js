@@ -24,14 +24,21 @@
     let drag = null; // { kind:'pan'|'marker', marker, x0, last, moved }
     const MOD_KEY = navigator.platform?.startsWith('Mac') ? 'metaKey' : 'ctrlKey';
 
-    function resize() {
+    /** The canvas follows the plot area's size. A new canvas size clears the canvas, so it is drawn
+     *  again at once when `now` (the ResizeObserver runs before the frame is painted: drawing in the
+     *  next frame would show one empty frame, a flicker), else in the next frame. */
+    function resize(now = false) {
       const r = plotWrap.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       size.w = r.width; size.h = r.height; size.dpr = dpr;
-      canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.height * dpr);
+      const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+      const changed = canvas.width !== w || canvas.height !== h;
+      if (changed) { canvas.width = w; canvas.height = h; }
       appState.view.plotWidth.set(r.width);
+      if (changed && now) render();
+      else requestDraw();
     }
-    new ResizeObserver(resize).observe(plotWrap);
+    new ResizeObserver(() => resize(true)).observe(plotWrap);
 
     let drawPending = false;
     function requestDraw() { 

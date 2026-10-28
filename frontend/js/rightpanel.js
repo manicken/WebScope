@@ -201,6 +201,12 @@
     render: (c) => WS.dataTable.renderDataTable(c),
   });
   register({
+    id: 'scripts', title: 'Scripts',
+    icon: svg('<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/>'),
+    watch: (changed) => WS.scripts.list.subscribe(changed),
+    render: (c) => WS.scripts.panel.render(c),
+  });
+  register({
     id: 'messages', title: 'Messages',
     icon: svg('<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>'),
     watch: (changed) => WS.toastLog.watch(changed),

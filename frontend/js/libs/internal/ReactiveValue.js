@@ -8,8 +8,8 @@
  * set() only notifies when the value actually changed (Object.is), so arrays and objects must be
  * replaced, not changed in place:  list.set([...list.value, item])
  *
- * There is no unsubscribe: a subscription lives as long as the value does. Subscribe from objects
- * that live as long as the value (or longer), never from something that is rebuilt on every change.
+ * subscribe() returns a function that ends the subscription: something that lives shorter than the
+ * value (e.g. a window that is destroyed) must call it, else the value keeps it alive and calls it.
  */
 class ReactiveValue {
     #value;
@@ -30,6 +30,7 @@ class ReactiveValue {
 
     subscribe(fn) {
         this.#subs.add(fn);
+        return () => this.#subs.delete(fn);
     }
 
     /** Calls `fn` when any of `values` changes. */

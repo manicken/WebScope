@@ -44,7 +44,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 /* ---- top bar ---- */
 .topbar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--panel); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.topbar .brand { font-weight: 600; letter-spacing: 0.2px; margin-right: 6px; }
+.topbar .brand { font-weight: 600; letter-spacing: 0.2px; margin-right: 6px; font-size: 16px; }
 .topbar .sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
 .topbar input#wsUrl { width: 220px; }
 .spacer { flex: 1; }
@@ -137,7 +137,7 @@ body.rp-dragging { user-select: none; cursor: col-resize; }
 
 .section { border-bottom: 1px solid var(--border); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .section.grow { flex: 1; min-height: 220px; overflow: hidden; }
-.section-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.section-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px;border-bottom: 1px solid #69696e; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .add-row { display: flex; gap: 4px; }
 .pill { font-size: 11px; padding: 3px 8px; border-radius: 999px; }
 .hint { font-size: 11px; color: var(--muted); line-height: 1.5; }
@@ -147,6 +147,17 @@ body.rp-dragging { user-select: none; cursor: col-resize; }
 .card-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; }
 .card-head .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .card-title { font-weight: 600; font-size: 12px; }
+.sc-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.sc-rename { width: 100%; font: inherit; }
+.sc-state { font-size: 11px; color: var(--muted); }
+.sc-error { color: #e5636b; }
+.sc-btn { background: none; border: none; padding: 0 4px; font-size: 13px; color: var(--muted); }
+.sc-btn:hover:not(:disabled) { background: none; color: var(--text-2); }
+.sc-btn:disabled { opacity: 0.35; }
+.script-output { flex: 0 0 120px; overflow-y: auto; margin-top: 6px; padding: 4px 6px; border: 1px solid #888; border-radius: 3px;
+  font: 12px ui-monospace, Consolas, monospace; background: #1b1e24; color: #c7cdd6; white-space: pre-wrap; }
+.script-output .error { color: #e5636b; }
+
 .card-warn { margin-bottom: 8px; padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #ffa94d; background: rgba(255, 169, 77, 0.1); }
 .card-sub { color: var(--muted); font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-body { display: grid; grid-template-columns: 1fr; gap: 5px; padding: 4px 4px 4px; border-top: 1px solid var(--border); }

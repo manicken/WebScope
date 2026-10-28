@@ -119,7 +119,31 @@ Decoders run in the browser on the capture on screen: UART, I²C, SPI, RGB LED (
 
 ### Files
 
-WebScope project files (the capture as a sigrok `.sr` file plus the decoder setup) can be loaded. Captures can be imported from sigrok session files (`.sr`) and Saleae Logic 2 binary files.
+WebScope project files (the capture as a sigrok `.sr` file plus the decoder setup and the project's scripts) can be loaded. Captures can be imported from sigrok session files (`.sr`) and Saleae Logic 2 binary files.
+
+### Scripts
+
+The **Scripts** panel on the right lists the project's scripts: small pieces of JavaScript that can export the capture or anything the decoders found, in any format you like. **+** adds a script, **▶** runs it, **✎** opens it in the script editor, **✕** removes it, and double-clicking the name renames it. What a script logs goes to the **Messages** panel (and to the output below its code in the editor); errors are also shown on screen, and the script's row says *error*. Scripts are saved in the project file (`scripts/<name>.js`). A script **only runs when you press ▶ or Run** (Ctrl+Enter in the editor), never by itself when a project is loaded, because it can do everything the page can.
+
+A script is an object with a `run(ws)` function, which may be `async`:
+
+```js
+({
+    run(ws) {
+        const uart = ws.decoders.find((d) => d.type === 'UART');
+        return ws.save('uart.bin', Uint8Array.from(uart.output, (f) => f.value));
+    },
+})
+```
+
+| `ws.` | What it gives |
+|---|---|
+| `capture` | `samplerate`, `length`, `trigger`, `channels` (`index`, `name`, `captured`), `sample(i)` (bit n = channel n), `bit(i, ch)`, `edges(ch, from, to)`, `samples(from, count)`, `time(i)` in seconds; `null` without a capture |
+| `decoders` | one entry per decoder: `name`, `type`, `settings`, `annotations` (`{ row: [{ start, end, startTime, endTime, text }] }`), `output` (what it hands to decoders stacked on it, e.g. UART frames), `parent` |
+| `range` | `{ start, end, selected }`: the selected time range in samples, else the whole capture |
+| `save(name, data)` | asks where to save (local download or the backend's files); `data` is text, bytes, or anything else (saved as JSON). A script does not need to `await` it: the run waits for it before it reports *done*, and its errors show in the output |
+| `csv(rows)`, `hex(bytes)` | text helpers |
+| `log(...)` | a line in the Messages panel (prefixed with the script's name) and in the editor's output |
 
 ## Devices
 

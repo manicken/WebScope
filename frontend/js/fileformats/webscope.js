@@ -35,6 +35,15 @@ async function loadWebScopeProjectFile(filedata) {
         loadDecoderStates([]);
         InfoDialog.Show({title:"Load error", message:"Error while parsing decoders.json from the project.\n"+ ex.message})
     }
+    // the project's scripts (scripts/<name>.js): only loaded, a script runs when the user runs it
+    try {
+        const names = zip.names().filter((n) => /^scripts\/[^/]+\.js$/.test(n));
+        const scripts = await Promise.all(names.map(async (n) => ({ name: n.slice('scripts/'.length), code: await zip.readText(n) })));
+        window.WS.scripts.list.set(scripts);
+    } catch (ex) {
+        window.WS.scripts.list.set([]);
+        InfoDialog.Show({title:"Load error", message:"Error while loading the scripts from the project.\n"+ ex.message})
+    }
     let markers = [];
     let selections = [];
     try {
@@ -74,7 +83,8 @@ async function getSaveData() {
         { name: "project.json", data: json(project) },
         { name: "markers.json", data: json(appState.markers.list.value) },
         { name: "selections.json", data: json(appState.selections.list.value) },
+        ...window.WS.scripts.list.value.map((s) => ({ name: `scripts/${s.name}`, data: encoder.encode(s.code) })),
     ];
     let data = await writeZip(entries, { compress: true });
     return data;
-}
+}

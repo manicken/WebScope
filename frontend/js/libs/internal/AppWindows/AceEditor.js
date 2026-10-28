@@ -15,4 +15,19 @@ class AceEditor extends AppWindow {
         this.aceEditor.session.setMode("ace/mode/" + aceMode);
         this.setStates({height: 600, width: 500});
     }
+
+    static show({text, mode}={}) {
+        
+        let editor = new AceEditor();
+        editor.onClose = () => {
+            editor.destroy();
+        };
+        editor.aceEditor.setSession(new ace.EditSession(text, 'ace/mode/' + mode ?? 'text'));
+            
+        editor.open();
+        editor.aceEditor.focus();
+
+        
+        return editor;
+    }
 }
