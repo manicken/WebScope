@@ -4,8 +4,9 @@
  * channel, capture duration after / before the trigger, memory buffer size.
  *
  * Shows and edits appState.captureSettings (see appState.js). The channel chips are the device's
- * channels (appState.deviceChannels) and choose the ones to capture (captureSettings.activeChannels);
- * hiding a row in the waveform (`visible`) is separate. Times are always SECONDS.
+ * channels (appState.deviceChannels): a chip is the channel's `visible`, so it also shows / hides the
+ * channel's waveform row, and the visible ones are captured (captureSettings.activeChannels follows them).
+ * Times are always SECONDS.
  * The rightpanel calls render() when one of the values in watch() changes.
  */
 (function (WS) {
@@ -60,11 +61,13 @@
 
   const setSetting = (key, value) => settings[key].set(value);
   const setTrigger = (patch) => settings.trigger.set({ ...settings.trigger.value, ...patch });
+  // a chip is the device channel's `visible` (shared with its waveform row, so hiding the row turns
+  // the chip off too); activeChannels follows it, see watch()
   function setChannelActive(index, active) {
-    const set = new Set(settings.activeChannels.value);
-    if (active) set.add(index); else set.delete(index);
-    settings.activeChannels.set([...set].sort((a, b) => a - b));
+    appState.deviceChannels.value.find((ch) => ch.index === index)?.visible.set(active);
   }
+  const syncActiveChannels = () =>
+    settings.activeChannels.set(appState.deviceChannels.value.filter((ch) => ch.visible.value).map((ch) => ch.index));
 
   /** For text fields: they already show the new value, so the panel is not rebuilt under the user's
    *  pointer (a replaced element would swallow the next click). `write` changes the setting. */
@@ -74,11 +77,12 @@
   }
 
   function setAllChannelsActive(active) {
-    settings.activeChannels.set(active ? channels.map((ch) => ch.index) : []);
+    appState.deviceChannels.value.forEach((ch) => ch.visible.set(active));
   }
 
   /** Called once by the rightpanel: `changed` is called when anything the panel shows changes. */
   function watch(changed) {
+    ReactiveValue.subscribeItems(appState.deviceChannels, (ch) => [ch.visible], syncActiveChannels);
     ReactiveValue.subscribeAll(Object.values(settings), changed);
     ReactiveValue.subscribeItems(appState.deviceChannels, (ch) => [ch.name, ch.color], changed);
   }
