@@ -60,8 +60,10 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 /* ---- main layout ---- */
 .main { display: flex; flex: 1; min-height: 0; }
-.gutter { width: 220px; overflow-y: auto; border-right: 1px solid var(--border); background: var(--panel); flex-shrink: 0; }
-.gutter-head { margin-top: var(--overviewHeight); height: 32px; display: flex; align-items: center; padding: 0 8px; color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); }
+.gutter { width: 220px; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); background: var(--panel); flex-shrink: 0; }
+.gutter-head { margin-top: var(--overviewHeight); height: 32px; flex-shrink: 0; display: flex; align-items: center; padding: 0 8px; color: var(--muted); font-size: 11px; border-bottom: 1px solid var(--border); background: var(--panel); }
+/* only the rows scroll: the scrollbar stays beside them, below the header */
+#gutterBody { flex: 1; min-height: 0; overflow-y: auto; }
 .ch-row { height: 44px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--border); }
 .ch-bar { width: 3px; height: 20px; border-radius: 2px; flex-shrink: 0; }
 .ch-index { color: var(--muted); font-size: 10px; width: 20px; flex-shrink: 0; }

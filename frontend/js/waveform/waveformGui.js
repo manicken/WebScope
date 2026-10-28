@@ -234,9 +234,9 @@
     resize();
     requestDraw();
 
-    const gutterEl = document.getElementById('gutter');
+    const gutterBodyEl = document.getElementById('gutterBody');   // the gutter's rows: what scrolls
     function scrollBy(dy) {
-      gutterEl.scrollTop += dy;
+      gutterBodyEl.scrollTop += dy;
     }
 
     return { requestDraw, setScroll(y) { scroll.y = y; requestDraw(); }, getDrawPending() { return drawPending; }  };

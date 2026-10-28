@@ -134,7 +134,7 @@
       return row;
     }
 
-    gutterBodyEl.parentElement.addEventListener('scroll', (e) => onScroll(e.currentTarget.scrollTop));
+    gutterBodyEl.addEventListener('scroll', (e) => onScroll(e.currentTarget.scrollTop));   // only the rows scroll
     initResize(gutterBodyEl.parentElement);
     WS.uiRows.onShapeChange(render);
     render(WS.uiRows.get());
