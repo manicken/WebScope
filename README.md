@@ -136,12 +136,28 @@ A script is an object with a `run(ws)` function, which may be `async`:
 })
 ```
 
+Scripts can import data too. This one reads a CSV file with one line per sample and one 0/1 column per channel:
+
+```js
+({
+    async run(ws) {
+        const file = await ws.open(['.csv']);
+        if (!file) return;
+        const samples = file.text().trim().split('\n').map((line) =>
+            line.split(',').reduce((value, bit, ch) => value | (Number(bit) << ch), 0));
+        ws.setCapture({ samplerate: 1_000_000, samples, channels: ['CLK', 'DATA'] });
+    },
+})
+```
+
 | `ws.` | What it gives |
 |---|---|
-| `capture` | `samplerate`, `length`, `trigger`, `channels` (`index`, `name`, `captured`), `sample(i)` (bit n = channel n), `bit(i, ch)`, `edges(ch, from, to)`, `samples(from, count)`, `time(i)` in seconds; `null` without a capture |
+| `capture` | the capture on screen: `samplerate`, `length`, `trigger`, `channels` (`index`, `name`, `captured`), `sample(i)` (bit n = channel n), `bit(i, ch)`, `edges(ch, from, to)`, `samples(from, count)`, `time(i)` in seconds; `null` without a capture |
 | `decoders` | one entry per decoder: `name`, `type`, `settings`, `annotations` (`{ row: [{ start, end, startTime, endTime, text }] }`), `output` (what it hands to decoders stacked on it, e.g. UART frames), `parent` |
 | `range` | `{ start, end, selected }`: the selected time range in samples, else the whole capture |
 | `save(name, data)` | asks where to save (local download or the backend's files); `data` is text, bytes, or anything else (saved as JSON). A script does not need to `await` it: the run waits for it before it reports *done*, and its errors show in the output |
+| `open(extensions)` | asks for a file to read (local or the backend's files), e.g. `await ws.open(['.csv'])`; gives `{ name, ext, bytes, text() }`, or `null` when cancelled |
+| `setCapture({ samplerate, samples, channels })` | replaces the capture on screen, like opening a file: `samples` has one value per sample (bit n = channel n), `channels` is a count or a list of names. The decoders run on it, and `ws.capture` / `ws.decoders` show the new data right away |
 | `csv(rows)`, `hex(bytes)` | text helpers |
 | `log(...)` | a line in the Messages panel (prefixed with the script's name) and in the editor's output |
 

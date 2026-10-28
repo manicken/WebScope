@@ -99,12 +99,11 @@
     const hex = (bytes, sep = ' ') => Array.from(bytes, (b) => (b & 0xff).toString(16).toUpperCase().padStart(2, '0')).join(sep);
 
     /** The `ws` object a script gets. log(text) shows a line in the script editor's output. */
-    /** track(promise): an operation the script started (save); run() waits for these before "done". */
-    function makeApi(log, track = (p) => p) {
-        const buf = WS.capture.getBuffer();
-        const time = (i) => (buf ? (i - buf.timeOrigin) / buf.samplerate : null);   // seconds, 0 = trigger / first sample
-
-        const capture = buf && {
+    /** The script's view of a capture buffer (null without one). */
+    function captureView(buf) {
+        if (!buf) return null;
+        const time = (i) => (i - buf.timeOrigin) / buf.samplerate;   // seconds, 0 = trigger / first sample
+        return {
             samplerate: buf.samplerate,
             length: buf.length,
             trigger: buf.trigger,
@@ -120,8 +119,12 @@
             samples: (from = 0, count = buf.length - from) => buf.rawSlice(from, count).data,
             time,
         };
+    }
 
-        const decoders = WS.decoders.list.value.map((d) => {
+    /** The script's view of the decoders and what they found in `buf`. */
+    function decodersView(buf) {
+        const time = (i) => (buf ? (i - buf.timeOrigin) / buf.samplerate : null);
+        return WS.decoders.list.value.map((d) => {
             const result = WS.decoders.decodedResult(d.id) ?? {};
             const annotations = {};
             for (const [row, anns] of Object.entries(result)) {
@@ -140,12 +143,41 @@
                 parent: d.parent?.id ?? null,
             };
         });
+    }
 
-        // the selected time range, else the whole capture
-        const { selections } = appState;
-        const sel = selections.list.value.find((s) => s.id === selections.selected.value);
-        const range = sel ? { start: sel.start, end: sel.end, selected: true }
-            : { start: 0, end: Math.max(0, (buf?.length ?? 1) - 1), selected: false };
+    /**
+     * Replaces the capture on screen with a script's data, like opening a file: new channels, the
+     * decoders run on it. samples: one value per sample (bit n = channel n), any array or typed array;
+     * channels: a count, or the channels' names.
+     */
+    function setCapture({ samplerate, samples, channels }) {
+        if (!(samplerate > 0)) throw new Error('setCapture: samplerate must be > 0');
+        if (!samples?.length) throw new Error('setCapture: samples must be a non-empty array');
+        const names = Array.isArray(channels) ? channels.map(String) : null;
+        const channelCount = names ? names.length : channels;
+        if (!Number.isInteger(channelCount) || channelCount < 1 || channelCount > 32) throw new Error('setCapture: channels must be 1 to 32 (a count or a list of names)');
+        const values = samples instanceof Uint32Array ? samples : Uint32Array.from(samples);
+        setSamples({ samples: values, samplerate, channelCount, names });   // fileformats/helpers.js, as for a loaded file
+    }
+
+    /** track(promise): an operation the script started (save, open); run() waits for these before "done". */
+    function makeApi(log, track = (p) => p) {
+        // capture and decoders are read when the script uses them, and again after it changed the data
+        // (setCapture): kept while the buffer and the decoders' results are the same
+        let cache = null;
+        const views = () => {
+            const buf = WS.capture.getBuffer(), revision = WS.decoders.revision.value;
+            if (cache?.buf !== buf || cache.revision !== revision) cache = { buf, revision, capture: captureView(buf), decoders: decodersView(buf) };
+            return cache;
+        };
+
+        /** The selected time range, else the whole capture. */
+        function range() {
+            const buf = WS.capture.getBuffer(), { selections } = appState;
+            const sel = selections.list.value.find((s) => s.id === selections.selected.value);
+            return sel ? { start: sel.start, end: sel.end, selected: true }
+                : { start: 0, end: Math.max(0, (buf?.length ?? 1) - 1), selected: false };
+        }
 
         /** Asks where to save (local download / the backend's files) and saves; resolves when saved, or
          *  with false when the user cancels. The script does not have to await it: run() waits for it. */
@@ -165,8 +197,28 @@
             }));
         }
 
+        /** Asks for a file to read (local, or the backend's files), e.g. open(['.csv', '.txt']); resolves
+         *  with { name, ext, bytes, text() }, or null when the user cancels. */
+        function open(extensions = null) {
+            return track(new Promise((resolve) => {
+                const dialog = new FileDialog({
+                    mode: FileDialog.FDModes.Open, extensions,
+                    onConfirm: ({ file }) => {
+                        const bytes = new Uint8Array(file.data);
+                        log(`opened ${file.name}`);
+                        resolve({ name: file.name, ext: file.ext, bytes, text: () => new TextDecoder().decode(bytes) });
+                    },
+                });
+                dialog.onClose = () => resolve(null);
+                dialog.setStates({ height: 700, width: 480 }).open();
+            }));
+        }
+
         return Object.freeze({
-            capture, decoders, range, save, csv, hex,
+            get capture() { return views().capture; },
+            get decoders() { return views().decoders; },
+            get range() { return range(); },
+            save, open, setCapture, csv, hex,
             log: (...args) => log(args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')),
             show: (p) => AceEditor.show(p),
         });
