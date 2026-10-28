@@ -25,6 +25,7 @@
   ];
   const DEVICE_ICON = '<svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M24 8 42 17 24 26 6 17Z"/><path d="M6 17v10l18 9 18-9V17"/><path d="M24 26v10"/><circle cx="24" cy="17" r="2.5"/></svg>';
   const DEFAULT_PULSE_WIDTH = 1e-5;
+  const CHANNEL_PRESETS = [1, 2, 4, 8, 16, 24, 32];
   const MEMORY_STEPS_MB = [128, 256, 512, 1024, 2048, 3072, 4096, 6144, 8192];
   const settings = appState.captureSettings;
 
@@ -80,6 +81,11 @@
     appState.deviceChannels.value.forEach((ch) => ch.visible.set(active));
   }
 
+  /** Preset: only the first `count` channels of the device (from its first channel on). */
+  function setFirstChannelsActive(count) {
+    appState.deviceChannels.value.forEach((ch, k) => ch.visible.set(k < count));
+  }
+
   /** Called once by the rightpanel: `changed` is called when anything the panel shows changes. */
   function watch(changed) {
     ReactiveValue.subscribeItems(appState.deviceChannels, (ch) => [ch.visible], syncActiveChannels);
@@ -132,10 +138,26 @@
     return s;
   }
 
+  /** Channel count presets (the ones the device has); shows the preset the chips match, else "Custom". */
+  function presetSelect() {
+    const sel = el('select', 'cp-preset'); sel.title = 'Capture the first channels';
+    const counts = CHANNEL_PRESETS.filter((n) => n <= channels.length);
+    const activeCount = channels.filter((c) => c.active).length;
+    const matches = channels.every((c, k) => c.active === (k < activeCount));
+    const current = matches && counts.includes(activeCount) ? activeCount : null;
+    if (current === null) { const o = el('option'); o.value = ''; o.textContent = 'Custom'; o.disabled = true; sel.appendChild(o); }
+    for (const n of counts) { const o = el('option'); o.value = n; o.textContent = `${n} ch`; sel.appendChild(o); }
+    sel.value = current === null ? '' : String(current);
+    sel.addEventListener('change', () => setFirstChannelsActive(Number(sel.value)));
+    sel.addEventListener('keydown', (e) => e.stopPropagation());
+    return sel;
+  }
+
   function digitalSection() {
     const s = el('div', 'cp-block');
     const tools = el('div', 'cp-pills');
     tools.append(
+      presetSelect(),
       pill('All', () => setAllChannelsActive(true), 'Capture all channels'),
       pill('Clear', () => setAllChannelsActive(false), 'Capture no channels'),
     );
