@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 import { DemoDevice } from './DemoDevice.js'
 import { scanSigrok } from './SigrokDevice.js';
+import { scanLogicAnalyzers } from './LogicAnalyzerDevice.js';
 import { startTriggered } from './trigger.js';
 import { resolveChannels } from './channels.js';
 
@@ -263,8 +264,8 @@ const devices = new Map();
 const sessions = new WeakMap();   // ws -> handle of a running triggered capture ({ stop() })
 
 async function sendDevices(ws) {
-    let _devices = await scanSigrok();
-    for (const info of _devices) devices.set(info.id, info);
+    let _devices = await Promise.all([scanSigrok(), scanLogicAnalyzers()]);
+    for (const info of _devices.flat()) devices.set(info.id, info);
     const arr = [...devices.values()];
     sendTo(ws, {
         type: 'devices',
@@ -340,15 +341,17 @@ server.on('connection', (ws) => {
                 try { msg.channels = resolveChannels(msg, device); }
                 catch (err) { onError(err.message); return; }
 
-                if (msg.triggerOn) {
+                const onStatus = (s) => sendTo(ws, { type: 'trigger', ...s });   // {state:'armed'} / {state:'triggered', sample}
+
+                if (msg.triggerOn && !device.deviceKind.hardwareTrigger) {
                     // triggered capture: the device runs continuously, trigger.js decides what is kept
-                    const handle = startTriggered(device, msg, {
-                        onData, onDone, onError,
-                        onStatus: (s) => sendTo(ws, { type: 'trigger', ...s }),   // {state:'armed'} / {state:'triggered', sample}
-                    });
+                    const handle = startTriggered(device, msg, { onData, onDone, onError, onStatus });
                     if (handle) sessions.set(ws, handle); else sessions.delete(ws);
                 } else {
-                    device.deviceKind.start(msg, onData, onDone, onError);
+                    // a device that triggers itself (LogicAnalyzerDevice) also gets the trigger settings,
+                    // and gives back a handle like startTriggered() does
+                    const handle = device.deviceKind.start(msg, onData, onDone, onError, onStatus);
+                    if (handle?.stop) sessions.set(ws, handle);
                 }
             }
 
