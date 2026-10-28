@@ -1,7 +1,7 @@
 // trigger.js — hardware-independent trigger + pre/post-trigger capture for the WebScope backend.
 //
-// Works on the raw packed sample bytes every device already produces (unitSize = ceil(channels / 8)
-// bytes per sample, channel n = bit (n & 7) of byte (n >> 3), exactly what sigrok-cli and DemoDevice emit).
+// Works on the sample bytes every device produces for the browser (channels.js: unitSize = 1, 2 or 4
+// bytes per sample, channel n = bit (n & 7) of byte (n >> 3)).
 // No dependency on any driver: startTriggered() only needs an object with start()/stop().
 //
 //   TriggerEngine    finds the trigger sample in a stream of chunks (state survives chunk boundaries):
@@ -12,6 +12,8 @@
 //
 // Finished capture = preTrigger samples, the trigger sample, postTrigger samples
 //                  = preTrigger + 1 + postTrigger samples, the trigger sample is at index preTrigger.
+
+import { sampleBytes } from './channels.js';
 
 export const TRIGGER_TYPES = ['L2H', 'H2L', 'PulseH', 'PulseL'];
 
@@ -206,7 +208,7 @@ export class TriggerCapture {
 
 /* ============================== validation ============================== */
 
-/** Device indexes of the captured channels, in stream order (bit k of a sample = list[k]), see channels.js.
+/** Device indexes of the captured channels, ascending (bit n of a sample = channel n), see channels.js.
  *  msg.channels: a list of channel indexes; without it (or with a count / list of names) channels 0 .. n-1. */
 function capturedChannels(msg, info) {
     const c = msg.channels ?? info.channels;
@@ -219,11 +221,12 @@ function capturedChannels(msg, info) {
 export function parseTriggerConfig(msg, info) {
     const t = msg.triggerOn;
     if (!t || typeof t !== 'object') throw new Error('triggerOn is missing');
-    // the trigger channel and the conditions name device channels: the engine needs their bit in the stream
+    // the trigger channel and the conditions name device channels, which are their bit in the stream
+    // (bit n = channel n, see channels.js): they only have to be captured
     const captured = capturedChannels(msg, info);
-    const channelCount = captured.length;
-    if (!channelCount) throw new Error('cannot determine the number of captured channels');
-    const bitOf = (ch) => captured.indexOf(ch);
+    if (!captured.length) throw new Error('cannot determine the number of captured channels');
+    const channelCount = captured.at(-1) + 1;
+    const bitOf = (ch) => (captured.includes(ch) ? ch : -1);
     if (!Number.isInteger(t.channel) || bitOf(t.channel) < 0) throw new Error('bad trigger channel: it is not captured');
     if (!TRIGGER_TYPES.includes(t.type)) throw new Error('bad trigger type');
     let pulseLength = 0;
@@ -245,7 +248,7 @@ export function parseTriggerConfig(msg, info) {
     if (!Number.isInteger(preTrigger) || preTrigger < 0) throw new Error('bad preTrigger');
     if (!Number.isInteger(postTrigger) || postTrigger < 0) throw new Error('bad postTrigger');
     if (msg.samplerate !== undefined && !(msg.samplerate > 0)) throw new Error('bad samplerate');
-    const unitSize = Math.ceil(channelCount / 8);
+    const unitSize = sampleBytes(captured);
     if ((preTrigger * 2 + 1 + postTrigger) * unitSize > MAX_CAPTURE_BYTES) throw new Error('pre/post trigger too large');
     return { unitSize, channel: bitOf(t.channel), type: t.type, pulseLength, conditions, preTrigger, postTrigger, channelCount, samplerate: msg.samplerate };
 }

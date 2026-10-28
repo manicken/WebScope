@@ -1,7 +1,7 @@
 // node --test        (Node 18+, no dependencies)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveChannels, makeRepacker } from './channels.js';
+import { resolveChannels, makeRepacker, makeChannelPacker, sampleBytes } from './channels.js';
 import { parseTriggerConfig, TriggerCapture } from './trigger.js';
 
 const device = { channels: [0, 1, 2, 3, 4, 5, 6, 7].map((index) => ({ index, name: 'D' + index, type: 'logic' })) };
@@ -40,14 +40,27 @@ test('makeRepacker: the identity layout is passed through unchanged', () => {
     assert.equal(makeRepacker(1, [0, 1, 2, 3, 4, 5, 6, 7]).run(src), src);
 });
 
-test('trigger channel and conditions are device indexes, mapped to their bit in the stream', () => {
+test('makeChannelPacker: bit n = device channel n, up to the highest captured one, the others cleared', () => {
+    // channels 5-12 = 2 bytes; the device sends all 16 bits (bit n = channel n)
+    const r = makeChannelPacker(2, [5, 6, 7, 8, 9, 10, 11, 12]);
+    assert.equal(r.dstUnit, 2);
+    assert.deepEqual(Array.from(r.run(Uint8Array.of(0xFF, 0xFF))), [0xE0, 0x1F]);
+    // a device that sends the captured channels as bits 0, 1, ..: spread to their positions
+    const s = makeChannelPacker(1, [2, 9], (ch) => [2, 9].indexOf(ch));
+    assert.deepEqual(Array.from(s.run(Uint8Array.of(0b01, 0b10, 0b11))), [0x04, 0x00, 0x00, 0x02, 0x04, 0x02]);
+    assert.equal(sampleBytes([0]), 1);
+    assert.equal(sampleBytes([5, 12]), 2);
+    assert.equal(sampleBytes([16]), 4);
+});
+
+test('trigger channel and conditions are device indexes, which are their bit in the stream', () => {
     const cfg = parseTriggerConfig({ channels: [0, 3, 5], triggerOn: { channel: 5, type: 'L2H', conditions: { 3: 'hi' } } }, device);
-    assert.equal(cfg.channel, 2);
-    assert.deepEqual(cfg.conditions, { 1: 'hi' });
-    assert.equal(cfg.channelCount, 3);
-    // the stream has bits [ch0, ch3, ch5]: ch5 rises at 2 while ch3 is low, at 4 while ch3 is high
+    assert.equal(cfg.channel, 5);
+    assert.deepEqual(cfg.conditions, { 3: 'hi' });
+    assert.equal(cfg.channelCount, 6);
+    // bit n = channel n: ch5 rises at 2 while ch3 is low, at 4 while ch3 is high
     const cap = new TriggerCapture({ ...cfg, preTrigger: 0, postTrigger: 0 });
-    cap.push(Uint8Array.of(0b000, 0b000, 0b100, 0b000, 0b110, 0b000));
+    cap.push(Uint8Array.of(0, 0, 0b100000, 0, 0b101000, 0));
     assert.equal(cap.engine.fireIndex, 4);
     assert.throws(() => parseTriggerConfig({ channels: [0, 3], triggerOn: { channel: 5, type: 'L2H' } }, device), /not captured/);
     assert.throws(() => parseTriggerConfig({ channels: [0, 3], triggerOn: { channel: 0, type: 'L2H', conditions: { 5: 'lo' } } }, device), /not captured/);

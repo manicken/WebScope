@@ -61,14 +61,15 @@
         buffer.set(buf);
     }
 
-    /** The rows of a capture of `channels` (device Channel objects in bit order): row k = bit k, with
-     *  the device channel's name, color and visible (the same ReactiveValues, so a rename is kept).
-     *  The current rows when they already are these channels. */
+    /** The rows of a capture of `channels` (device Channel objects): bit n of a sample = device channel n,
+     *  so the rows are the device's channels 0 .. the highest captured one (row n = bit n). The ones not
+     *  captured are hidden: a row's `visible` is its capture chip. The current rows when they already are these. */
     function captureRows(channels) {
         if (!Array.isArray(channels) || !(channels[0]?.name instanceof ReactiveValue)) return null;
-        const rows = channels.map((ch, k) => (ch.index === k ? ch : { ...ch, index: k }));
+        const highest = channels.at(-1).index;
+        const rows = appState.deviceChannels.value.filter((ch) => ch.index <= highest);
         const cur = appState.channels.value;
-        const same = rows.length === cur.length && rows.every((r, k) => r.name === cur[k].name && r.index === cur[k].index);
+        const same = rows.length === cur.length && rows.every((r, k) => r === cur[k]);
         return same ? cur : rows;
     }
 
@@ -82,24 +83,18 @@
         return new LinearStorage(type, Math.min(memorySamples, 1 << 20), memorySamples);          // one shot
     }
 
-    /** One value per sample. A source sends either that (DemoSource) or raw bytes (WebSocketSource),
-     *  where a sample is ceil(channels / 8) bytes, little endian (the backend's format, see backend/channels.js). */
+    /** One value per sample. A source sends either that (DemoSource) or raw bytes (WebSocketSource): the
+     *  backend's samples are already 1, 2 or 4 bytes, little endian, like CaptureBuffer.sampleType (backend/channels.js). */
     function toSamples(chunk, channelCount) {
+        if (chunk.BYTES_PER_ELEMENT !== 1) return chunk;
         const type = CaptureBuffer.sampleType(channelCount);
-        if (chunk.BYTES_PER_ELEMENT !== 1 || type === Uint8Array) return chunk;
-        if (Math.ceil(channelCount / 8) === 3) {     // 17-24 channels: 3 bytes per sample, widened to Uint32
-            const n = Math.floor(chunk.length / 3), out = new Uint32Array(n);
-            for (let i = 0, o = 0; i < n; i++, o += 3) out[i] = chunk[o] | (chunk[o + 1] << 8) | (chunk[o + 2] << 16);
-            return out;
-        }
-        const n = Math.floor(chunk.byteLength / type.BYTES_PER_ELEMENT);
-        if (chunk.byteOffset % type.BYTES_PER_ELEMENT === 0) return new type(chunk.buffer, chunk.byteOffset, n);
-        return new type(chunk.slice(0, n * type.BYTES_PER_ELEMENT).buffer);
+        return new type(chunk.buffer, chunk.byteOffset, chunk.byteLength / type.BYTES_PER_ELEMENT);
     }
 
     /**
      * cfg = { mode, samplerate, channels, activeChannels?, duration?, memoryBytes, triggerOn?, preTrigger?, postTrigger?, ...source specific }
-     * channels: a count, or the captured channels (device Channel objects, bit k of a sample = channels[k]);
+     * channels: a count, or the captured channels (device Channel objects); bit n of a sample = device channel n,
+     * so a sample holds the channels up to the highest captured one, the others are 0;
      * activeChannels: their device indexes when not all channels are captured (the source sends only those).
      * duration (s) is set for Timer; memoryBytes limits Looping and One shot.
      * Trigger: triggerOn = { channel, type, pulseLength?, conditions? } with device channel indexes, preTrigger / postTrigger in samples,
@@ -111,7 +106,7 @@
         const { mode, samplerate, duration, channels, activeChannels, memoryBytes, triggerOn, preTrigger = 0, postTrigger = 0 } = cfg;
         const total = triggerOn ? preTrigger + 1 + postTrigger
             : duration ? Math.max(64, Math.round(samplerate * duration)) : undefined;
-        const channelCount = Array.isArray(channels) ? channels.length : channels;
+        const channelCount = Array.isArray(channels) ? channels.at(-1).index + 1 : channels;
         if (channelCount > 32) console.warn("channel count capped at 32");
         let trigger = null;
         try {
@@ -181,12 +176,11 @@
         );
     }
 
-    /** The local trigger works on the samples: its channels as bits instead of device indexes. */
+    /** The local trigger works on the samples, where bit n = device channel n: its channels must be captured. */
     function triggerAsBits(triggerOn, activeChannels) {
         const bitOf = (ch) => {
-            const bit = activeChannels ? activeChannels.indexOf(ch) : ch;
-            if (bit < 0) throw new Error(`The trigger uses channel ${ch}, which is not captured`);
-            return bit;
+            if (activeChannels && !activeChannels.includes(ch)) throw new Error(`The trigger uses channel ${ch}, which is not captured`);
+            return ch;
         };
         const conditions = Object.fromEntries(Object.entries(triggerOn.conditions ?? {}).map(([ch, level]) => [bitOf(Number(ch)), level]));
         return { ...triggerOn, channel: bitOf(triggerOn.channel), conditions };

@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { DemoDevice } from './DemoDevice.js'
 import { scanSigrok } from './SigrokDevice.js';
 import { scanLogicAnalyzers } from './LogicAnalyzerDevice.js';
+import { scanSigrokPicos } from './PicoCoderSigrokPicoDevice.js';
 import { startTriggered } from './trigger.js';
 import { resolveChannels } from './channels.js';
 
@@ -264,7 +265,7 @@ const devices = new Map();
 const sessions = new WeakMap();   // ws -> handle of a running triggered capture ({ stop() })
 
 async function sendDevices(ws) {
-    let _devices = await Promise.all([scanSigrok(), scanLogicAnalyzers()]);
+    let _devices = await Promise.all([scanSigrok(), scanLogicAnalyzers(), scanSigrokPicos()]);
     for (const info of _devices.flat()) devices.set(info.id, info);
     const arr = [...devices.values()];
     sendTo(ws, {

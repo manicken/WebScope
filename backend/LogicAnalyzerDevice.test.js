@@ -178,13 +178,13 @@ test('the reader reports a refused capture', () => {
 test('triggered capture: the trigger sample is at preTrigger, channels repacked', async () => {
     const board = fakeBoard();
     const kind = new LogicAnalyzerKind('COM99', PICO, board.open);
-    // channels 0 and 9: the board sends 2 bytes per sample (bits 0, 1), WebScope gets 1 byte
+    // channels 0 and 9: the board sends 2 bytes per sample (bits 0, 1), WebScope gets bit 0 and bit 9
     const { data, done, status } = await capture(kind, { channels: [0, 9], samplerate: 1e6, triggerOn: { channel: 9, type: 'L2H' }, preTrigger: 100, postTrigger: 300 });
     const r = board.requests[0];
     assert.deepEqual([r.channels, r.captureMode, r.preSamples, r.postSamples, r.trigger, r.inverted], [[0, 9], 1, 101, 300, 9, 0]);
-    assert.equal(data.length, 401);
     // the board's trigger sample is its sample preSamples - 1 = 100
-    for (let m = 0; m < 401; m++) assert.equal(data[m], m & 3, `sample ${m}`);
+    assert.equal(data.length, 401 * 2);
+    for (let m = 0; m < 401; m++) assert.deepEqual([data[2 * m], data[2 * m + 1]], [m & 1, (m >> 1) & 1 ? 0x02 : 0], `sample ${m}`);
     assert.deepEqual([done.samples, done.trigger, done.stopped, done.ok], [401, 100, false, true]);
     assert.deepEqual(status, ['armed', 'triggered']);
     assert.equal(kind.busy, false);
@@ -196,10 +196,11 @@ test('capture without trigger: samplecount samples, ext trigger input', async ()
     const { data, done } = await capture(kind, { channels: [0, 1, 2, 3, 4, 5, 6, 7, 16], samplerate: 2e6, samplecount: 1000 });
     const r = board.requests[0];
     assert.deepEqual([r.trigger, r.inverted, r.captureMode, r.preSamples, r.postSamples], [24, 1, 2, 2, 1000]);
-    assert.equal(data.length, 1000 * 2);
+    // channels 0-7 and 16: 4 bytes per sample, the board's bit 8 is channel 16
+    assert.equal(data.length, 1000 * 4);
     for (let m = 0; m < 1000; m++) {
-        const i = m + 2, v = i & 0x1ff;
-        assert.deepEqual([data[2 * m], data[2 * m + 1]], [v & 0xff, v >> 8], `sample ${m}`);
+        const i = m + 2;
+        assert.deepEqual([...data.subarray(4 * m, 4 * m + 4)], [i & 0xff, 0, (i >> 8) & 1, 0], `sample ${m}`);
     }
     assert.equal(done.samples, 1000);
     assert.equal(done.trigger, undefined);

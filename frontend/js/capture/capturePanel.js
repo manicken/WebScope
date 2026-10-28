@@ -1,11 +1,12 @@
 /**
  * capturepanel/capturePanel.js — "Capture" right-panel tab, modelled on Logic 2's device panel:
- * channel chips (All / Clear), samplerate, mode tabs (Looping / One shot / Timer / Trigger), trigger pattern +
+ * the device picker (#devicePicker from index.html, run by sources.js), channel chips (All / Clear), samplerate, mode tabs (Looping / One shot / Timer / Trigger), trigger pattern +
  * channel, capture duration after / before the trigger, memory buffer size.
  *
  * Shows and edits appState.captureSettings (see appState.js). The channel chips are the device's
  * channels (appState.deviceChannels): a chip is the channel's `visible`, so it also shows / hides the
  * channel's waveform row, and the visible ones are captured (captureSettings.activeChannels follows them).
+ * What the device cannot do with the current settings is grayed out, with why (see captureLimits.js).
  * Times are always SECONDS.
  * The rightpanel calls render() when one of the values in watch() changes.
  */
@@ -31,6 +32,8 @@
 
   // plain copies, set at the start of every rebuild(): the state the panel is drawn from
   let cfg = null;         // { samplerate, mode, trigger, ... }
+  let lim = null;         // what the device can do with these settings, see captureLimits.js
+  let noteEl = null;      // shows lim.note
   let channels = [];      // the device's channels: [{ index, name, color, active }]
   let deviceInfoHandler = null;
   let host = null, lastKey = '';
@@ -75,6 +78,14 @@
   function setQuietly(write) {
     write();
     lastKey = keyOf();
+    lim = WS.currentLimits();
+    showNote();
+  }
+
+  function showNote() {
+    noteEl.textContent = lim.note ?? '';
+    noteEl.className = 'cp-note' + (lim.bad ? ' bad' : '');
+    noteEl.hidden = !lim.note;
   }
 
   function setAllChannelsActive(active) {
@@ -131,8 +142,8 @@
     const s = el('div', 'cp-header');
     s.append(el('div', 'cp-device-icon', DEVICE_ICON));
     const txt = el('div', 'cp-header-text');
-    txt.append(el('div', 'cp-device-name', ''));
-    txt.firstChild.textContent = cfg.deviceName || 'Capture';
+    // the same element every time, so its options and handlers (sources.js) stay
+    txt.append(document.getElementById('devicePicker'));
     if (deviceInfoHandler) { const row = el('div', 'cp-pills'); row.append(pill('Device Information', () => deviceInfoHandler())); txt.append(row); }
     s.append(txt);
     return s;
@@ -184,9 +195,11 @@
   function modeTabs() {
     const seg = el('div', 'cp-seg');
     for (const [id, text] of MODES) {
-      const b = el('button', 'cp-seg-btn' + (cfg.mode === id ? ' on' : ''));
+      const why = lim.modes[id];
+      const b = el('button', 'cp-seg-btn' + (cfg.mode === id ? ' on' : '') + (why ? ' dis' : ''));
       b.textContent = text;
-      b.addEventListener('click', () => setSetting('mode', id));
+      if (why) b.title = why;
+      b.addEventListener('click', () => { if (!why) setSetting('mode', id); });
       seg.appendChild(b);
     }
     return seg;
@@ -208,8 +221,10 @@
     if (patternMenuOpen) {
       const menu = el('div', 'cp-dd-menu');
       for (const t of TYPES) {
-        const it = el('button', 'cp-dd-item' + (t.id === cur.id ? ' on' : ''), `${t.icon}<span>${t.label}</span>`);
-        it.addEventListener('click', (e) => { e.stopPropagation(); patternMenuOpen = false; setTrigger({ type: t.id }); rebuild(true); });
+        const why = lim.triggerTypes[t.id];
+        const it = el('button', 'cp-dd-item' + (t.id === cur.id ? ' on' : '') + (why ? ' dis' : ''), `${t.icon}<span>${t.label}</span>`);
+        if (why) it.title = why;
+        it.addEventListener('click', (e) => { e.stopPropagation(); if (why) return; patternMenuOpen = false; setTrigger({ type: t.id }); rebuild(true); });
         menu.appendChild(it);
       }
       wrap.appendChild(menu);
@@ -258,6 +273,7 @@
     head.addEventListener('click', () => { conditionsOpen = !conditionsOpen; rebuild(true); });
     box.appendChild(head);
     if (!conditionsOpen) return box;
+    if (lim.conditions) { box.appendChild(el('div', 'cp-note', '')).textContent = lim.conditions; return box; }
     const conditions = cfg.trigger.conditions ?? {};
     for (const ch of channels.filter((c) => c.active && c.index !== cfg.trigger.channel)) {
       const row = el('div', 'cp-cond-row');
@@ -298,7 +314,24 @@
     const val = el('div', 'cp-step-val'); val.innerHTML = '<b></b><span></span>'; val.firstChild.textContent = num; val.lastChild.textContent = unit;
     ctl.append(minus, val, plus);
     row.appendChild(ctl);
-    return row;
+    return withSampleNote(row, cur);
+  }
+
+  /** How many samples the memory holds: a sample takes 1, 2 or 4 bytes by the highest captured channel
+   *  (bit n = channel n, see backend/channels.js), also when the channels below it are not captured. */
+  function withSampleNote(row, memoryMB) {
+    const active = channels.filter((c) => c.active);
+    if (!active.length) return row;
+    const highest = active.at(-1);
+    const bytes = CaptureBuffer.sampleType(highest.index + 1).BYTES_PER_ELEMENT;
+    const samples = Math.floor((memoryMB * 1024 * 1024) / bytes);
+    const note = el('div', 'cp-note', '');
+    note.textContent = `${samples.toLocaleString()} samples: ${bytes} byte${bytes > 1 ? 's' : ''} per sample up to ${highest.name ?? 'channel ' + highest.index}. ` +
+      'A sample is 1, 2 or 4 bytes by the highest captured channel (up to the 8th / 16th / 32nd), also when the ones below it are not captured: ' +
+      'connect signals to the lowest channels to fit the most samples.';
+    const box = el('div', 'cp-sec');
+    box.append(row, note);
+    return box;
   }
 
   /* ---------------- assembly ---------------- */
@@ -309,9 +342,12 @@
     lastKey = key;
     cfg = readSettings();
     channels = readChannels();
+    lim = WS.currentLimits();
     const kids = [headerSection(), divider(), digitalSection(), divider()];
     const body = el('div', 'cp-block cp-modes');
     body.appendChild(modeTabs());
+    noteEl = body.appendChild(el('div'));
+    showNote();
     if (cfg.mode === 'timer') body.appendChild(timerSection());
     if (cfg.mode === 'trigger') body.appendChild(triggerSection());
     // Looping keeps the newest samples that fit, One shot stops when the memory is full
@@ -319,6 +355,9 @@
     kids.push(body);
     host.replaceChildren(...kids);
   }
+
+  // keep typing in the device picker away from global shortcuts, like the panel's other selects
+  document.getElementById('deviceSelect')?.addEventListener('keydown', (e) => e.stopPropagation());
 
   document.addEventListener('pointerdown', (e) => {
     if (patternMenuOpen && !e.target.closest?.('.cp-dd')) { patternMenuOpen = false; rebuild(true); }

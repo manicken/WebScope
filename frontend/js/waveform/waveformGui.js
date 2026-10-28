@@ -128,11 +128,13 @@
       const hover = pointerState.hover.value, measurement = pointerState.measurement.value;
       if (!hover || !measurement || hover.channel === null || !capture.hasData()) { hoverTipEl.style.display = 'none'; return; }
       const samplerate = capture.getBuffer().samplerate;
-      const width = (measurement.end - measurement.start) / samplerate;
+      const sampleCount = (measurement.end - measurement.start);
+      const width = sampleCount / samplerate;
       const period = measurement.period ? measurement.period / samplerate : null;
-      let html = `<div><b>${measurement.high ? 'High' : 'Low'}</b> ${fmtTime(width)}</div>`;
+      let html = `<div><b>${measurement.high ? 'High' : 'Low'}</b> ${fmtTime(width)} (${sampleCount} samples)</div>`;
+
       if (period) {
-        html += `<div><span class="muted">Period</span> ${fmtTime(period)}</div>`;
+        html += `<div><span class="muted">Period</span> ${fmtTime(period)} (${sampleCount} samples)</div>`;
         html += `<div><span class="muted">Freq</span> ${fmtFreq(1 / period)}</div>`;
         html += `<div><span class="muted">Duty</span> ${(((measurement.highTime || 0) / (measurement.period || 1)) * 100).toFixed(1)}%</div>`;
       }

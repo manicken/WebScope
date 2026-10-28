@@ -16,7 +16,7 @@
 // which it is when nothing drives it (the pin's pull-down).
 
 import net from 'node:net';
-import { makeRepacker } from './channels.js';
+import { makeChannelPacker } from './channels.js';
 
 const USB_IDS = [{ vendorId: '1209', productId: '3020' }];
 const MIN_MAJOR_VERSION = 6;        // the CAPTURE_REQUEST layout below is the one of firmware V6_x
@@ -377,8 +377,8 @@ export class LogicAnalyzerKind {
         try {
             this.dev = await identify(link);   // also checks that it still is the same kind of board
             if (s.stopped) return 0;
-            // the board sends the requested channels as bits 0, 1, ..: only the sample width has to change
-            const repack = makeRepacker(plan.unit, msg.channels.map((_, k) => k));
+            // the board sends the requested channels as bits 0, 1, ..: bit k = msg.channels[k]
+            const repack = makeChannelPacker(plan.unit, msg.channels, (ch) => msg.channels.indexOf(ch));
             return await new Promise((resolve, reject) => {
                 let timer = setTimeout(() => reject(new Error('the board did not answer the capture request')), REPLY_TIMEOUT);
                 const reader = new CaptureReader({
@@ -460,6 +460,17 @@ function describe(kind) {
         defaultSamplerate: rates.includes(1_000_000) ? 1_000_000 : rates.at(-1),
         driver: 'logicanalyzer',
         note: `${Math.round(dev.bufferSize / 1024)} KB memory: ${dev.bufferSize} samples with CH1-8, ${dev.bufferSize / 2} up to CH16, ${dev.bufferSize / 4} above. Triggers: L2H / H2L only`,
+        // what the frontend can offer, see frontend/js/capture/captureLimits.js (the same rules as planCapture())
+        limits: {
+            stream: false,
+            memory: [
+                { below: 8, samples: dev.bufferSize },
+                { below: 16, samples: Math.floor(dev.bufferSize / 2) },
+                { below: dev.channelCount, samples: Math.floor(dev.bufferSize / 4) },
+            ],
+            preTriggerShare: 0.1,
+            hardwareTrigger: { types: ['L2H', 'H2L'], conditions: false },
+        },
     };
     // non-enumerable so JSON.stringify(info) sends it to the browser without the kind object
     Object.defineProperty(info, 'deviceKind', { value: kind, enumerable: false });

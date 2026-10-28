@@ -53,6 +53,7 @@
             deviceName: rv(''),
             samplerates: rv([]),
             samplerate: rv(null),
+            limits: rv(null),           // the device's info.limits, see captureLimits.js
             activeChannels: rv([]),     // device channel indexes to capture, ascending
             mode: rv('timer'),          // 'looping' | 'oneshot' | 'timer' | 'trigger'
             timerSeconds: rv(1),

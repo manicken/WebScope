@@ -20,8 +20,6 @@
     <span class="brand">WebScope</span>
     <span class="sep"></span>
     <span class="spacer"></span>
-    <select id="deviceSelect"></select>
-    <button id="devicesRefreshBtn">↻</button>
     <!--<label>Rate <select id="samplerateSelect" style="width:110px"></select></label>-->
     <!--<label>Duration (s) <input id="durationIn" type="number" value="1" step="0.01" /></label>-->
 
@@ -35,6 +33,14 @@
     <button id="wsConnectBtn" title="(Re)Connect to the websocket server">⇄</button>'
     <span class="sep"></span>
     <button id="fitBtn">Fit</button>
+  </div>
+
+  <!-- the device picker: shown in the Capture panel's header (capturePanel.js moves it there) -->
+  <div hidden>
+    <div id="devicePicker" class="cp-device-picker">
+      <select id="deviceSelect" class="cp-select" title="Capture device"></select>
+      <button id="devicesRefreshBtn" class="cp-step" title="Look for devices again">↻</button>
+    </div>
   </div>
 
   <div class="main">
@@ -104,6 +110,7 @@
 <script src="js/capture/CaptureStorage.js"></script>
 <script src="js/capture/TriggerCapture.js"></script>
 <script src="js/capture/captureEngine.js"></script>
+<script src="js/capture/captureLimits.js"></script>
 <script src="js/capture/capturePanel.js"></script>
 
 <script src="js/decoder/Decoder.js"></script>

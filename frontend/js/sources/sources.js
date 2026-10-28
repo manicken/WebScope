@@ -56,6 +56,10 @@
         s.deviceName.set(device.name);
         s.samplerates.set(device.samplerates);
         s.samplerate.set(device.defaultSamplerate ?? device.samplerates.at(-1));
+        s.limits.set(device.limits ?? null);
+        // a mode the device cannot do (e.g. Looping on a device that only captures into its memory): the first one it can
+        const { modes } = WS.currentLimits();
+        if (modes[s.mode.value]) s.mode.set(Object.keys(modes).find((m) => !modes[m]) ?? s.mode.value);
 
         if (s.trigger.value.channel >= device.channels.length) {
             s.trigger.set({ ...s.trigger.value, channel: 0 });

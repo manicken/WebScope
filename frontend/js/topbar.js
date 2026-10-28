@@ -15,6 +15,8 @@
     const active = new Set(s.activeChannels.value);
     const channels = deviceChannels.filter((ch) => active.has(ch.index));
     if (channels.length === 0) throw new Error('No channels are active: choose the channels to capture in the Capture panel');
+    const lim = WS.currentLimits();   // what the device cannot do, see captureLimits.js
+    if (lim.modes[s.mode.value]) throw new Error(lim.modes[s.mode.value]);
 
     // the memory size limits Looping and One shot
     const cfg = { mode: s.mode.value, samplerate, channels, memoryBytes: s.memoryMB.value * 1024 * 1024 };
@@ -30,7 +32,8 @@
         throw new Error(`The trigger channel ${name} is not captured: make it active or choose another trigger channel`);
       }
       // only the conditions the Capture panel shows: captured channels other than the trigger channel
-      const conditions = Object.fromEntries(Object.entries(t.conditions ?? {})
+      if (lim.triggerTypes[t.type]) throw new Error(lim.triggerTypes[t.type]);
+      const conditions = lim.conditions ? {} : Object.fromEntries(Object.entries(t.conditions ?? {})
         .filter(([ch]) => Number(ch) !== t.channel && active.has(Number(ch))));
       cfg.triggerOn = { channel: t.channel, type: t.type, conditions, ...(pulse && { pulseLength: Math.max(1, toSamples(t.pulseWidth)) }) };
       cfg.preTrigger = pre;

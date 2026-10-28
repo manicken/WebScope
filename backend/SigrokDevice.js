@@ -1,7 +1,7 @@
-// SigrokDevice.js - use sigrok-cli from the Node.js backend (no native addon needed; listing the USB serial ports for sigrok-pico uses the serialport package).
+// SigrokDevice.js - use sigrok-cli from the Node.js backend (no native addon needed).
 //
 //   scanSigrok()  -> Promise<info[]>   one info object per device found by `sigrok-cli --scan`,
-//                                      plus sigrok-pico boards found on the USB serial ports
+//                                      (sigrok-pico boards have their own driver: PicoCoderSigrokPicoDevice.js)
 //   info.deviceKind.start(msg, onData, onDone, onError) / .stop()   (same shape as DemoDevice)
 //   onError(message, details) and onDone({ ..., warning?, details? }): details is the extended message
 //   for the frontend's message log (the sigrok-cli command line, exit code and its whole stderr)
@@ -13,7 +13,7 @@ import { spawn, execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { makeRepacker } from './channels.js';
+import { makeChannelPacker } from './channels.js';
 
 // ---- locating sigrok-cli ----------------------------------------------------
 // Tried in this order, the first one that answers `--version` wins:
@@ -71,15 +71,20 @@ const isLogicChannel = (name) => /^D?\d+$/.test(name);
 
 // How sigrok-cli's binary output holds the enabled channels (-C) depends on the driver (measured):
 //   raw     the device's own sample: channel n = bit n, ceil(all logic channels / 8) bytes, the bits of
-//           disabled channels are not cleared (fx2lafw; sigrok-pico, which always sends 4 bytes) -
+//           disabled channels are not cleared (fx2lafw) -
 //           libsigrok's own convention, so the default
 //   packed  only the enabled channels: the k-th enabled channel = bit k, ceil(enabled / 8) bytes (demo)
 const PACKED_DRIVERS = ['demo'];
 
+// The sample count for "until stopped" on a device that cannot sample continuously (no --continuous):
+// 2^31 - 1, so it fits a 32-bit signed number in the driver / firmware; 35 minutes at 1 MHz
+const UNTIL_STOPPED_SAMPLES = 2 ** 31 - 1;
+
 class SigrokKind {
-    constructor(driverSpec, channels) {
+    constructor(driverSpec, channels, continuous = true) {
         this.driverSpec = driverSpec;   // what goes after -d, e.g. "demo" or "fx2lafw:conn=1.5"
         this.channels = channels;       // all channel names reported by the scan
+        this.continuous = continuous;   // it can run until stopped (--continuous), else it needs a sample count
         this.proc = null;
     }
 
@@ -102,14 +107,14 @@ class SigrokKind {
             return onError('SigrokDevice - bad channel list');
         }
         const driver = this.driverSpec.split(':')[0];
-        if (driver === PICO_DRIVER && !indexes.every((ch, k) => ch === k)) {
-            return onError(`sigrok-pico can only capture channels that start at ${logic[0]} and have no gaps, e.g. ${logic[0]}-${logic[7]}`);
-        }
         args.push('-C', indexes.map((i) => logic[i]).join(','));
 
         if (msg.samplecount !== undefined) {
             if (!Number.isInteger(msg.samplecount) || msg.samplecount <= 0) return onError('SigrokDevice - bad samplecount');
             args.push('--samples', String(msg.samplecount));
+        } else if (!this.continuous) {
+            // runs until stopped all the same: a sample count it will not reach
+            args.push('--samples', String(UNTIL_STOPPED_SAMPLES));
         } else {
             args.push('--continuous');
         }
@@ -118,7 +123,7 @@ class SigrokKind {
         // what sigrok-cli sends, and how to turn it into the browser's format (only the enabled channels, see channels.js)
         const packed = PACKED_DRIVERS.includes(driver);
         const unitSize = Math.ceil((packed ? indexes.length : logic.length) / 8);   // bytes per sample from sigrok-cli
-        const repack = makeRepacker(unitSize, packed ? indexes.map((_, k) => k) : indexes);
+        const repack = makeChannelPacker(unitSize, indexes, packed ? (ch) => indexes.indexOf(ch) : undefined);
 
         // stdin must stay OPEN ('pipe'): sigrok-cli quits immediately when stdin is closed/EOF,
         // which is what stdio 'ignore' (/dev/null) gives it.
@@ -170,15 +175,12 @@ class SigrokKind {
             onDone({ deviceId: this.driverSpec, samples: 0, stopped: false, ok: false });
         });
 
-        proc.on('close', async (code) => {
+        proc.on('close', (code) => {
             if (failed) return;
-            // killed in the middle of a capture, a sigrok-pico keeps sending for a few seconds and does
-            // not answer until it has finished: stop and reset it first, so it can be used again directly
-            if (stopped && this.driverSpec.startsWith(PICO_DRIVER + ':')) await resetPico(this.driverSpec);
             this.proc = null;
             if (code !== 0 && !stopped) onError('SigrokDevice - ' + (errorText(stderr) || `sigrok-cli exited with code ${code}`), details(code));
             const samples = totalBytes / unitSize;
-            // some devices end early without an error (sigrok-pico: its memory is full, or it cannot send the data fast enough)
+            // some devices end early without an error (their memory is full, or they cannot send the data fast enough)
             const short = !stopped && code === 0 && msg.samplecount !== undefined && samples < msg.samplecount;
             onDone({
                 deviceId: this.driverSpec,
@@ -200,29 +202,11 @@ class SigrokKind {
     }
 }
 
-/** sigrok-cli's error message without its debug lines (sigrok-pico prints "Drain reads" on every run). */
+/** sigrok-cli's error message without its debug lines ("sr: ..."; some drivers print "Drain reads" on every run). */
 function errorText(stderr) {
     const lines = stderr.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const plain = lines.filter((l) => !l.startsWith('sr: '));
     return (plain.length ? plain : lines.filter((l) => !/Drain reads/.test(l))).join('\n');
-}
-
-/** Stop a sigrok-pico's stream ('+') and reset it ('*'), the commands its sigrok driver uses. */
-async function resetPico(driverSpec) {
-    const port = driverSpec.match(/:conn=([^:]+)/)?.[1];
-    if (!port) return;
-    try {
-        const { SerialPort } = await import('serialport');
-        const sp = new SerialPort({ path: port, baudRate: 115200 });
-        await new Promise((resolve, reject) => sp.once('open', resolve).once('error', reject));
-        sp.on('data', () => {});   // throw away what the board still sends
-        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-        sp.write('+'); await sleep(200);
-        sp.write('*'); await sleep(300);
-        await new Promise((resolve) => sp.close(resolve));
-    } catch (err) {
-        console.warn(`Sigrok: could not reset the sigrok-pico on ${port}:`, err.message);
-    }
 }
 
 async function run(args) {
@@ -247,46 +231,6 @@ function parseScanLines(out) {
         const [, spec, rest] = m;
         const d = rest.match(/^(.*?) with (\d+) channels?: (.*)$/);
         found.push({ spec, name: d ? d[1] : rest, channels: d ? d[3].trim().split(/\s+/) : [] });
-    }
-    return found;
-}
-
-// ---- sigrok-pico (Raspberry Pi Pico running the sigrok-pico firmware) -------
-// It is a USB serial device: sigrok only probes it when it is given the port (conn=COM5,
-// conn=/dev/ttyACM0, ...), and its serial scan cannot tell which port is a Pico. So the USB
-// serial ports are listed first (vendor / product id), and sigrok then probes only those. The
-// driver asks the board to identify itself, so a Pico running other firmware is not listed.
-const PICO_DRIVER = 'raspberrypi-pico';
-const PICO_USB_IDS = [{ vendorId: '2e8a', productId: '000a' }];   // Raspberry Pi, Pico SDK USB serial
-
-async function picoPorts() {
-    let SerialPort;
-    try {
-        ({ SerialPort } = await import('serialport'));
-    } catch {
-        console.warn('Sigrok: the serialport package is not installed (npm install), sigrok-pico devices are not scanned');
-        return [];
-    }
-    const ports = await SerialPort.list();
-    return ports
-        .filter((p) => PICO_USB_IDS.some((id) =>
-            p.vendorId?.toLowerCase() === id.vendorId && p.productId?.toLowerCase() === id.productId))
-        .map((p) => p.path);
-}
-
-async function scanPicos() {
-    const found = [];
-    for (const port of await picoPorts()) {
-        const spec = `${PICO_DRIVER}:conn=${port}`;
-        try {
-            // the scan line says just "raspberrypi-pico": the port has to stay in the spec
-            for (const dev of parseScanLines(await run(['-d', spec, '--scan']))) {
-                found.push({ ...dev, spec, name: `${dev.name} (${port})` });
-            }
-        } catch (err) {
-            // e.g. the port is in use (a capture is running) or the board has other firmware
-            console.warn(`Sigrok: no sigrok-pico on ${port}:`, err.message);
-        }
     }
     return found;
 }
@@ -357,6 +301,10 @@ async function describe({ spec, name, channels }) {
         }
     }
 
+    // "continuous: on, off" is listed only by drivers that can run until stopped; the others need a
+    // sample count, and sigrok-cli refuses --continuous for them: see UNTIL_STOPPED_SAMPLES
+    const continuous = deviceInfoLines.some((l) => /^\s*continuous:/.test(l));
+
     const info = {
         id: 'sigrok:' + spec,
         name,
@@ -369,7 +317,7 @@ async function describe({ spec, name, channels }) {
     //console.log(info);
     // non-enumerable so JSON.stringify(info) sends it to the browser without the kind object
     Object.defineProperty(info, 'deviceKind', {
-        value: new SigrokKind(spec, channels),
+        value: new SigrokKind(spec, channels, continuous),
         enumerable: false,
     });
     return info;
@@ -377,8 +325,7 @@ async function describe({ spec, name, channels }) {
 
 export async function scanSigrok(driver /* optional, e.g. "fx2lafw" */) {
     try {
-        const found = driver === PICO_DRIVER ? [] : parseScanLines(await run(driver ? ['-d', driver, '--scan'] : ['--scan']));
-        if (!driver || driver === PICO_DRIVER) found.push(...await scanPicos());
+        const found = parseScanLines(await run(driver ? ['-d', driver, '--scan'] : ['--scan']));
         const devices = [];
         for (const dev of found) devices.push(await describe(dev));
         return devices;

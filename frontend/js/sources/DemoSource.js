@@ -122,8 +122,9 @@ class DemoSource {
         const total = cfg.samplecount??Number.MAX_VALUE;
         console.log({total, samplecount:cfg.samplecount});
         const chunk = Math.max(1, Math.floor(rate / 100));
-        // the pattern has all channels: send only the active ones (bit k = cfg.activeChannels[k])
-        const pick = cfg.activeChannels ? DemoSource.picker(cfg.activeChannels) : null;
+        // the pattern has all channels (bit n = channel n): clear the ones that are not active
+        const mask = cfg.activeChannels ? cfg.activeChannels.reduce((m, ch) => m | 2 ** ch, 0) : null;
+        const pick = mask === null ? null : (src) => src.map((v) => v & mask);
 
         let pos = 0;
         let sent = 0;
@@ -169,24 +170,6 @@ class DemoSource {
         streamChunk();
     }
 
-    /** A function that keeps the given channels of 32-bit samples: bit k of the result = bit bits[k]. */
-    static picker(bits) {
-        // per byte of a sample: its 256 values -> the result bits they set
-        const luts = [0, 1, 2, 3].map(() => new Uint32Array(256));
-        bits.forEach((b, k) => {
-            const lut = luts[b >> 3], m = 1 << (b & 7);
-            for (let v = 0; v < 256; v++) if (v & m) lut[v] |= 2 ** k;
-        });
-        const [l0, l1, l2, l3] = luts;
-        return (src) => {
-            const out = new Uint32Array(src.length);
-            for (let i = 0; i < src.length; i++) {
-                const v = src[i];
-                out[i] = l0[v & 255] | l1[(v >>> 8) & 255] | l2[(v >>> 16) & 255] | l3[v >>> 24];
-            }
-            return out;
-        };
-    }
 
     static stop() {
         DemoSource.run = 0;

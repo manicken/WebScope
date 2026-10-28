@@ -1,5 +1,5 @@
 import { DemoWave } from './DemoWave.js'
-import { makeRepacker } from './channels.js'
+import { makeChannelPacker } from './channels.js'
 
 export class DemoDevice {
 
@@ -85,9 +85,9 @@ export class DemoDevice {
         const buffer = DemoDevice.pattern(rate);
         const total = cfg.samplecount ?? Infinity;   // no samplecount = run until stop() (triggered capture)
         const chunk = Math.max(1, Math.floor(rate / 100));
-        // the pattern has all 8 channels (1 byte per sample): send only the ones asked for
+        // the pattern has all 8 channels (1 byte per sample, bit n = channel n): clear the ones not asked for
         const channels = cfg.channels ?? [0, 1, 2, 3, 4, 5, 6, 7];
-        const repack = makeRepacker(1, channels);
+        const repack = makeChannelPacker(1, channels);
 
         let pos = 0;
         let sent = 0;
@@ -99,7 +99,7 @@ export class DemoDevice {
 
             if (count <= 0) {
                 DemoDevice.run = 0;
-                onDone({ samples: sent, samplerate: rate, channels: channels.length });
+                onDone({ samples: sent, samplerate: rate, channels: channels.at(-1) + 1 });
                 return;
             }
 
