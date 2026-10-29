@@ -7,9 +7,20 @@
   const { THEME, ANN, CLASS_COLORS, hexA } = WS.theme;
 
   const fitCache = new Map();
-  function fitText(ctx, s, max) {
+  function textWidth(ctx, s) {
     let wd = fitCache.get(s);
     if (wd === undefined) { wd = ctx.measureText(s).width; if (fitCache.size > 5000) fitCache.clear(); fitCache.set(s, wd); }
+    return wd;
+  }
+
+  /** The text to draw in `max` px: a string is shortened with '…'; a list (longest to shortest, as in
+   *  sigrok) gives the longest that fits, else its shortest shortened. */
+  function fitText(ctx, t, max) {
+    if (Array.isArray(t)) {
+      for (const s of t) if (textWidth(ctx, String(s)) <= max) return String(s);
+      t = String(t.at(-1) ?? '');
+    }
+    const s = String(t ?? ''), wd = textWidth(ctx, s);
     if (wd <= max) return s;
     const n = Math.floor((max / wd) * s.length) - 1;
     return n > 0 ? s.slice(0, n) + '…' : '';
@@ -28,7 +39,8 @@
         if (lit) { ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.strokeRect(x0 + 0.75, top + 3.75, Math.max(bw - 1.5, 0), bh - 7.5); }
         continue;
       }
-      const c = CLASS_COLORS[a.class] ?? color;
+      // a decoder's own color for this annotation (e.g. WS281x: the LED's color), else its class's, else the decoder's
+      const c = a.color ?? CLASS_COLORS[a.class] ?? color;
       ctx.fillStyle = hexA(c, lit ? 0.42 : 0.22);
       ctx.strokeStyle = lit ? c : hexA(c, 0.85);
       ctx.lineWidth = lit ? 1.5 : 1;

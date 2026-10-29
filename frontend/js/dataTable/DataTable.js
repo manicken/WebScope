@@ -20,7 +20,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
 
 function showFull(a, idx) {
   const message =
-    `<div class="mono" style="max-height:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text">${esc(a.text)}</div>`;
+    `<div class="mono" style="max-height:100%;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text">${esc(WS.annotations.annText(a))}</div>`;
   InfoDialog.Show({ title: `Row ${idx + 1}`, message, states: { width: 500, height: 300 }, backdrop:false });
   console.log(AppWindows.GetWindows());
 }
@@ -111,7 +111,7 @@ function showFull(a, idx) {
       }
       node._ann = a;
       node.children[1].textContent = fmtTime((a.start - origin) / samplerate, 6);
-      node.children[2].textContent = a.text;
+      node.children[2].textContent = WS.annotations.annText(a);
       node.className = 'table-row' + (idx === table.focus.value ? ' focus' : '') + ` cls-${a.class}`;
     });
     for (const [idx, node] of rowsById) {

@@ -108,6 +108,15 @@ class Decoder {
         return this.constructor.Info.name;
     }
 
+    /**
+     * Decodes and returns the annotations per row: { rowId: [annotation, ...] }, the rows of rows().
+     * An annotation: { start, end, class, text, color? }
+     *   start, end  sample positions
+     *   class       WS.theme.ANN.DATA / ADDRESS / CONTROL / ACK / NACK / WARN / ERROR: its color
+     *   text        a string, or the same text from longest to shortest (['Reset', 'Rst', 'R']):
+     *               the waveform shows the longest that fits
+     *   color       optional, '#rrggbb': this annotation's own color, used instead of the class's
+     */
     run(input) {
         throw new Error('Not implemented');
     }

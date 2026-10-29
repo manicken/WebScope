@@ -71,7 +71,12 @@
         return out;
     }
     
-    WS.annotations = Object.assign(WS.annotations ?? {}, { 
+    /** An annotation's full text. `text` is a string, or (as in sigrok) a list of the same text from
+     *  longest to shortest, e.g. ['Reset', 'Rst', 'R']: the waveform shows the longest that fits. */
+    const annText = (a) => (Array.isArray(a.text) ? a.text[0] ?? '' : a.text ?? '');
+
+    WS.annotations = Object.assign(WS.annotations ?? {}, {
+        annText,
         annKey, 
         annotationAt, 
         annotationsAtRowInRange, 

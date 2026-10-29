@@ -129,7 +129,7 @@
             const annotations = {};
             for (const [row, anns] of Object.entries(result)) {
                 if (!Array.isArray(anns)) continue;
-                annotations[row] = anns.map((a) => ({ start: a.start, end: a.end, startTime: time(a.start), endTime: time(a.end), text: a.text ?? '' }));
+                annotations[row] = anns.map((a) => ({ start: a.start, end: a.end, startTime: time(a.start), endTime: time(a.end), text: WS.annotations.annText(a) }));
             }
             return {
                 id: d.id,
