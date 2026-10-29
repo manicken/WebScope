@@ -43,6 +43,20 @@
         deviceSelected();
     }
 
+    /** A device's info changed (e.g. its settings were saved): replace it, and apply it when it is the selected one. */
+    function updateDevice(device) {
+        if (!devices.has(device.id)) { addDevice(device); return; }
+        devices.set(device.id, device);
+        const option = [...deviceSelect_el.options].find((o) => o.value === device.id);
+        if (option) option.textContent = device.name;
+        if (selectedDevice?.id !== device.id) return;
+
+        const samplerate = appState.captureSettings.samplerate.value;
+        selectedDevice = null;
+        deviceSelected();
+        if (device.samplerates.includes(samplerate)) appState.captureSettings.samplerate.set(samplerate);
+    }
+
     function deviceSelected(e) {
         const device = devices.get(deviceSelect_el.value);
         if (!device || device === selectedDevice) return;
@@ -91,5 +105,5 @@
         return selectedDevice;
     }
 
-    WS.sources = { setRefreshCallback, addDevice, refresh, getSelectedId, getSelectedInfo };
+    WS.sources = { setRefreshCallback, addDevice, updateDevice, refresh, getSelectedId, getSelectedInfo };
 })(window.WS = window.WS || {});

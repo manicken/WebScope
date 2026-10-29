@@ -312,3 +312,32 @@
   color: #d4def4;
   font-family: monospace;
 }
+
+/* ---------- DeviceSettingsDialog.js ---------- */
+.ds-form {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 12px;
+  align-items: start;
+  padding: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  overflow-y: auto;
+}
+.ds-note { grid-column: 1 / -1; color: var(--muted); }
+.ds-heading {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border-2);
+  font-weight: 700;
+  color: var(--text-2);
+}
+.ds-label { padding-top: 5px; }
+.ds-label-check { padding-top: 1px; }
+.ds-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ds-cell input:not([type="checkbox"]), .ds-cell select { width: 100%; }
+.ds-cell input[type="checkbox"] { align-self: flex-start; margin: 2px 0; }
+.ds-help { color: var(--muted); font-size: 11px; }
+.ds-status { grid-column: 1 / -1; min-height: 1.2em; color: var(--muted); }
+.ds-status.ds-error { color: var(--danger); }

@@ -9,6 +9,8 @@ class WebSocketSource {
     static #onStatus = null;
     static #cfg = null;
     static #offset = 0;
+    static #pending = new Map();    // reqId -> { resolve, reject } of a request waiting for its answer
+    static #reqIds = 0;
 
     static wsUrl = new ReactiveValue();
 
@@ -66,6 +68,8 @@ class WebSocketSource {
             //console.log('WebSocket disconnected');
             WebSocketSource.#ws = null;
             WebSocketSource.#SetDisconnected();
+            for (const { reject } of WebSocketSource.#pending.values()) reject(new Error('the connection to the backend was lost'));
+            WebSocketSource.#pending.clear();
             setTimeout(() => {
                 WebSocketSource.#SetConnecting();
                 WebSocketSource.connect();
@@ -115,6 +119,16 @@ class WebSocketSource {
                     WebSocketSource.#onStatus?.(msg);
                 } else if (msg.type === 'error') {
                     WebSocketSource.#onError(msg.message, msg.details);
+                } else if (msg.type === 'deviceSettings') {
+                    // the answer to applySettings()
+                    const req = WebSocketSource.#pending.get(msg.reqId);
+                    WebSocketSource.#pending.delete(msg.reqId);
+                    if (msg.ok) req?.resolve({ message: msg.message });
+                    else req?.reject(new Error(msg.message));
+                } else if (msg.type === 'deviceUpdated') {
+                    // a device's info changed, e.g. its settings were saved (also from another browser)
+                    msg.device.sourceKind = WebSocketSource;
+                    window.WS.sources.updateDevice(msg.device);
                 } else {
                     console.log("unknown type for: " + ev.data);
                 }
@@ -169,6 +183,17 @@ class WebSocketSource {
                 WebSocketSource.#sendStart();
             }, { once: true });
         }
+    }
+
+    /** Save a device's settings (see backend/deviceSettings.js) -> Promise<{ message }>, rejects with the backend's reason. */
+    static applySettings(device, values) {
+        const ws = WebSocketSource.#ws;
+        if (ws?.readyState !== WebSocket.OPEN) return Promise.reject(new Error('not connected to the backend'));
+        const reqId = ++WebSocketSource.#reqIds;
+        return new Promise((resolve, reject) => {
+            WebSocketSource.#pending.set(reqId, { resolve, reject });
+            ws.send(JSON.stringify({ type: 'deviceSettings', reqId, deviceId: device.id, values }));
+        });
     }
 
     static refreshdevices() {

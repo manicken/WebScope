@@ -61,7 +61,8 @@
       ({ index: ch.index, name: ch.name.value, color: ch.color.value, active: active.has(ch.index) }));
   };
 
-  const keyOf = () => JSON.stringify([readSettings(), readChannels(), patternMenuOpen, conditionsOpen, !!deviceInfoHandler]);
+  const deviceSettings = () => WS.sources?.getSelectedInfo()?.settings;
+  const keyOf = () => JSON.stringify([readSettings(), readChannels(), patternMenuOpen, conditionsOpen, !!deviceInfoHandler, !!deviceSettings()]);
 
   const setSetting = (key, value) => settings[key].set(value);
   const setTrigger = (patch) => settings.trigger.set({ ...settings.trigger.value, ...patch });
@@ -144,7 +145,13 @@
     const txt = el('div', 'cp-header-text');
     // the same element every time, so its options and handlers (sources.js) stay
     txt.append(document.getElementById('devicePicker'));
-    if (deviceInfoHandler) { const row = el('div', 'cp-pills'); row.append(pill('Device Information', () => deviceInfoHandler())); txt.append(row); }
+    if (deviceInfoHandler || deviceSettings()) {
+      const row = el('div', 'cp-pills');
+      if (deviceInfoHandler) row.append(pill('Device Information', () => deviceInfoHandler()));
+      // the device's own settings (device.settings, see backend/deviceSettings.js)
+      if (deviceSettings()) row.append(pill('Device Settings', () => DeviceSettingsDialog.Show({ device: WS.sources.getSelectedInfo() })));
+      txt.append(row);
+    }
     s.append(txt);
     return s;
   }

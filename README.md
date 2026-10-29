@@ -259,6 +259,12 @@ Scripts can import data too. This one reads a CSV file with one line per sample 
 
 Neither Pico driver needs sigrok-cli, and neither changes anything on the board: WebScope uses the firmware as it is.
 
+### Device settings
+
+A device can have settings of its own. Then **Device Settings** appears under the device selector and opens a form for them. Both demo devices have one: the channel count, which signals they generate (UART, I²C, SPI, PWM, and on the local one also 1-Wire, WS2812, CAN, I²S and USB) and a few settings of those signals, e.g. the UART text and baud rate. The demo settings last until the backend is restarted (remote) or the page is reloaded (local).
+
+The device describes the form in its device info, the browser draws it, and the backend checks the values again before the device uses them (`backend/deviceSettings.js` has the format). A driver only has to add a `settings` description and an `applySettings(values)` function; the frontend needs no changes for a new device.
+
 ### gusmanb LogicAnalyzer
 
 A Raspberry Pi Pico (or another board) with the [LogicAnalyzer](https://github.com/gusmanb/logicanalyzer) firmware, on USB (found by its USB id `1209:3020`) or on WiFi (`LOGICANALYZER_HOSTS`).

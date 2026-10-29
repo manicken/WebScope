@@ -318,6 +318,24 @@ async function sendDevices(ws) {
     });
 }
 
+/** A device's settings form was saved (see deviceSettings.js): the answer to the sender, the new info to everyone. */
+async function applyDeviceSettings(ws, msg) {
+    const reply = (r) => sendTo(ws, { type: 'deviceSettings', reqId: msg.reqId, ...r });
+    const device = devices.get(msg.deviceId);
+    if (!device?.deviceKind?.applySettings) {
+        reply({ ok: false, message: 'This device has no settings' });
+        return;
+    }
+    try {
+        const { message, info } = await device.deviceKind.applySettings(msg.values ?? {});
+        devices.set(info.id, info);
+        reply({ ok: true, message });
+        sendToAll({ type: 'deviceUpdated', device: info });
+    } catch (err) {
+        reply({ ok: false, message: err.message });
+    }
+}
+
 function sendTo(ws, data) {
     if (typeof data !== "string") {
         data = JSON.stringify(data);
@@ -410,6 +428,10 @@ server.on('connection', (ws) => {
 
             if (msg.type === "refreshdevices") {
                 refreshDevices(ws);
+            }
+
+            if (msg.type === 'deviceSettings') {
+                applyDeviceSettings(ws, msg);
             }
         } catch (ex) {
             console.error(ex);
