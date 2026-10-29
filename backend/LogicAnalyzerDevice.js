@@ -15,7 +15,8 @@
 // A capture without a trigger triggers on the board's external trigger input (GPIO1 on a Pico) being low,
 // which it is when nothing drives it (the pin's pull-down).
 //
-// WiFi settings (deviceSettings.js): a board with the WiFi firmware build (ID "LOGIC_ANALYZER_WIFI_...", a Pico W)
+// WiFi settings (deviceSettings.js): a board with a WiFi firmware build (ID "LOGIC_ANALYZER_WIFI_..." on a Pico W,
+// any board name ending in WIFI for other builds, e.g. "P2WIFI")
 // takes its network name, password, IP address and port with command 2, over USB, and keeps them in its flash.
 // It joins the network (WPA2) and uses that IP address itself (no DHCP). The board cannot tell its settings back.
 
@@ -331,6 +332,9 @@ function command(link, payload) {
     });
 }
 
+/** A WiFi build of the firmware: "WIFI" (Pico W), or another name ending in WIFI, e.g. "P2WIFI" (a Pico 2 W build). */
+const hasWifi = (dev) => /WIFI$/.test(dev.board);
+
 /** "192.168.1.20:4045" is a WiFi board, anything else a serial port. */
 const isNetwork = (conn) => /^.+:\d+$/.test(conn);
 
@@ -370,12 +374,17 @@ export class LogicAnalyzerKind {
     /** Save WiFi settings on the board (see deviceSettings.js). */
     async applySettings(values) {
         const v = validateSettings(describe(this).settings, values);     // also refuses a board without WiFi
+        // the firmware receives a frame into 128 bytes without checking (messageBuffer[128]), and escaping makes
+        // every 0x55 / 0xAA / 0xF0 byte two: e.g. a "U" in the name or password
+        if (frame(wifiSettingsRequest(v)).length > 128) {
+            throw new Error('the network name and password have too many "U" characters for the board\'s receive buffer (at most 7 together)');
+        }
         if (this.#session) throw new Error('the board is capturing: stop the capture first');
         await this.exclusive(async () => {
             const link = await this.open(this.conn);
             try {
                 this.dev = await identify(link);
-                if (this.dev.board !== 'WIFI') throw new Error(`the board's firmware has no WiFi (it is a ${this.dev.board} build)`);
+                if (!hasWifi(this.dev)) throw new Error(`the board's firmware has no WiFi (it is a ${this.dev.board} build)`);
                 const answer = await command(link, wifiSettingsRequest(v));
                 if (answer !== 'SETTINGS_SAVED') {
                     throw new Error(answer === 'ERR_UNSUPPORTED' ? 'the board\'s firmware has no WiFi' : `the board answered "${answer}"`);
@@ -521,7 +530,7 @@ const ASCII = '[\\x20-\\x7E]*';
 function wifiSettings(kind) {
     const { dev, conn } = kind;
     const disabled =
-        dev.board !== 'WIFI' ? `This board (${dev.board}) has no WiFi. WiFi needs a Pico W with the LogicAnalyzer firmware's WiFi build.` :
+        !hasWifi(dev) ? `This board (${dev.board}) has no WiFi. WiFi needs a Pico W or Pico 2 W with a WiFi build of the LogicAnalyzer firmware.` :
         isNetwork(conn) ? 'Connect the board with USB to change its WiFi settings.' :
         undefined;
     return {

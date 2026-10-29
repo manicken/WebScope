@@ -282,6 +282,10 @@ test('WiFi settings: refused for a board without WiFi, over WiFi, and for bad va
     await assert.rejects(kind.applySettings({ ...WIFI_VALUES, ip: '192.168.1.300' }), /IP address: an IPv4 address/);
     await assert.rejects(kind.applySettings({ ...WIFI_VALUES, password: 'short' }), /Password: at least 8/);
     await assert.rejects(kind.applySettings({ ...WIFI_VALUES, ssid: '' }), /Network name: is needed/);
+    // escaped, the frame would not fit the firmware's 128-byte receive buffer
+    await assert.rejects(kind.applySettings({ ...WIFI_VALUES, password: 'UUUUUUUU' }), /too many "U"/);
+    await kind.applySettings({ ...WIFI_VALUES, password: 'UUUUUUU1' });   // 7 fit
+    board.wifiRequests.length = 0;
     assert.equal(board.wifiRequests.length, 0, 'nothing was sent');
     // the board on the port has other firmware by now: found when it identifies, nothing is sent
     const other = fakeBoard();
