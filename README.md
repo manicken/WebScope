@@ -179,7 +179,7 @@ The backend sends every sample in the same format, whatever the device: **bit n 
 
 All capture settings are in the **Capture** panel on the right:
 
-* **Device**: the device selector at the top. It lists the devices the backend found; ↻ looks for devices again. *Device Information* shows what the backend knows about the device.
+* **Device**: the device selector at the top. It lists the devices the backend found; ↻ looks for devices again. *Device Information* (*Device Settings* when the device has settings) shows what is known about the device, and its settings, see [Device settings](#device-settings).
 * **Channels**: one chip per channel. A chip that is on is captured. A chip is the same setting as the channel's row in the waveform, so hiding a row turns its chip off and the other way round. The channel-count selector turns on the first 1, 2, 4, 8, 16, 24 or 32 channels.
 * **Samplerate**: the rates the device supports.
 * **Mode**:
@@ -261,9 +261,9 @@ Neither Pico driver needs sigrok-cli, and neither changes anything on the board:
 
 ### Device settings
 
-A device can have settings of its own. Then **Device Settings** appears under the device selector and opens a form for them. Both demo devices have one: the channel count, which signals they generate (UART, I²C, SPI, PWM, and on the local one also 1-Wire, WS2812, CAN, I²S and USB) and a few settings of those signals, e.g. the UART text and baud rate. The demo settings last until the backend is restarted (remote) or the page is reloaded (local).
+The button under the device selector opens a window about the selected device: its name, channels, samplerates and description, plus what its driver adds (e.g. a LogicAnalyzer board's firmware version and connection). A device can also have settings of its own; then the button says **Device Settings** and the window has a form for them. Settings a device cannot change right now are shown grayed out with the reason, e.g. the WiFi settings of a LogicAnalyzer board without WiFi. Both demo devices have settings: the channel count, which signals they generate (UART, I²C, SPI, PWM, and on the local one also 1-Wire, WS2812, CAN, I²S and USB) and a few settings of those signals, e.g. the UART text and baud rate. The demo settings last until the backend is restarted (remote) or the page is reloaded (local).
 
-The device describes the form in its device info, the browser draws it, and the backend checks the values again before the device uses them (`backend/deviceSettings.js` has the format). A driver only has to add a `settings` description and an `applySettings(values)` function; the frontend needs no changes for a new device.
+The device describes the form in its device info, the browser draws it, and the backend checks the values again before the device uses them (`backend/deviceSettings.js` has the format). A driver only has to add a `settings` description (and `details` for more information lines) and an `applySettings(values)` function; the frontend needs no changes for a new device.
 
 ### gusmanb LogicAnalyzer
 
@@ -279,7 +279,7 @@ The board does **not stream**: it captures into its own memory and sends the cap
 * **Samplerates**: 1-2-5 steps up to the board's maximum (the firmware reports it).
 * **Stop**: the board only looks for the stop every 2 seconds, so a new capture right after a stop waits until the board is free.
 
-**On WiFi** (a Pico W with the LogicAnalyzer firmware's WiFi build): the board joins your network and listens on a TCP port. Its network settings (network name, password, IP address, port) are set with the LogicAnalyzer project's own software over USB; WebScope cannot set them. List the board's `ip:port` in `LOGICANALYZER_HOSTS` before starting the backend. The backend opens a TCP connection to it and speaks exactly the same protocol as over USB, so the limits above are the same. The board captures into its own memory first and only then sends it, so WiFi only makes the transfer after the capture slower, not the capture itself. Hosts are tried one after another on every ↻, and a host that does not answer delays the scan by up to 5 seconds.
+**On WiFi** (a Pico W with the LogicAnalyzer firmware's WiFi build): the board joins your network and listens on a TCP port. Its network settings (network name, password, IP address, port) are set over USB: connect the board with USB, select it and open **Device Settings** (or use the LogicAnalyzer project's own software). The board keeps them in its flash, joins the network with WPA2 and uses the IP address you gave it (no DHCP, so pick a free address in your network). It cannot tell its settings back, so the form shows what was last saved from this backend. On boards without the WiFi build, and on a board connected over WiFi, the settings are shown grayed out with the reason. Then list the board's `ip:port` in `LOGICANALYZER_HOSTS` before starting the backend. The backend opens a TCP connection to it and speaks exactly the same protocol as over USB, so the limits above are the same. The board captures into its own memory first and only then sends it, so WiFi only makes the transfer after the capture slower, not the capture itself. Hosts are tried one after another on every ↻, and a host that does not answer delays the scan by up to 5 seconds.
 
 ```sh
 LOGICANALYZER_HOSTS=192.168.1.20:4045 npm start                         # Linux / macOS

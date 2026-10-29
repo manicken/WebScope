@@ -35,7 +35,6 @@
   let lim = null;         // what the device can do with these settings, see captureLimits.js
   let noteEl = null;      // shows lim.note
   let channels = [];      // the device's channels: [{ index, name, color, active }]
-  let deviceInfoHandler = null;
   let host = null, lastKey = '';
   let patternMenuOpen = true, conditionsOpen = true;
 
@@ -61,8 +60,8 @@
       ({ index: ch.index, name: ch.name.value, color: ch.color.value, active: active.has(ch.index) }));
   };
 
-  const deviceSettings = () => WS.sources?.getSelectedInfo()?.settings;
-  const keyOf = () => JSON.stringify([readSettings(), readChannels(), patternMenuOpen, conditionsOpen, !!deviceInfoHandler, !!deviceSettings()]);
+  const selectedDevice = () => WS.sources?.getSelectedInfo();
+  const keyOf = () => JSON.stringify([readSettings(), readChannels(), patternMenuOpen, conditionsOpen, selectedDevice()?.id, !!selectedDevice()?.settings]);
 
   const setSetting = (key, value) => settings[key].set(value);
   const setTrigger = (patch) => settings.trigger.set({ ...settings.trigger.value, ...patch });
@@ -145,11 +144,11 @@
     const txt = el('div', 'cp-header-text');
     // the same element every time, so its options and handlers (sources.js) stay
     txt.append(document.getElementById('devicePicker'));
-    if (deviceInfoHandler || deviceSettings()) {
+    // what the device is, and its own settings when it has any (device.settings, see backend/deviceSettings.js)
+    const device = selectedDevice();
+    if (device) {
       const row = el('div', 'cp-pills');
-      if (deviceInfoHandler) row.append(pill('Device Information', () => deviceInfoHandler()));
-      // the device's own settings (device.settings, see backend/deviceSettings.js)
-      if (deviceSettings()) row.append(pill('Device Settings', () => DeviceSettingsDialog.Show({ device: WS.sources.getSelectedInfo() })));
+      row.append(pill(device.settings ? 'Device Settings' : 'Device Information', () => DeviceSettingsDialog.Show({ device: selectedDevice() })));
       txt.append(row);
     }
     s.append(txt);
@@ -376,6 +375,5 @@
       rebuild(false);
     },
     watch,
-    onDeviceInfo(fn) { deviceInfoHandler = fn; rebuild(false); },
   };
 })(window.WS = window.WS || {});

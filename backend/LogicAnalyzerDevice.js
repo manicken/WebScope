@@ -14,9 +14,14 @@
 //   PulseH / PulseL and the other channel conditions are not supported
 // A capture without a trigger triggers on the board's external trigger input (GPIO1 on a Pico) being low,
 // which it is when nothing drives it (the pin's pull-down).
+//
+// WiFi settings (deviceSettings.js): a board with the WiFi firmware build (ID "LOGIC_ANALYZER_WIFI_...", a Pico W)
+// takes its network name, password, IP address and port with command 2, over USB, and keeps them in its flash.
+// It joins the network (WPA2) and uses that IP address itself (no DHCP). The board cannot tell its settings back.
 
 import net from 'node:net';
 import { makeChannelPacker } from './channels.js';
+import { validateSettings } from './deviceSettings.js';
 
 const USB_IDS = [{ vendorId: '1209', productId: '3020' }];
 const MIN_MAJOR_VERSION = 6;        // the CAPTURE_REQUEST layout below is the one of firmware V6_x
@@ -55,6 +60,24 @@ export function captureRequest(r) {
     b[45] = r.loopCount ?? 0;
     b[46] = r.measure ?? 0;
     b[47] = r.captureMode;                      // 0 = 8 channels (1 byte per sample), 1 = 16 (2), 2 = 24 (4)
+    return b;
+}
+
+/**
+ * Command 2 + the firmware's WIFI_SETTINGS_REQUEST struct (116 bytes): apName[33], passwd[64], ipAddress[16]
+ * (ASCII, zero padded, so at most 32 / 63 / 15 characters), 1 byte padding, uint16 port (little endian).
+ */
+export function wifiSettingsRequest({ ssid, password, ip, port }) {
+    const b = new Uint8Array(1 + 116);
+    b[0] = 2;
+    const put = (text, at, size) => {
+        if (!/^[\x20-\x7e]*$/.test(text) || text.length >= size) throw new Error(`"${text}" does not fit the board's settings`);
+        b.set(Buffer.from(text, 'latin1'), 1 + at);
+    };
+    put(ssid, 0, 33);
+    put(password, 33, 64);
+    put(ip, 97, 16);
+    new DataView(b.buffer).setUint16(1 + 114, port, true);
     return b;
 }
 
@@ -293,6 +316,24 @@ function identify(link) {
     });
 }
 
+/** Send a command and read the one line the board answers with. */
+function command(link, payload) {
+    return new Promise((resolve, reject) => {
+        let text = '';
+        const done = (fn, arg) => { clearTimeout(timer); link.onData = null; fn(arg); };
+        const timer = setTimeout(() => done(reject, new Error('the board did not answer')), REPLY_TIMEOUT);
+        link.onData = (d) => {
+            text += d.toString('latin1');
+            const nl = text.indexOf('\n');
+            if (nl >= 0) done(resolve, text.slice(0, nl).trim());
+        };
+        link.send(frame(payload)).catch((err) => done(reject, err));
+    });
+}
+
+/** "192.168.1.20:4045" is a WiFi board, anything else a serial port. */
+const isNetwork = (conn) => /^.+:\d+$/.test(conn);
+
 /* ============================== device kind ============================== */
 
 export class LogicAnalyzerKind {
@@ -324,6 +365,31 @@ export class LogicAnalyzerKind {
             try { this.dev = await identify(link); }
             finally { await link.close(); }
         });
+    }
+
+    /** Save WiFi settings on the board (see deviceSettings.js). */
+    async applySettings(values) {
+        const v = validateSettings(describe(this).settings, values);     // also refuses a board without WiFi
+        if (this.#session) throw new Error('the board is capturing: stop the capture first');
+        await this.exclusive(async () => {
+            const link = await this.open(this.conn);
+            try {
+                this.dev = await identify(link);
+                if (this.dev.board !== 'WIFI') throw new Error(`the board's firmware has no WiFi (it is a ${this.dev.board} build)`);
+                const answer = await command(link, wifiSettingsRequest(v));
+                if (answer !== 'SETTINGS_SAVED') {
+                    throw new Error(answer === 'ERR_UNSUPPORTED' ? 'the board\'s firmware has no WiFi' : `the board answered "${answer}"`);
+                }
+            } finally {
+                link.onData = null;
+                await link.close();
+            }
+        });
+        this.wifi = { ssid: v.ssid, ip: v.ip, port: v.port };   // the board cannot tell them back: shown next time
+        return {
+            message: `LogicAnalyzer: WiFi settings saved, the board joins "${v.ssid}" as ${v.ip}:${v.port}`,
+            info: describe(this),
+        };
     }
 
     start(msg, onData, onDone, onError, onStatus) {
@@ -448,6 +514,32 @@ function hostsFromEnv() {
     return (process.env.LOGICANALYZER_HOSTS ?? '').split(',').map((h) => h.trim()).filter((h) => /^.+:\d+$/.test(h));
 }
 
+const IPV4 = '((25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(25[0-5]|2[0-4]\\d|1?\\d?\\d)';
+const ASCII = '[\\x20-\\x7E]*';
+
+/** The WiFi settings form: open for a WiFi board on USB, grayed out (with the reason) for every other board. */
+function wifiSettings(kind) {
+    const { dev, conn } = kind;
+    const disabled =
+        dev.board !== 'WIFI' ? `This board (${dev.board}) has no WiFi. WiFi needs a Pico W with the LogicAnalyzer firmware's WiFi build.` :
+        isNetwork(conn) ? 'Connect the board with USB to change its WiFi settings.' :
+        undefined;
+    return {
+        title: 'LogicAnalyzer WiFi settings',
+        note: 'Saved in the board\'s flash. The board then joins the network (WPA2) with this IP address, and '
+            + 'WebScope finds it when its address is in LOGICANALYZER_HOSTS / logicAnalyzerHosts. '
+            + 'The board cannot tell its current settings, so the fields show what was last saved from here.',
+        ...(disabled && { disabled }),
+        fields: [
+            { key: 'ssid', label: 'Network name', type: 'text', minLength: 1, maxLength: 32, pattern: ASCII, patternHint: 'only plain ASCII characters' },
+            { key: 'password', label: 'Password', type: 'password', minLength: 8, maxLength: 63, pattern: ASCII, patternHint: 'only plain ASCII characters', help: 'WPA2: 8 to 63 characters' },
+            { key: 'ip', label: 'IP address', type: 'text', pattern: IPV4, patternHint: 'an IPv4 address, e.g. 192.168.1.20', help: 'a free address in the network: the board does not use DHCP' },
+            { key: 'port', label: 'Port', type: 'number', min: 1, max: 65535, integer: true },
+        ],
+        values: { ssid: '', password: '', ip: '', port: 4045, ...kind.wifi },
+    };
+}
+
 /** Device info for the browser. */
 function describe(kind) {
     const { dev, conn } = kind;
@@ -471,6 +563,13 @@ function describe(kind) {
             preTriggerShare: 0.1,
             hardwareTrigger: { types: ['L2H', 'H2L'], conditions: false },
         },
+        details: [
+            { label: 'Board', value: dev.board },
+            { label: 'Firmware', value: dev.version },
+            { label: 'Connection', value: isNetwork(conn) ? `WiFi, ${conn}` : `USB, ${conn}` },
+            { label: 'Memory', value: `${dev.bufferSize.toLocaleString('en')} samples` },
+        ],
+        settings: wifiSettings(kind),
     };
     // non-enumerable so JSON.stringify(info) sends it to the browser without the kind object
     Object.defineProperty(info, 'deviceKind', { value: kind, enumerable: false });

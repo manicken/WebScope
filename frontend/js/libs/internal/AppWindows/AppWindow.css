@@ -341,3 +341,13 @@
 .ds-help { color: var(--muted); font-size: 11px; }
 .ds-status { grid-column: 1 / -1; min-height: 1.2em; color: var(--muted); }
 .ds-status.ds-error { color: var(--danger); }
+.ds-info-label { padding-top: 0; color: var(--muted); }
+.ds-info { color: var(--text-2); overflow-wrap: anywhere; }
+.ds-disabled {
+  grid-column: 1 / -1;
+  padding: 6px 8px;
+  border-left: 3px solid var(--marker-b);
+  background: var(--panel-2);
+}
+.ds-label-disabled { opacity: 0.5; }
+.ds-cell input:disabled, .ds-cell select:disabled { opacity: 0.5; cursor: not-allowed; }

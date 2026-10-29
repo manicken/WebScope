@@ -1,8 +1,11 @@
 /**
- * DeviceSettingsDialog.js — the form for a device's own settings, drawn from the description in its device
- * info (`device.settings`, the format is in backend/deviceSettings.js). Save hands the values to the device's
- * source: device.sourceKind.applySettings(device, values) -> Promise<{ message }>, which updates the device
- * (WS.sources.updateDevice) when it worked and rejects with the reason when it did not.
+ * DeviceSettingsDialog.js — the window for the selected device: what it is (name, channels, samplerates,
+ * description, and the driver's own `details`), then its settings when it has any, drawn from the description
+ * in its device info (`device.settings`, the format is in backend/deviceSettings.js).
+ *
+ * Save hands the values to the device's source: device.sourceKind.applySettings(device, values) ->
+ * Promise<{ message }>, which updates the device (WS.sources.updateDevice) when it worked and rejects with the
+ * reason when it did not. Settings with `disabled: 'reason'` are shown grayed out with the reason, without Save.
  *
  *   DeviceSettingsDialog.Show({ device });
  */
@@ -15,42 +18,66 @@ class DeviceSettingsDialog extends AppWindow {
 
     constructor({ device }) {
         const s = device.settings;
-        super({ title: s.title ?? `${device.name} settings`, backdrop: true, closeOnBackdropClick: false, resizable: true });
+        super({ title: s?.title ?? device.name, backdrop: true, closeOnBackdropClick: false, resizable: true });
         this.#device = device;
+        const editable = s && !s.disabled;
 
         const body_el = createNewElement('div', { className: 'ds-form' });
-        if (s.note) appendNewElement(body_el, 'div', { className: 'ds-note', textContent: s.note });
+        DeviceSettingsDialog.#infoSection(body_el, device);
 
-        for (const field of s.fields) {
-            if (field.type === 'heading') {
-                appendNewElement(body_el, 'div', { className: 'ds-heading', textContent: field.label });
-                continue;
+        if (s) {
+            appendNewElement(body_el, 'div', { className: 'ds-heading', textContent: 'Settings' });
+            if (s.disabled) appendNewElement(body_el, 'div', { className: 'ds-disabled', textContent: s.disabled });
+            if (s.note) appendNewElement(body_el, 'div', { className: 'ds-note', textContent: s.note });
+
+            for (const field of s.fields) {
+                if (field.type === 'heading') {
+                    appendNewElement(body_el, 'div', { className: 'ds-heading', textContent: field.label });
+                    continue;
+                }
+                const input = DeviceSettingsDialog.#makeInput(field, s.values?.[field.key]);
+                input.id = `ds-${field.key}`;
+                input.disabled = !editable;
+                const label_el = appendNewElement(body_el, 'label', { className: 'ds-label', textContent: field.label, htmlFor: input.id });
+                const cell_el = appendNewElement(body_el, 'div', { className: 'ds-cell' });
+                cell_el.appendChild(input);
+                if (field.help) appendNewElement(cell_el, 'div', { className: 'ds-help', textContent: field.help });
+                if (field.type === 'checkbox') label_el.classList.add('ds-label-check');
+                if (!editable) label_el.classList.add('ds-label-disabled');
+                this.#inputs.set(field.key, { field, input });
             }
-            const value = s.values?.[field.key];
-            const input = DeviceSettingsDialog.#makeInput(field, value);
-            const id = `ds-${field.key}`;
-            input.id = id;
-            const label_el = appendNewElement(body_el, 'label', { className: 'ds-label', textContent: field.label, htmlFor: id });
-            const cell_el = appendNewElement(body_el, 'div', { className: 'ds-cell' });
-            cell_el.appendChild(input);
-            if (field.help) appendNewElement(cell_el, 'div', { className: 'ds-help', textContent: field.help });
-            if (field.type === 'checkbox') label_el.classList.add('ds-label-check');
-            this.#inputs.set(field.key, { field, input });
         }
         this.#status_el = appendNewElement(body_el, 'div', { className: 'ds-status' });
 
         body_el.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') return;                     // closes the window
             e.stopPropagation();                                // keep typing away from global shortcuts
-            if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); this.#save(); }
+            if (editable && e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); this.#save(); }
         });
 
         this.setBody(body_el);
-        this.#footer_el = createButtonBar([
-            { text: 'Save', className: 'primary', onClick: () => this.#save() },
-            { text: 'Cancel', onClick: () => this.destroy() },
-        ]);
+        this.#footer_el = createButtonBar(editable
+            ? [{ text: 'Save', className: 'primary', onClick: () => this.#save() }, { text: 'Cancel', onClick: () => this.destroy() }]
+            : [{ text: 'Close', onClick: () => this.destroy() }]);
         this.setFooter(this.#footer_el);
+    }
+
+    /** Name, channels, samplerates, description, and the driver's details. */
+    static #infoSection(body_el, device) {
+        const { fmtRate } = WS.format;
+        const rates = device.samplerates ?? [];
+        const rows = [
+            ['Name', device.name],
+            ['Channels', String(device.channels?.length ?? 0)],
+            ...(rates.length ? [['Samplerates', rates.length === 1 ? fmtRate(rates[0]) : `${fmtRate(Math.min(...rates))} – ${fmtRate(Math.max(...rates))}`]] : []),
+            ...(device.details ?? []).map((d) => [d.label, d.value]),
+            ...(device.note ? [['Description', device.note]] : []),
+        ];
+        appendNewElement(body_el, 'div', { className: 'ds-heading', textContent: 'Device' });
+        for (const [label, value] of rows) {
+            appendNewElement(body_el, 'div', { className: 'ds-label ds-info-label', textContent: label });
+            appendNewElement(body_el, 'div', { className: 'ds-info', textContent: String(value) });
+        }
     }
 
     static #makeInput(field, value) {
@@ -101,7 +128,9 @@ class DeviceSettingsDialog extends AppWindow {
                 if (f.min !== undefined && v < f.min) return `${f.label}: must be at least ${f.min}`;
                 if (f.max !== undefined && v > f.max) return `${f.label}: must be at most ${f.max}`;
             } else if (f.type === 'text' || f.type === 'password') {
+                if (f.minLength !== undefined && v.length < f.minLength) return `${f.label}: ${f.minLength === 1 ? 'is needed' : `at least ${f.minLength} characters`}`;
                 if (f.maxLength !== undefined && v.length > f.maxLength) return `${f.label}: at most ${f.maxLength} characters`;
+                if (f.pattern !== undefined && !new RegExp(`^(?:${f.pattern})$`).test(v)) return `${f.label}: ${f.patternHint ?? 'wrong format'}`;
             }
         }
         return null;
@@ -132,13 +161,15 @@ class DeviceSettingsDialog extends AppWindow {
 
     open() {
         super.open();
-        this.#inputs.values().next().value?.input.focus();
+        const first = this.#inputs.values().next().value?.input;
+        if (first && !first.disabled) first.focus();
         return this;
     }
 
     static Show({ device }) {
-        if (!device?.settings) return;
-        const height = Math.min(innerHeight - 40, 150 + 34 * device.settings.fields.length);
-        new DeviceSettingsDialog({ device }).setStates({ width: 420, height }).open();
+        if (!device) return;
+        const rows = 4 + (device.details?.length ?? 0) + (device.settings ? 2 + device.settings.fields.length : 0);
+        const height = Math.min(innerHeight - 40, 140 + 32 * rows);
+        new DeviceSettingsDialog({ device }).setStates({ width: 440, height }).open();
     }
 }

@@ -1,7 +1,7 @@
 // node --test        (Node 18+, no dependencies)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { frame, captureRequest, parseIdentity, planCapture, samplerates, CaptureReader, LogicAnalyzerKind } from './LogicAnalyzerDevice.js';
+import { frame, captureRequest, wifiSettingsRequest, parseIdentity, planCapture, samplerates, CaptureReader, LogicAnalyzerKind } from './LogicAnalyzerDevice.js';
 
 const PICO = { board: 'PICO', version: 'V6_0', maxFrequency: 100_000_000, blastFrequency: 200_000_000, bufferSize: 131072, channelCount: 24 };
 const ID_LINES = ['LOGIC_ANALYZER_PICO_V6_0', 'FREQ:100000000', 'BLASTFREQ:200000000', 'BUFFER:131072', 'CHANNELS:24'];
@@ -32,8 +32,8 @@ const boardSample = (i, unit) => Array.from({ length: unit }, (_, b) => (i >> (8
  * A fake board behind the link interface of LogicAnalyzerDevice.js: answers the ID request and captures
  * (pre + post counter samples, sent in random pieces). hang: the capture never finishes (until cancelled).
  */
-function fakeBoard({ hang = false } = {}) {
-    const board = { requests: [], cancelled: false, opens: 0, open: null };
+function fakeBoard({ hang = false, wifi = false } = {}) {
+    const board = { requests: [], wifiRequests: [], cancelled: false, opens: 0, open: null };
     board.open = async () => {
         board.opens++;
         let rx = [];
@@ -48,7 +48,9 @@ function fakeBoard({ hang = false } = {}) {
                 if (rx.length >= 4 && rx.at(-2) === 0xAA && rx.at(-1) === 0x55) {
                     const p = unframe(Uint8Array.from(rx));
                     rx = [];
-                    if (p[0] === 0) { replyLines(['garbage from before', ...ID_LINES]); continue; }
+                    if (p[0] === 0) { replyLines(['garbage from before', ...(wifi ? ['LOGIC_ANALYZER_WIFI_V6_0', ...ID_LINES.slice(1)] : ID_LINES)]); continue; }
+                    // WiFi settings: a WiFi build saves them, other firmware does not know the command
+                    if (p[0] === 2) { board.wifiRequests.push(p); replyLines([wifi ? 'SETTINGS_SAVED' : 'ERR_UNSUPPORTED']); continue; }
                     const r = readRequest(p);
                     board.requests.push(r);
                     replyLines(['CAPTURE_STARTED']);
@@ -241,4 +243,48 @@ test('a second start while capturing is refused', async () => {
     await assert.rejects(capture(kind, { channels: [0], samplerate: 1e6, samplecount: 10 }), /already capturing/);
     kind.stop();
     await p;
+});
+
+/* ---------- WiFi settings ---------- */
+/** The firmware's WIFI_SETTINGS_REQUEST, read the way the C struct lays it out (after the command byte). */
+function readWifiRequest(p) {
+    const str = (at, size) => Buffer.from(p.subarray(1 + at, 1 + at + size)).toString('latin1').replace(/\0+$/, '');
+    return { command: p[0], ssid: str(0, 33), password: str(33, 64), ip: str(97, 16), port: new DataView(p.buffer, p.byteOffset).getUint16(1 + 114, true) };
+}
+
+const WIFI = { ...PICO, board: 'WIFI' };
+const WIFI_VALUES = { ssid: 'MyNet', password: 'secret123', ip: '192.168.1.20', port: 4045 };
+
+test('WiFi settings request has the layout of the firmware struct', () => {
+    const p = wifiSettingsRequest(WIFI_VALUES);
+    assert.equal(p.length, 117);
+    assert.deepEqual(readWifiRequest(p), { command: 2, ...WIFI_VALUES });
+    assert.equal(p[1 + 32], 0, 'apName ends with a zero');
+    assert.throws(() => wifiSettingsRequest({ ...WIFI_VALUES, ssid: 'x'.repeat(33) }), /does not fit/);
+    assert.throws(() => wifiSettingsRequest({ ...WIFI_VALUES, ssid: 'Café' }), /does not fit/);
+});
+
+test('WiFi settings: saved on a WiFi board over USB, shown again next time', async () => {
+    const board = fakeBoard({ wifi: true });
+    const kind = new LogicAnalyzerKind('COM9', WIFI, board.open);
+    const { message, info } = await kind.applySettings(WIFI_VALUES);
+    assert.match(message, /MyNet/);
+    assert.deepEqual(readWifiRequest(board.wifiRequests[0]), { command: 2, ...WIFI_VALUES });
+    assert.deepEqual(info.settings.values, { ...WIFI_VALUES, password: '' });
+    assert.equal(info.settings.disabled, undefined);
+});
+
+test('WiFi settings: refused for a board without WiFi, over WiFi, and for bad values', async () => {
+    const board = fakeBoard({ wifi: true });
+    await assert.rejects(new LogicAnalyzerKind('COM9', PICO, board.open).applySettings(WIFI_VALUES), /has no WiFi/);
+    await assert.rejects(new LogicAnalyzerKind('192.168.1.20:4045', WIFI, board.open).applySettings(WIFI_VALUES), /Connect the board with USB/);
+    const kind = new LogicAnalyzerKind('COM9', WIFI, board.open);
+    await assert.rejects(kind.applySettings({ ...WIFI_VALUES, ip: '192.168.1.300' }), /IP address: an IPv4 address/);
+    await assert.rejects(kind.applySettings({ ...WIFI_VALUES, password: 'short' }), /Password: at least 8/);
+    await assert.rejects(kind.applySettings({ ...WIFI_VALUES, ssid: '' }), /Network name: is needed/);
+    assert.equal(board.wifiRequests.length, 0, 'nothing was sent');
+    // the board on the port has other firmware by now: found when it identifies, nothing is sent
+    const other = fakeBoard();
+    await assert.rejects(new LogicAnalyzerKind('COM9', WIFI, other.open).applySettings(WIFI_VALUES), /firmware has no WiFi/);
+    assert.equal(other.wifiRequests.length, 0);
 });
