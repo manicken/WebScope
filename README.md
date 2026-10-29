@@ -44,18 +44,104 @@ npm install
 npm start              # or: node index.js --open --port 8080
 ```
 
-Then open <http://localhost:8080>. `--open` opens the browser for you, `--port` picks another port (default 8080). The frontend connects to the backend's WebSocket on the same port (the address field in the top bar, `ws://localhost:8080` by default).
+Then open <http://localhost:8080>. The frontend connects to the backend's WebSocket on the same port (the address field in the top bar, `localhost:8080` by default; see [URL parameters](#url-parameters) to use another backend).
 
 The only dependencies are `ws` (WebSocket), `serialport` (USB serial boards) and `open` (`--open`). The frontend has no build step and no dependencies.
 
-Optional settings, as environment variables:
+### Backend settings
 
-| Variable | What it does |
-|---|---|
-| `SIGROK_CLI` | Full path to `sigrok-cli`, when it is not on `PATH` or in a usual install folder |
-| `LOGICANALYZER_HOSTS` | WiFi LogicAnalyzer boards to look for, e.g. `192.168.1.20:4045,192.168.1.21:4045` |
+Every setting can be given on the command line or in a `settings.json` next to `index.js` (`backend/settings.json`), which the backend reads at startup when it exists; `--settings <file>` reads another file. The command line wins over the file, and the lists on the command line add to the ones in the file. `backend/settings.example.json` is an example; `backend/settings.json` is not committed (`.gitignore`), so your own settings stay out of git.
+
+| `settings.json` | Command line | Default | What it does |
+|---|---|---|---|
+| `port` | `--port <n>` | `8080` | Port for the page, the WebSocket and the files |
+| `open` | `--open` | `false` | Opens the browser at startup |
+| `allowOrigins` | `--allow-origin <origin>` (repeatable) | `[]` | Web pages hosted elsewhere that may use this backend, see [Frontend hosted elsewhere](#frontend-hosted-elsewhere) |
+| `allowHosts` | `--allow-host <name>` (repeatable) | `[]` | More names this backend may be reached by, see [Host check](#host-check) |
+| `hostCheck` | `--no-host-check` | `true` | Turns the host check off |
+| `sigrokCli` | | | Full path to `sigrok-cli`, when it is not on `PATH` or in a usual install folder (env `SIGROK_CLI`) |
+| `logicAnalyzerHosts` | | `[]` | WiFi LogicAnalyzer boards to look for, e.g. `["192.168.1.20:4045"]` (env `LOGICANALYZER_HOSTS`, comma separated) |
+| | `--settings <file>` | `backend/settings.json` | Reads the settings from another file |
+
+```json
+{
+    "port": 8080,
+    "allowOrigins": ["https://webscope.example.com"],
+    "allowHosts": ["scope.example.com"],
+    "logicAnalyzerHosts": ["192.168.1.20:4045"]
+}
+```
+
+`SIGROK_CLI` and `LOGICANALYZER_HOSTS` still work as environment variables, and win over `settings.json` when they are set. The backend prints the settings file it used and the allowed origins and names at startup.
 
 The backend tests run with `npm test` in `backend/`.
+
+### URL parameters
+
+The frontend reads two settings from the page URL, so the same page can be pointed at another backend without changing any code:
+
+| Parameter | Default | What it does |
+|---|---|---|
+| `ws` | `localhost:8080` | The capture backend's WebSocket: `host:port`, or a full `ws://…` / `wss://…` address. Without a scheme the page adds `ws://`, or `wss://` when the page itself is loaded over `https`. The address field in the top bar shows it and can change it; ⇄ reconnects. |
+| `fsapi` | `/api/fs` | Where the file dialog reads and writes the backend's files (projects, captures, what scripts save). A path on the same server, or a full URL to another one. |
+
+Examples:
+
+```text
+http://localhost:8080/?ws=192.168.1.50:8080
+    the page from this PC, captures from the backend on a Raspberry Pi at 192.168.1.50
+
+http://192.168.1.50:8080/?ws=192.168.1.50:8080
+    the page served by the Pi itself, opened from another computer, a tablet or a phone
+    (without ?ws= the page would look for a backend on the viewer's own localhost)
+
+http://localhost:8080/?ws=192.168.1.50:8080&fsapi=http://nas.local:9000/api/fs
+    captures from the Pi, files kept on another server
+```
+
+Typical uses:
+
+* **Remote hardware**: the logic analyzer hangs off a Raspberry Pi (or another small computer) next to the device under test, and you look at it from your desk.
+* **One frontend, several backends**: switch between benches by changing `ws`, e.g. one bookmark per bench.
+* **Shared files**: point `fsapi` at one file server so several benches save their projects to the same place.
+
+A file server for `fsapi` has to answer the same requests as the backend's own (`backend/index.js`): `GET <fsapi>/<path>` gives a file, or for a folder a JSON list of `{ name, isDir, size }`; `PUT` writes the request body to a file; `DELETE` removes a file. When it is on another origin than the page, it also has to send CORS headers (`Access-Control-Allow-Origin`, and answer the `OPTIONS` preflight for `PUT` / `DELETE`). A WebScope backend does this for the origins given with `--allow-origin`.
+
+### Frontend hosted elsewhere
+
+The frontend is plain files, so it can also be hosted on any web server, e.g. a public `https` site, and still capture from a backend on your own computer or local network.
+
+By default a backend only accepts its own pages: a page from another origin cannot use its WebSocket or its files, so a random web site you visit cannot drive your hardware. Name the sites you trust when starting it (the option can be given more than once):
+
+```sh
+node index.js --allow-origin https://webscope.example.com
+node index.js --allow-origin "*"        # any page: only on a network you trust
+```
+
+An origin is scheme, host and port, exactly as the browser sends it: `https://webscope.example.com`, no path and no trailing `/`. A refused page is logged by the backend with the option that would allow it. In `settings.json` the same is `"allowOrigins": ["https://webscope.example.com"]`.
+
+### Host check
+
+The backend also checks the name it was reached by (the browser's `Host` header). It answers only to this computer's own names: `localhost`, `127.0.0.1`, `::1`, `*.localhost`, its computer name (also with `.local`) and the addresses of its network interfaces. This stops *DNS rebinding*: a web site that points its own name at your computer's address, so that its page counts as the backend's own page. The browser still sends the site's name, so the backend refuses it.
+
+Reaching the backend by another name, e.g. a DNS name for the Pi or a reverse proxy's domain, needs that name added (without the port):
+
+```sh
+node index.js --allow-host scope.example.com
+```
+
+A refused name is logged with the option that would allow it. `--no-host-check` (`"hostCheck": false`) turns the check off, e.g. behind a reverse proxy that does its own checks; without it, pages on other sites can reach the backend through DNS rebinding. A reverse proxy has to pass the browser's `Host` on (nginx: `proxy_set_header Host $host;`, Caddy does by default), or the backend sees the proxy's name.
+
+These checks only keep *web pages* from using the backend behind your back. They are not a password: any program on the computer or the network can still connect.
+
+A page loaded over `https` may not open a plain `ws://` connection (mixed content), with one exception:
+
+| Backend | From an `https` page |
+|---|---|
+| Same computer | `?ws=ws://localhost:8080` works in Chrome, Edge and Firefox, which treat `localhost` / `127.0.0.1` as secure. Write the `ws://`: without it the page uses `wss://`, which the backend does not speak. Safari blocks it. |
+| Another computer | Needs `wss://`, i.e. TLS with a certificate the browser trusts, e.g. the backend behind a reverse proxy (Caddy, nginx) that does TLS. The backend has no TLS of its own yet. |
+
+Chrome may also ask once for permission before a public site can reach addresses on your local network.
 
 ## Architecture
 
@@ -186,6 +272,13 @@ The board does **not stream**: it captures into its own memory and sends the cap
 * **Without a trigger** the board starts on its external trigger input (GPIO1 on a Pico) being low, which it is when nothing is connected. If something drives it high, the capture does not start.
 * **Samplerates**: 1-2-5 steps up to the board's maximum (the firmware reports it).
 * **Stop**: the board only looks for the stop every 2 seconds, so a new capture right after a stop waits until the board is free.
+
+**On WiFi** (a Pico W with the LogicAnalyzer firmware's WiFi build): the board joins your network and listens on a TCP port. Its network settings (network name, password, IP address, port) are set with the LogicAnalyzer project's own software over USB; WebScope cannot set them. List the board's `ip:port` in `LOGICANALYZER_HOSTS` before starting the backend. The backend opens a TCP connection to it and speaks exactly the same protocol as over USB, so the limits above are the same. The board captures into its own memory first and only then sends it, so WiFi only makes the transfer after the capture slower, not the capture itself. Hosts are tried one after another on every ↻, and a host that does not answer delays the scan by up to 5 seconds.
+
+```sh
+LOGICANALYZER_HOSTS=192.168.1.20:4045 npm start                         # Linux / macOS
+$env:LOGICANALYZER_HOSTS="192.168.1.20:4045"; npm start                 # Windows PowerShell
+```
 
 ### pico-coder sigrok-pico
 

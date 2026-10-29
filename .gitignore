@@ -1,3 +1,4 @@
 node_modules/
 /externalTools/
 /backend_rust/target/
+/backend/settings.json

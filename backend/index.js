@@ -26,6 +26,7 @@ import { scanLogicAnalyzers } from './LogicAnalyzerDevice.js';
 import { scanSigrokPicos } from './PicoCoderSigrokPicoDevice.js';
 import { startTriggered } from './trigger.js';
 import { resolveChannels } from './channels.js';
+import { loadSettings, isHostAllowed, isOriginAllowed, hostname } from './settings.js';
 
 import { WebSocketServer, WebSocket } from 'ws';
 
@@ -33,18 +34,25 @@ import open from 'open';
 
 import readline from 'node:readline';
 
-const args = process.argv.slice(2);
+// settings.json next to this file (or --settings <file>), then the command line, see settings.js
+const settings = loadSettings(process.argv.slice(2), fileURLToPath(new URL('./settings.json', import.meta.url)));
+const PORT = settings.port;
 
-const autoOpen = args.includes('--open');
+// the drivers read these from the environment; an environment variable that is set wins over settings.json
+if (settings.sigrokCli && !process.env.SIGROK_CLI) process.env.SIGROK_CLI = settings.sigrokCli;
+if (settings.logicAnalyzerHosts.length && !process.env.LOGICANALYZER_HOSTS)
+    process.env.LOGICANALYZER_HOSTS = settings.logicAnalyzerHosts.join(',');
 
-const portIndex = args.indexOf('--port');
+const refusedHosts = new Set();     // log each refused name once, a page load makes many requests
 
-const PORT = portIndex !== -1
-    ? Number(args[portIndex + 1])
-    : 8080;
-
-if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535)
-    throw new Error('Invalid port number');
+function checkHost(req) {
+    if (isHostAllowed(req, settings)) return true;
+    if (!refusedHosts.has(req.headers.host)) {
+        refusedHosts.add(req.headers.host);
+        console.warn(`Request for host ${req.headers.host} refused (start with --allow-host ${hostname(req.headers.host) ?? req.headers.host} to allow it)`);
+    }
+    return false;
+}
 
 
 const PUBLIC_DIR = fileURLToPath(new URL('../frontend', import.meta.url));
@@ -113,6 +121,11 @@ async function resolveVirtualPath(virtualPath) {
 
 const httpServer = createServer(async (req, res) => {
     try {
+        if (!checkHost(req)) {
+            res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+            return res.end('Forbidden: unknown host name, see the backend\'s --allow-host');
+        }
+
         const url = new URL(req.url, 'http://localhost');
         const pathname = decodeURIComponent(url.pathname);
 
@@ -122,6 +135,24 @@ const httpServer = createServer(async (req, res) => {
         
         if (pathname.startsWith('/api/fs')) {
             console.log("FS Request: ", {url});
+            if (req.headers.origin) {
+                if (!isOriginAllowed(req, settings)) {
+                    res.writeHead(403);
+                    return res.end('Forbidden');
+                }
+                res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+                res.setHeader('Vary', 'Origin');
+            }
+            if (req.method === 'OPTIONS') {
+                // CORS preflight for PUT / DELETE from an allowed page on another origin
+                res.writeHead(204, {
+                    'Access-Control-Allow-Methods': 'GET, HEAD, PUT, DELETE',
+                    'Access-Control-Allow-Headers': req.headers['access-control-request-headers'] ?? '',
+                    'Access-Control-Allow-Private-Network': 'true',
+                    'Access-Control-Max-Age': '600',
+                });
+                return res.end();
+            }
             if (!['GET', 'HEAD', 'PUT', 'DELETE'].includes(req.method)) {
                 res.writeHead(405);
                 return res.end('Method Not Allowed');
@@ -246,14 +277,27 @@ const httpServer = createServer(async (req, res) => {
 });
 
 // HTTP and WebSocket share the same server and port.
-const server = new WebSocketServer({ server: httpServer });
+// WebSockets have no CORS: the browser sends the page's Origin and the server decides.
+const server = new WebSocketServer({
+    server: httpServer,
+    verifyClient: ({ req }) => {
+        if (!checkHost(req)) return false;
+        if (isOriginAllowed(req, settings)) return true;
+        console.warn(`WebSocket from ${req.headers.origin} refused (start with --allow-origin ${req.headers.origin} to allow it)`);
+        return false;
+    },
+});
 //console.log(process.argv);
 
 httpServer.listen(PORT, async () => {
     console.log(`WebScope: http://localhost:${PORT}`);
     console.log(`WebSocket: ws://localhost:${PORT}`);
-    if (autoOpen) {
-        await open(`http://localhost:${PORT}`);
+    if (settings.file) console.log(`Settings: ${settings.file}`);
+    if (settings.allowOrigins.length) console.log(`Allowed origins: ${settings.allowOrigins.join(', ')}`);
+    if (settings.allowHosts.length) console.log(`Allowed host names: ${settings.allowHosts.join(', ')}`);
+    if (!settings.hostCheck) console.warn('Host check off (--no-host-check): open to DNS rebinding from any web page');
+    if (settings.open) {
+        await open(`http://localhost:${PORT}?ws=localhost:${PORT}`);
     }
 });
 

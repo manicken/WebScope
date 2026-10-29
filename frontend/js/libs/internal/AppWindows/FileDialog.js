@@ -1,5 +1,8 @@
 class FileDialog extends AppWindow {
 
+    static apiUrlDefault = '/api/fs'
+    static apiUrl = FileDialog.apiUrlDefault;
+
     static FDModes = {
         Open:0,
         Save:1
@@ -213,7 +216,7 @@ class FileDialog extends AppWindow {
 
     static #url(path) {
         const encoded = path.split('/').filter(Boolean).map(encodeURIComponent).join('/');
-        return '/api/fs/' + encoded;
+        return FileDialog.apiUrl  + '/' + encoded;
     }
 
     #join(name) {
@@ -499,4 +502,8 @@ class FileDialog extends AppWindow {
     static Show(p = {}) {
         new FileDialog(p).setStates({ height: 700, width: 480 }).open();
     }
+}
+{
+const params = new URLSearchParams(location.search);
+FileDialog.apiUrl = params.get('fsapi') ?? FileDialog.apiUrlDefault;
 }

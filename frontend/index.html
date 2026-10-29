@@ -30,7 +30,7 @@
     
     <span class="spacer"></span>
     <span id="connectionStatusPill" class="status-pill error">disconnected</span>
-    <input id="wsUrlInput" type="text" placeholder="ws://localhost:8080" value="ws://localhost:8080" />
+    <input id="wsUrlInput" type="text"/>
     <button id="wsConnectBtn" title="(Re)Connect to the websocket server">⇄</button>'
     <span class="sep"></span>
     <button id="fitBtn">Fit</button>
@@ -81,8 +81,11 @@
   double-click-to-run work. If you'd rather use real ES modules with import/export, switch
   these to type="module" and serve the folder with any static server, e.g. `python3 -m http.server`.
 -->
+
 <script src="js/libs/external/ace/ace.js"></script>
 <script src="js/libs/external/ace/mode-javascript.js"></script>
+
+<script src="js/libs/internal/AppStorage.js"></script>
 
 <script src="js/libs/internal/fileSelector.js"></script>
 

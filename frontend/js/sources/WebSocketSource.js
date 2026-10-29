@@ -10,7 +10,9 @@ class WebSocketSource {
     static #cfg = null;
     static #offset = 0;
 
-    static #wsUrlInput_el = document.getElementById('wsUrlInput');
+    static wsUrl = new ReactiveValue();
+
+    static wsUrlInput_el = null;
     static #wsConnectedStatus_el = document.getElementById('connectionStatusPill');
 
     static #SetDisconnected() {
@@ -45,8 +47,13 @@ class WebSocketSource {
         }
 
         WebSocketSource.#SetConnecting();
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        let wsUrl = WebSocketSource.wsUrl.value.trim().toLowerCase();
 
-        const ws = new WebSocket(WebSocketSource.#wsUrlInput_el.value);
+        if (!(wsUrl.startsWith('ws:') || wsUrl.startsWith('wss:'))) {
+            wsUrl = `${protocol}//${wsUrl}`;
+        }
+        const ws = new WebSocket(wsUrl);
         WebSocketSource.#ws = ws;
         ws.binaryType = 'arraybuffer';
 
@@ -57,7 +64,7 @@ class WebSocketSource {
 
         ws.onclose = () => {
             //console.log('WebSocket disconnected');
-            WebSocketSource.ws = null;
+            WebSocketSource.#ws = null;
             WebSocketSource.#SetDisconnected();
             setTimeout(() => {
                 WebSocketSource.#SetConnecting();
@@ -182,4 +189,20 @@ class WebSocketSource {
             console.error("websocket is not connected");
         }
     }
+}
+WebSocketSource.wsUrlInput_el = document.getElementById('wsUrlInput');
+// connect GUI input changes to the internal value
+WebSocketSource.wsUrlInput_el.onchange = (e)=> {
+    WebSocketSource.wsUrl.set(WebSocketSource.wsUrlInput_el.value, WebSocketSource.wsUrlInput_el);
+};
+// connect internal value changes back to the GUI input
+WebSocketSource.wsUrl.subscribe((args) => {
+    // prevent recursive loop
+    if (args.source === WebSocketSource.wsUrlInput_el) return;
+    WebSocketSource.wsUrlInput_el.value = args.value
+});
+// set the value
+{
+    const params = new URLSearchParams(location.search);
+    WebSocketSource.wsUrl.set(params.get('ws') ?? 'localhost:8080');
 }

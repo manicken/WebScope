@@ -117,6 +117,12 @@ let mainMenuItems = [
   'use strict';
 
   document.addEventListener('DOMContentLoaded', () => {
+    //AppStorage.setPrefix('WebScope'); // future use
+
+    const params = new URLSearchParams(location.search);
+    const wsUrl = params.get('ws');
+
+    console.log({wsUrl});
 
     WS.sources.setRefreshCallback(() => {
       WebSocketSource.refreshdevices();
@@ -136,7 +142,6 @@ let mainMenuItems = [
     WS.gutter.ui.init(gutterBody, (y) => waveform.setScroll(y));
     WS.rightpanel.init(document.getElementById('rightPanel'));
     WS.topbar.init({
-      sourceKind: 'sourceKind', wsUrl: 'wsUrl'/*, duration: 'durationIn'*/,
       captureBtn: 'captureBtn', fitBtn: 'fitBtn', statusPill: 'statusPill'
     });
     WS.statusbar.init({ samples: 'stSamples', rate: 'stRate', view: 'stView', sampleResolution:'stSampleResolution' });
