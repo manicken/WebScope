@@ -602,7 +602,7 @@ class CANDecoder extends Decoder {
 
     static GuiConfigData = {
         can_rx: { label: 'CAN RX (bus line)', type: 'channel', default: 0 },
-        nominal_bitrate: { label: 'Nominal bitrate (bits/s)', type: 'number', default: 1000000 },
+        nominal_bitrate: { label: 'Nominal bitrate (bits/s)', type: 'number', default: 500000 },
         fast_bitrate: { label: 'Fast bitrate (bits/s)', type: 'number', default: 2000000 },
         sample_point: { label: 'Sample point (%)', type: 'number', default: 70.0 },
     };
