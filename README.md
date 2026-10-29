@@ -256,3 +256,12 @@ Several protocol decoders (USB, 1-Wire, I²S, CAN) are ported from
 license notice of its authors.
 
 WebScope is released under the GPL-3.0-or-later license.
+
+## images
+
+![CustomDecoderEdit](Screenshots/CustomDecoderEdit.png)
+![Screenshot_DecodedSignalsA](Screenshots/Screenshot_DecodedSignalsA.png)
+![Screenshot_DecodedSignalsB](Screenshots/Screenshot_DecodedSignalsB.png)
+![Screenshot_DecodedUsb](Screenshots/Screenshot_DecodedUsb.png)
+![Screenshot_Scripting](Screenshots/Screenshot_Scripting.png)
+![Screenshot_SelectionsAndMarkers](Screenshots/Screenshot_SelectionsAndMarkers.png)
