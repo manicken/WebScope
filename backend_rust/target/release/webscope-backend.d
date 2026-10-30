@@ -1,1 +1,0 @@
-G:\_git\WebScope\backend_rust\target\release\webscope-backend.exe: G:\_git\WebScope\backend_rust\src\demo_device.rs G:\_git\WebScope\backend_rust\src\demo_wave.rs G:\_git\WebScope\backend_rust\src\device.rs G:\_git\WebScope\backend_rust\src\http.rs G:\_git\WebScope\backend_rust\src\main.rs G:\_git\WebScope\backend_rust\src\sigrok_device.rs
