@@ -250,6 +250,8 @@ const i2c = ws.decoders.find((d) => d.settings.decoder === 'i2c');
 ws.save('i2c_writes.bin', Uint8Array.from(i2c.output.filter((f) => f.type === 'DATA WRITE'), (f) => f.data[1]));
 ```
 
+A longer example that splits the I²C output into transactions (START .. STOP, with repeated starts) and prints them as `50 W [10] R [BE EF]`: [`ScriptEngine_examples/python_i2c_decoder_output_print.ws.js`](ScriptEngine_examples/python_i2c_decoder_output_print.ws.js).
+
 Good to know:
 
 - `output` is `null` for a decoder that sends no Python output (some only make annotations): nothing can be stacked on it.
@@ -300,6 +302,8 @@ Scripts can import data too. This one reads a CSV file with one line per sample 
 | `setCapture({ samplerate, samples, channels })` | replaces the capture on screen, like opening a file: `samples` has one value per sample (bit n = channel n), `channels` is a count or a list of names. The decoders run on it, and `ws.capture` / `ws.decoders` show the new data right away |
 | `csv(rows)`, `hex(bytes)` | text helpers |
 | `log(...)` | a line in the Messages panel (prefixed with the script's name) and in the editor's output |
+
+More example scripts are in [`ScriptEngine_examples/`](ScriptEngine_examples/): paste one into a new script.
 
 ## Devices
 
