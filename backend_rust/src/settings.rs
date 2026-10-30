@@ -1,9 +1,9 @@
 //! Port of settings.js - the backend's settings: the defaults, then settings.json (when it exists), then the
 //! command line. The same settings.json as the Node backend:
-//!   { "port": 8080, "open": false, "allowOrigins": [...], "allowHosts": [...], "hostCheck": true,
+//!   { "port": 8080, "open": false, "allowOrigins": [...], "allowHosts": [...], "hostCheck": true, "allowDelete": true,
 //!     "sigrokCli": "...", "logicAnalyzerHosts": ["192.168.1.20:4045"] }      every key optional
 //! Command line (wins over settings.json; the lists add to the ones in settings.json):
-//!   --port <n>  --open  --allow-origin <origin>  --allow-host <name>  --no-host-check  --settings <file>
+//!   --port <n>  --open  --allow-origin <origin>  --allow-host <name>  --no-host-check  --no-delete  --settings <file>
 //!   --allow-admin   run as root/administrator (refused otherwise); command line only, not in settings.json
 //! The access checks (is_host_allowed / is_origin_allowed) are here too, as they only depend on the settings.
 
@@ -19,6 +19,8 @@ pub struct Settings {
     pub allow_origins: Vec<String>,
     pub allow_hosts: Vec<String>,
     pub host_check: bool,
+    /// false: the file API cannot delete (still create, write, move)
+    pub allow_delete: bool,
     pub sigrok_cli: Option<String>,
     pub logic_analyzer_hosts: Vec<String>,
     /// --allow-admin: command line only
@@ -35,6 +37,7 @@ impl Default for Settings {
             allow_origins: Vec::new(),
             allow_hosts: Vec::new(),
             host_check: true,
+            allow_delete: true,
             sigrok_cli: None,
             logic_analyzer_hosts: Vec::new(),
             allow_admin: false,
@@ -43,7 +46,7 @@ impl Default for Settings {
     }
 }
 
-const KNOWN: [&str; 7] = ["port", "open", "allowOrigins", "allowHosts", "hostCheck", "sigrokCli", "logicAnalyzerHosts"];
+const KNOWN: [&str; 8] = ["port", "open", "allowOrigins", "allowHosts", "hostCheck", "allowDelete", "sigrokCli", "logicAnalyzerHosts"];
 
 fn strings(v: &Value) -> Option<Vec<String>> {
     v.as_array()?.iter().map(|s| s.as_str().map(String::from)).collect()
@@ -63,6 +66,7 @@ pub fn apply_settings_json(s: &mut Settings, json: &Value, file: &str) -> Result
             }
             "open" => s.open = value.as_bool().ok_or_else(|| wrong("boolean"))?,
             "hostCheck" => s.host_check = value.as_bool().ok_or_else(|| wrong("boolean"))?,
+            "allowDelete" => s.allow_delete = value.as_bool().ok_or_else(|| wrong("boolean"))?,
             "allowOrigins" => s.allow_origins = strings(value).ok_or_else(|| wrong("string[]"))?,
             "allowHosts" => s.allow_hosts = strings(value).ok_or_else(|| wrong("string[]"))?,
             "logicAnalyzerHosts" => s.logic_analyzer_hosts = strings(value).ok_or_else(|| wrong("string[]"))?,
@@ -93,6 +97,7 @@ pub fn apply_args(s: &mut Settings, args: &[String]) -> Result<(), String> {
                 i += 1;
             }
             "--no-host-check" => s.host_check = false,
+            "--no-delete" => s.allow_delete = false,
             "--allow-admin" => s.allow_admin = true,
             "--settings" => i += 1, // read by load_settings()
             other => eprintln!("unknown argument {other} ignored"),
@@ -216,10 +221,10 @@ mod tests {
 
         let mut s = Settings::default();
         apply_settings_json(&mut s, &json!({ "port": 9000, "allowOrigins": ["https://a.example"] }), "f").unwrap();
-        let args: Vec<String> = ["--port", "8081", "--open", "--allow-origin", "https://b.example", "--no-host-check", "--settings", "x.json", "--allow-admin"]
+        let args: Vec<String> = ["--port", "8081", "--open", "--allow-origin", "https://b.example", "--no-host-check", "--settings", "x.json", "--allow-admin", "--no-delete"]
             .map(String::from).to_vec();
         apply_args(&mut s, &args).unwrap();
-        assert_eq!((s.port, s.open, s.host_check, s.allow_admin), (8081, true, false, true));
+        assert_eq!((s.port, s.open, s.host_check, s.allow_admin, s.allow_delete), (8081, true, false, true, false));
         assert_eq!(s.allow_origins, vec!["https://a.example", "https://b.example"]);
         assert!(apply_args(&mut Settings::default(), &["--allow-host".to_string()]).unwrap_err().contains("needs a value"));
     }

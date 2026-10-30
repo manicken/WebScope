@@ -1,5 +1,5 @@
 //! Minimal HTTP/1.1 plumbing (std only): request parsing, responses, the /api/fs virtual
-//! filesystem (GET/HEAD/PUT/DELETE under the data dir) and the static file server.
+//! filesystem (GET/HEAD/PUT/DELETE/MKCOL/MOVE under the data dir) and the static file server.
 //! Every response is `Connection: close`.
 
 use serde_json::{Map, Value};
@@ -28,11 +28,14 @@ pub struct HttpError(pub u16);
 
 impl From<io::Error> for HttpError {
     fn from(e: io::Error) -> Self {
-        if e.kind() == io::ErrorKind::NotFound {
-            HttpError(404)
-        } else {
-            eprintln!("HTTP error: {e}");
-            HttpError(500)
+        match e.kind() {
+            io::ErrorKind::NotFound => HttpError(404),
+            // MKCOL of a folder that exists, DELETE of a folder that is not empty
+            io::ErrorKind::AlreadyExists | io::ErrorKind::DirectoryNotEmpty => HttpError(409),
+            _ => {
+                eprintln!("HTTP error: {e}");
+                HttpError(500)
+            }
         }
     }
 }
@@ -76,13 +79,16 @@ fn reason(status: u16) -> &'static str {
     match status {
         101 => "Switching Protocols",
         200 => "OK",
+        201 => "Created",
         204 => "No Content",
         400 => "Bad Request",
         401 => "Unauthorized",
         403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        409 => "Conflict",
         411 => "Length Required",
+        412 => "Precondition Failed",
         _ => "Internal Server Error",
     }
 }
@@ -112,15 +118,22 @@ pub fn respond_with(mut out: &TcpStream, status: u16, content_type: Option<&str>
 }
 
 pub fn respond_error(out: &TcpStream, status: u16) {
+    respond_error_with(out, status, &[]);
+}
+
+/// `extra`: e.g. the CORS headers of /api/fs, without which a page on another origin cannot read the status.
+pub fn respond_error_with(out: &TcpStream, status: u16, extra: &[(String, String)]) {
     let msg = match status {
         400 => "Invalid file operation",
         403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        409 => "The folder is not empty, or it already exists",
         411 => "Length Required",
+        412 => "Already exists",
         _ => "Internal Server Error",
     };
-    let _ = respond(out, status, Some("text/plain; charset=utf-8"), msg.as_bytes(), false);
+    let _ = respond_with(out, status, Some("text/plain; charset=utf-8"), extra, msg.as_bytes(), false);
 }
 
 /// Close politely: if the client still has unread request body in flight (e.g. a rejected PUT),
@@ -228,17 +241,30 @@ fn resolve_virtual_path(data_dir: &Path, virt: &str) -> Result<PathBuf, HttpErro
     Ok(file)
 }
 
+/// The virtual path a MOVE's Destination header names (WebDAV: a URL or a path), without `prefix` ("/api/fs/").
+pub fn destination_path(destination: &str, prefix: &str) -> Result<String, HttpError> {
+    let path = match destination.split_once("://") {
+        Some((_, rest)) => rest.find('/').map_or("/", |i| &rest[i..]),
+        None => destination,
+    };
+    let path = percent_decode(path.split(['?', '#']).next().unwrap_or("")).ok_or(HttpError(400))?;
+    path.strip_prefix(prefix).map(str::to_string).ok_or(HttpError(400))
+}
+
 /// The virtual file system under `data_dir` (canonical): GET / HEAD of a file or a folder listing, PUT,
-/// DELETE. Also serves the read-only Python folders (the caller only lets GET / HEAD through).
+/// DELETE (a file or an empty folder), MKCOL (a folder), MOVE to `destination` (rename or move, never
+/// overwrites). Also serves the read-only Python folders (the caller only lets GET / HEAD through).
 pub fn serve_fs(
     stream: &TcpStream,
     reader: &mut Reader,
     req: &Request,
     data_dir: &Path,
     requested: &str,
+    destination: Option<&str>,
     extra: &[(String, String)],
 ) -> Result<(), HttpError> {
     let path = resolve_virtual_path(data_dir, requested)?;
+    let is_root = path.as_path() == data_dir;
     let respond = |out: &TcpStream, status: u16, ct: Option<&str>, body: &[u8], head_only: bool| respond_with(out, status, ct, extra, body, head_only);
 
     match req.method.as_str() {
@@ -282,11 +308,39 @@ pub fn serve_fs(
             respond(stream, 204, None, &[], false)?;
         }
         "DELETE" => {
-            if path.is_dir() {
-                return Err(HttpError(400));
+            if is_root {
+                return Err(HttpError(403));
             }
-            fs::remove_file(&path)?;
+            // a folder only when it is empty: remove_dir refuses the others itself (DirectoryNotEmpty -> 409)
+            if fs::symlink_metadata(&path)?.is_dir() {
+                fs::remove_dir(&path)?;
+            } else {
+                fs::remove_file(&path)?;
+            }
             respond(stream, 204, None, &[], false)?;
+        }
+        "MKCOL" => {
+            if is_root {
+                return Err(HttpError(409));
+            }
+            fs::create_dir(&path)?; // not recursive: AlreadyExists -> 409
+            respond(stream, 201, None, &[], false)?;
+        }
+        "MOVE" => {
+            let dest = resolve_virtual_path(data_dir, destination.ok_or(HttpError(400))?)?;
+            if is_root || dest.as_path() == data_dir {
+                return Err(HttpError(403));
+            }
+            fs::symlink_metadata(&path)?; // 404 when there is nothing to move
+            if dest.starts_with(&path) && dest != path {
+                return Err(HttpError(400)); // a folder into itself
+            }
+            // never overwrite; the same file under another case (Windows: a.sr -> A.sr) is a rename
+            if fs::symlink_metadata(&dest).is_ok() && fs::canonicalize(&dest)? != fs::canonicalize(&path)? {
+                return Err(HttpError(412));
+            }
+            fs::rename(&path, &dest)?;
+            respond(stream, 201, None, &[], false)?;
         }
         _ => return Err(HttpError(405)),
     }
@@ -309,4 +363,17 @@ pub fn serve_static(stream: &TcpStream, req: &Request, public_dir: &Path, pathna
     let content = fs::read(&path)?;
     respond(stream, 200, Some(mime_type(&path)), &content, req.method == "HEAD")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn destination_url_or_path() {
+        assert_eq!(destination_path("http://localhost:8080/api/fs/a/b%20c.sr", "/api/fs/").ok(), Some("a/b c.sr".into()));
+        assert_eq!(destination_path("/api/fs/x.sr?q#h", "/api/fs/").ok(), Some("x.sr".into()));
+        assert!(destination_path("/other/x.sr", "/api/fs/").is_err());
+        assert!(destination_path("http://host", "/api/fs/").is_err());
+    }
 }

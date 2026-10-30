@@ -61,6 +61,12 @@ let mainMenuItems = [
                     }});
                 }
             },
+            {
+                label: "File Manager",
+                action: () => {
+                    FileDialog.Show({ mode: FileDialog.FDModes.Editor, multiple:true});
+                }
+            },
            /* {
                 label: "Add chain test",
                 action: () => {

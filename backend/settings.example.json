@@ -4,5 +4,6 @@
     "allowOrigins": ["https://webscope.example.com"],
     "allowHosts": ["scope.example.com"],
     "hostCheck": true,
+    "allowDelete": true,
     "logicAnalyzerHosts": ["192.168.1.20:4045"]
 }

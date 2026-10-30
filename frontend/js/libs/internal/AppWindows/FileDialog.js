@@ -5,7 +5,8 @@ class FileDialog extends AppWindow {
 
     static FDModes = {
         Open:0,
-        Save:1
+        Save:1,
+        Editor:2
     };
 
     static FDSources = {
@@ -25,6 +26,9 @@ class FileDialog extends AppWindow {
     #loadToken = 0;
     #overwriteArmed = false;
     #drag = null;
+    #moving = null;       // names being dragged onto a folder
+    #hidden = 0;          // files in this folder that the extensions filter hides
+    #canDelete = true;    // from the listing's Allow header: false when the backend runs with --no-delete
 
     constructor({
         title = null,
@@ -36,7 +40,7 @@ class FileDialog extends AppWindow {
         onConfirm = (path) => {}  // receives the virtual path, e.g. "captures/test.sr"
     } = {}) {
         super({
-            title: title ?? (mode === FileDialog.FDModes.Open ? 'Open File' : 'Save File'),
+            title: title ?? (mode === FileDialog.FDModes.Open ? 'Open File' : (mode === FileDialog.FDModes.Save ? 'Save File' : 'File Manager')),
             backdrop: true,
             closeOnBackdropClick: false,
         });
@@ -57,8 +61,23 @@ class FileDialog extends AppWindow {
             styles: { padding: '4px 8px', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
         });
 
+        // file management: new folder, rename (F2), delete (Del); drag rows onto a folder (or ..) to move them
+        this.newDir_btn = FileDialog.#toolButton('📁 New folder', 'Make a folder here', () => this.#newFolder());
+        this.rename_btn = FileDialog.#toolButton('✎ Rename', 'Rename the selected file or folder (F2)', () => this.#rename());
+        this.delete_btn = FileDialog.#toolButton('🗑 Delete', '', () => this.#delete());
+        const tools_el = createNewElement('div', { styles: { display: 'flex', gap: '6px' } });
+        tools_el.append(this.newDir_btn, this.rename_btn, this.delete_btn);
+
         this.list_el = createNewElement('div', {
-            styles: { flex: '1', minHeight: '0', overflowY: 'auto', border: '1px solid #888', userSelect: 'none' }
+            tabIndex: 0,
+            styles: { flex: '1', minHeight: '0', overflowY: 'auto', border: '1px solid #888', userSelect: 'none', outline: 'none' }
+        });
+        this.list_el.addEventListener('keydown', e => {
+            const action = { F2: () => this.#rename(), Delete: () => this.#delete() }[e.key];
+            if (!action) return;
+            e.preventDefault();
+            e.stopPropagation();    // Delete also removes the selected marker / selection (window listeners)
+            action();
         });
         if (this.multiple) {
             this.list_el.addEventListener('mousedown', e => {
@@ -81,9 +100,10 @@ class FileDialog extends AppWindow {
 
         }
 
-        this.error_el = createNewElement('div', { styles: { display: 'none', color: '#b40000' } });
+        this.error_el = createNewElement('div', { styles: { display: 'none', color: '#b40000', whiteSpace: 'pre-line' } });
 
         body_el.appendChild(this.path_el);
+        body_el.appendChild(tools_el);
         body_el.appendChild(this.list_el);
 
         if (mode === FileDialog.FDModes.Save) {
@@ -103,22 +123,31 @@ class FileDialog extends AppWindow {
         body_el.appendChild(this.error_el);
 
         this.setBody(body_el);
-        this.setFooter(createButtonBar([
-            {
-                text: (mode === FileDialog.FDModes.Save ? 'Save Anywhere' : 'Open Any File'),
-                className: '',
-                onClick: () => this.#openSaveAny()
-            },
-            {
-                text: (mode === FileDialog.FDModes.Save ? 'Save' : 'Open'),
-                className: '',
-                onClick: () => this.#confirm()
-            },
-            {
-                text: 'Cancel',
-                onClick: () => this.destroy()
-            }
-        ]));
+        if (mode !== FileDialog.FDModes.Editor) {
+            this.setFooter(createButtonBar([
+                {
+                    text: (mode === FileDialog.FDModes.Save ? 'Save Anywhere' : 'Open Any File'),
+                    className: '',
+                    onClick: () => this.#openSaveAny()
+                },
+                {
+                    text: (mode === FileDialog.FDModes.Save ? 'Save' : 'Open'),
+                    className: '',
+                    onClick: () => this.#confirm()
+                },
+                {
+                    text: 'Cancel',
+                    onClick: () => this.destroy()
+                }
+            ]));
+        } else {
+            this.setFooter(createButtonBar([
+                {
+                    text: 'Cancel',
+                    onClick: () => this.destroy()
+                }
+            ]));
+        }
 
     }
 
@@ -168,8 +197,8 @@ class FileDialog extends AppWindow {
         // Start with previously selected files (Ctrl selection)
         this.#selected = new Set(drag.ctrl ? drag.base : []);
 
-        // Check which file rows intersect the selection
-        for (const row of this.list_el.querySelectorAll('[data-file]')) {
+        // Check which rows intersect the selection
+        for (const row of this.list_el.querySelectorAll('[data-name]')) {
             const r = row.getBoundingClientRect();
 
             if (
@@ -178,7 +207,7 @@ class FileDialog extends AppWindow {
                 r.bottom >= top &&
                 r.top <= bottom
             ) {
-                this.#selected.add(row.dataset.file);
+                this.#selected.add(row.dataset.name);
             }
         }
 
@@ -201,11 +230,17 @@ class FileDialog extends AppWindow {
     }
 
     #updateSelection() {
-        for (const row of this.list_el.querySelectorAll('[data-file]')) {
-            row.style.background = this.#selected.has(row.dataset.file)
+        for (const row of this.list_el.querySelectorAll('[data-name]')) {
+            row.style.background = this.#selected.has(row.dataset.name)
                 ? 'rgba(80,140,255,0.35)'
                 : '';
         }
+        const n = this.#selected.size;
+        this.rename_btn.disabled = n !== 1;
+        this.delete_btn.disabled = !n || !this.#canDelete;
+        this.delete_btn.title = this.#canDelete
+            ? 'Delete the selected files and empty folders (Del)'
+            : 'Deleting is turned off in the backend (--no-delete)';
     }
 
     // ---------- helpers ----------
@@ -248,7 +283,11 @@ class FileDialog extends AppWindow {
             const entries = await res.json();
             if (token !== this.#loadToken) return; // a newer navigation won
 
+            // a file server that does not say what it allows is assumed to allow DELETE
+            const allow = res.headers.get('Allow');
+            this.#canDelete = !allow || /\bDELETE\b/i.test(allow);
             this.#cwd = path;
+            this.#hidden = entries.filter(e => !e.isDir && !this.#matches(e.name)).length;
             this.#entries = entries
                 .filter(e => e.isDir || this.#matches(e.name))
                 .sort((a, b) => (Boolean(b.isDir) - Boolean(a.isDir)) || a.name.localeCompare(b.name, undefined, { numeric: true }));
@@ -267,16 +306,24 @@ class FileDialog extends AppWindow {
         this.list_el.replaceChildren();
 
         if (this.#cwd) {
-            this.list_el.appendChild(this.#makeRow('📁', '..', {
-                onDblClick: () => this.#load(this.#cwd.split('/').slice(0, -1).join('/'))
-            }));
+            const parent = this.#cwd.split('/').slice(0, -1).join('/');
+            const row = this.#makeRow('📁', '..', {
+                onDblClick: () => this.#load(parent)
+            });
+            this.#makeDropTarget(row, parent);
+            this.list_el.appendChild(row);
         }
 
         for (const entry of this.#entries) {
             if (entry.isDir) {
-                this.list_el.appendChild(this.#makeRow('📁', entry.name, {
+                const row = this.#makeRow('📁', entry.name, {
+                    onClick: (event) => this.#select(entry.name, row, event),
                     onDblClick: () => this.#load(this.#join(entry.name))
-                }));
+                });
+                row.dataset.name = entry.name;
+                this.#makeDraggable(row, entry.name);
+                this.#makeDropTarget(row, this.#join(entry.name));
+                this.list_el.appendChild(row);
             } else {
                 const row = this.#makeRow('📄', entry.name, { size:entry.size,
                     //onClick: () => this.#select(entry.name, row),
@@ -288,14 +335,24 @@ class FileDialog extends AppWindow {
                         this.#confirm();
                     }
                 });
-                row.dataset.file = entry.name;
+                row.dataset.name = entry.name;
+                this.#makeDraggable(row, entry.name);
                 this.list_el.appendChild(row);
             }
         }
 
-        if (!this.#entries.length && !this.#cwd) {
+        if (!this.#entries.length && !this.#cwd && !this.#hidden) {
             this.list_el.appendChild(createNewElement('div', { innerHTML: 'No files', styles: { padding: '8px', opacity: '0.6' } }));
         }
+        // a folder can look empty and still not be deletable: say that the filter hides files
+        if (this.#hidden) {
+            const files = this.#hidden === 1 ? '1 other file' : `${this.#hidden} other files`;
+            this.list_el.appendChild(createNewElement('div', {
+                textContent: `${files} not shown (showing only ${this.extensions.join(', ')})`,
+                styles: { padding: '8px', opacity: '0.6', fontStyle: 'italic' }
+            }));
+        }
+        this.#updateSelection();
     }
 
     #formatFileSize(size) {
@@ -374,9 +431,161 @@ class FileDialog extends AppWindow {
         this.#overwriteArmed = false;
         this.#hideError();
 
-        if (this.fdmode === FileDialog.FDModes.Save) {
+        if (this.fdmode === FileDialog.FDModes.Save && !this.#isDir(name)) {
             this.name_el.value = name;
         }
+    }
+
+    #isDir(name) {
+        return Boolean(this.#entries.find(e => e.name === name)?.isDir);
+    }
+
+    // ---------- file management ----------
+
+    static #toolButton(text, title, onClick) {
+        const button = createNewElement('button', { type: 'button', textContent: text, title });
+        button.addEventListener('click', onClick);
+        return button;
+    }
+
+    static #escape(text) {
+        return String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    }
+
+    static #validName(name) {
+        name = name.trim();
+        if (!name) return 'Enter a name.';
+        if (/[\\/]/.test(name) || name === '.' || name === '..') return 'Invalid name.';
+        return true;
+    }
+
+    /** One file operation; throws an Error that says what went wrong. MOVE: `destination` is a virtual path. */
+    async #request(method, path, what, destination = null) {
+        const headers = destination === null ? {} : { Destination: new URL(FileDialog.#url(destination), location.href).href };
+        const res = await fetch(FileDialog.#url(path), { method, headers });
+        if (res.ok) return;
+        const reason = {
+            403: 'not allowed',
+            404: 'not found',
+            405: method === 'DELETE' ? 'deleting is turned off in the backend' : 'not supported by this file server',
+            409: method === 'DELETE' ? 'the folder is not empty' : 'it already exists',
+            412: 'that name is already taken',
+        }[res.status] ?? `${res.status} ${res.statusText}`.trim();
+        throw new Error(`${what}: ${reason}`);
+    }
+
+    /** `op` on each name in turn, then the folder again with `select` selected; the errors under the list. */
+    async #run(names, op, select = []) {
+        const errors = [];
+        for (const name of names) {
+            try {
+                await op(name);
+            } catch (err) {
+                errors.push(err.message);
+            }
+        }
+        await this.#load(this.#cwd);
+        this.#selected = new Set(select.filter(n => this.#entries.some(e => e.name === n)));
+        this.#updateSelection();
+        if (errors.length) this.#showError(errors.join('\n'));
+    }
+
+    #newFolder() {
+        InputDialog.Show({
+            title: 'New folder', message: 'Folder name:', confirmText: 'Create',
+            onValidate: FileDialog.#validName,
+            onConfirm: (name) => {
+                name = name.trim();
+                this.#run([name], n => this.#request('MKCOL', this.#join(n), `Could not make "${n}"`), [name]);
+            }
+        });
+    }
+
+    #rename() {
+        if (this.#selected.size !== 1) return;
+        const [old] = this.#selected;
+        InputDialog.Show({
+            title: 'Rename', message: `New name for "${FileDialog.#escape(old)}":`, value: old, confirmText: 'Rename',
+            onValidate: FileDialog.#validName,
+            onConfirm: (name) => {
+                name = name.trim();
+                if (name === old) return;
+                this.#run([old], n => this.#request('MOVE', this.#join(n), `Could not rename "${n}"`, this.#join(name)), [name]);
+            }
+        });
+    }
+
+    #pluralisOfItem(count, nonEmptyEnding = '', empty='') {
+        return count === 0 ? empty : (count === 1 ? '1 item' : count + ' items') + nonEmptyEnding;
+    }
+
+    async #delete() {
+        if (!this.#selected.size || !this.#canDelete) return;
+        const names = [...this.#selected];
+
+        // only empty folders can be deleted: say so before asking (the backend still refuses the others itself)
+        const full = [];
+        for (const name of names.filter(n => this.#isDir(n))) {
+            try {
+                const res = await fetch(FileDialog.#url(this.#join(name)));
+                const entries = await res.json();
+                const hidden = entries.filter(e => !e.isDir && !this.#matches(e.name)).length;
+                const count = res.ok ? (entries).length : 0;
+                if (count) full.push(`"${name}" (${this.#pluralisOfItem(count)} ${(hidden ? 'of ':'') + this.#pluralisOfItem(hidden, ' not shown')})`);
+            } catch {}     // unknown: let the backend decide
+        }
+        if (full.length) {
+            
+            return this.#showError(`Only empty folders can be deleted, not:\n ${full.join('\n')}.`);
+        }
+
+        const dirs = names.filter(n => this.#isDir(n)).length;
+        const files = names.length - dirs;
+        const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
+        const what = [files && plural(files, 'file'), dirs && plural(dirs, 'folder')].filter(Boolean).join(' and ');
+        const list = names.slice(0, 5).map(FileDialog.#escape).join(', ') + (names.length > 5 ? ', …' : '');
+        ConfirmDialog.Show({
+            title: 'Delete', confirmText: 'Delete',
+            message: `Delete ${what}?<br><br>${list}<br><br>This cannot be undone.`,
+            onConfirm: () => this.#run(names, n => this.#request('DELETE', this.#join(n), `Could not delete "${n}"`))
+        });
+    }
+
+    #makeDraggable(row, name) {
+        row.draggable = true;
+        row.addEventListener('dragstart', e => {
+            if (!this.#selected.has(name)) {
+                this.#selected = new Set([name]);
+                this.#updateSelection();
+            }
+            this.#moving = [...this.#selected];
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.#moving.join('\n'));
+        });
+        row.addEventListener('dragend', () => { this.#moving = null; });
+    }
+
+    /** Drop the dragged rows on a folder row to move them into `dir` (a virtual path). */
+    #makeDropTarget(row, dir) {
+        const over = e => {
+            // not a folder onto itself
+            if (!this.#moving || this.#moving.some(n => this.#join(n) === dir)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            row.style.outline = '1px dashed rgba(80,140,255,0.9)';
+        };
+        row.addEventListener('dragenter', over);
+        row.addEventListener('dragover', over);
+        row.addEventListener('dragleave', () => { row.style.outline = ''; });
+        row.addEventListener('drop', e => {
+            e.preventDefault();
+            row.style.outline = '';
+            const names = this.#moving;
+            this.#moving = null;
+            if (!names) return;
+            const into = (n) => dir ? dir + '/' + n : n;
+            this.#run(names, n => this.#request('MOVE', this.#join(n), `Could not move "${n}"`, into(n)));
+        });
     }
 
     #getSaveName() {
@@ -424,6 +633,8 @@ class FileDialog extends AppWindow {
     }
 
     async #confirm() {
+        if (this.fdmode === FileDialog.FDModes.Editor) return;   // nothing to open or save
+
         let name;
 
         if (this.fdmode === FileDialog.FDModes.Open) {
@@ -450,12 +661,13 @@ class FileDialog extends AppWindow {
             } catch (err) {
                 this.#showError('Failed to read file: ' + err.message);
             }*/
-            if (!this.#selected.size)
+            const names = [...this.#selected].filter(n => !this.#isDir(n));    // folders open with a double click
+            if (!names.length)
                 return this.#showError('Select a file first.');
 
             try {
                 const files = await Promise.all(
-                    [...this.#selected].map(async name => {
+                    names.map(async name => {
                         const filePath = this.#join(name);
                         const response = await fetch(FileDialog.#url(filePath));
 

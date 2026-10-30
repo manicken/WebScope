@@ -59,6 +59,7 @@ Every setting can be given on the command line or in a `settings.json` next to `
 | `allowOrigins` | `--allow-origin <origin>` (repeatable) | `[]` | Web pages hosted elsewhere that may use this backend, see [Frontend hosted elsewhere](#frontend-hosted-elsewhere) |
 | `allowHosts` | `--allow-host <name>` (repeatable) | `[]` | More names this backend may be reached by, see [Host check](#host-check) |
 | `hostCheck` | `--no-host-check` | `true` | Turns the host check off |
+| `allowDelete` | `--no-delete` | `true` | `false`: files and folders cannot be deleted through the backend (they can still be made, saved, renamed and moved); the file dialog greys out Delete |
 | `sigrokCli` | | | Full path to `sigrok-cli`, when it is not on `PATH` or in a usual install folder (env `SIGROK_CLI`) |
 | `logicAnalyzerHosts` | | `[]` | WiFi LogicAnalyzer boards to look for, e.g. `["192.168.1.20:4045"]` (env `LOGICANALYZER_HOSTS`, comma separated) |
 | | `--settings <file>` | `backend/settings.json` | Reads the settings from another file |
@@ -106,7 +107,17 @@ Typical uses:
 * **One frontend, several backends**: switch between benches by changing `ws`, e.g. one bookmark per bench.
 * **Shared files**: point `fsapi` at one file server so several benches save their projects to the same place.
 
-A file server for `fsapi` has to answer the same requests as the backend's own (`backend/index.js`): `GET <fsapi>/<path>` gives a file, or for a folder a JSON list of `{ name, isDir, size }`; `PUT` writes the request body to a file; `DELETE` removes a file. When it is on another origin than the page, it also has to send CORS headers (`Access-Control-Allow-Origin`, and answer the `OPTIONS` preflight for `PUT` / `DELETE`). A WebScope backend does this for the origins given with `--allow-origin`.
+A file server for `fsapi` has to answer the same requests as the backend's own (`backend/index.js`):
+
+| Request | What it does |
+|---|---|
+| `GET <fsapi>/<path>` | A file, or for a folder a JSON list of `{ name, isDir, size }` |
+| `PUT <fsapi>/<path>` | Writes the request body to a file |
+| `DELETE <fsapi>/<path>` | Removes a file, or a folder only when it is empty (409 otherwise) |
+| `MKCOL <fsapi>/<path>` | Makes a folder (409 when it exists) |
+| `MOVE <fsapi>/<path>` with header `Destination: <fsapi>/<new path>` | Renames or moves a file or a folder; never overwrites (412 when the name is taken) |
+
+`MKCOL` and `MOVE` are the WebDAV methods for the same things. The file dialog uses them for New folder, Rename (F2), Delete (Del, always confirmed) and for dragging files and folders onto a folder. An `Allow` header on the answers (e.g. `Allow: GET, HEAD, PUT, MKCOL, MOVE` without `DELETE`) tells the dialog what the server does not allow. When the server is on another origin than the page, it also has to send CORS headers (`Access-Control-Allow-Origin`, `Access-Control-Expose-Headers: Allow`, and answer the `OPTIONS` preflight for the methods above). A WebScope backend does this for the origins given with `--allow-origin`.
 
 ### Frontend hosted elsewhere
 

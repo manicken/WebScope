@@ -20,11 +20,14 @@ test('applySettingsJson: known keys with the right type, errors for a wrong type
 
 test('applyArgs: wins over settings.json, the lists add to it', () => {
     const s = applySettingsJson(defaultSettings(), { port: 9000, allowOrigins: ['https://a.example'] });
-    applyArgs(s, ['--port', '8081', '--open', '--allow-origin', 'https://b.example', '--no-host-check', '--settings', 'x.json']);
+    applyArgs(s, ['--port', '8081', '--open', '--allow-origin', 'https://b.example', '--no-host-check', '--settings', 'x.json', '--no-delete', '--allow-admin']);
     assert.equal(s.port, 8081);
     assert.equal(s.open, true);
     assert.deepEqual(s.allowOrigins, ['https://a.example', 'https://b.example']);
     assert.equal(s.hostCheck, false);
+    assert.equal(s.allowDelete, false);
+    assert.equal(s.allowAdmin, true);
+    assert.equal(applySettingsJson(defaultSettings(), { allowDelete: false }).allowDelete, false);
     assert.throws(() => applyArgs(defaultSettings(), ['--allow-host']), /needs a value/);
 });
 

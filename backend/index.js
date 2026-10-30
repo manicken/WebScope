@@ -5,7 +5,11 @@ import {
     unlink,
     realpath,
     readdir,
-    stat
+    stat,
+    lstat,
+    mkdir,
+    rmdir,
+    rename
 } from 'node:fs/promises';
 
 import {
@@ -63,6 +67,11 @@ if (isAdmin()) {
     }
     console.warn('Running as root/administrator (--allow-admin): anyone who can write in user_data_fs can read and write any file');
 }
+
+// /api/fs: MKCOL makes a folder, MOVE renames or moves (WebDAV); DELETE removes a file or an empty folder
+const FS_METHODS = ['GET', 'HEAD', 'PUT', 'MKCOL', 'MOVE', ...(settings.allowDelete ? ['DELETE'] : [])];
+
+const httpError = (status, message) => Object.assign(new Error(message), { status });
 
 // the drivers read these from the environment; an environment variable that is set wins over settings.json
 if (settings.sigrokCli && !process.env.SIGROK_CLI) process.env.SIGROK_CLI = settings.sigrokCli;
@@ -207,32 +216,36 @@ const httpServer = createServer(async (req, res) => {
         
         if (pathname.startsWith('/api/fs')) {
             console.log("FS Request: ", {url});
+            // what this backend allows, on every answer: the file dialog greys out what is missing (--no-delete)
+            res.setHeader('Allow', FS_METHODS.join(', '));
             if (req.headers.origin) {
                 if (!isOriginAllowed(req, settings)) {
                     res.writeHead(403);
                     return res.end('Forbidden');
                 }
                 res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+                res.setHeader('Access-Control-Expose-Headers', 'Allow');
                 res.setHeader('Vary', 'Origin');
             }
             if (req.method === 'OPTIONS') {
-                // CORS preflight for PUT / DELETE from an allowed page on another origin
+                // CORS preflight for PUT / DELETE / MKCOL / MOVE from an allowed page on another origin
                 res.writeHead(204, {
-                    'Access-Control-Allow-Methods': 'GET, HEAD, PUT, DELETE',
+                    'Access-Control-Allow-Methods': FS_METHODS.join(', '),
                     'Access-Control-Allow-Headers': req.headers['access-control-request-headers'] ?? '',
                     'Access-Control-Allow-Private-Network': 'true',
                     'Access-Control-Max-Age': '600',
                 });
                 return res.end();
             }
-            if (!['GET', 'HEAD', 'PUT', 'DELETE'].includes(req.method)) {
+            if (!FS_METHODS.includes(req.method)) {
                 res.writeHead(405);
-                return res.end('Method Not Allowed');
+                return res.end(req.method === 'DELETE' ? 'Deleting is turned off in this backend (--no-delete)' : 'Method Not Allowed');
             }
 
             const requestedPath = pathname.slice('/api/fs/'.length);
 
             const filePath = await resolveVirtualPath(requestedPath);
+            const isRoot = filePath === resolve(DATA_DIR);
 
             console.log('FS Request:', req.method, requestedPath);
 
@@ -249,9 +262,43 @@ const httpServer = createServer(async (req, res) => {
                 }
 
                 case 'DELETE': {
-                    await unlink(filePath);
+                    if (isRoot) throw httpError(403, 'Forbidden');
+                    // a folder only when it is empty: rmdir refuses the others itself (ENOTEMPTY -> 409)
+                    if ((await lstat(filePath)).isDirectory()) await rmdir(filePath);
+                    else await unlink(filePath);
 
                     res.writeHead(204);
+                    return res.end();
+                }
+
+                case 'MKCOL': {
+                    if (isRoot) throw httpError(409, 'Already exists');
+                    await mkdir(filePath);                              // not recursive: EEXIST -> 409
+
+                    res.writeHead(201);
+                    return res.end();
+                }
+
+                case 'MOVE': {
+                    // rename or move a file or a folder; Destination (WebDAV): a URL or path under /api/fs/
+                    const destination = req.headers.destination;
+                    if (!destination) throw httpError(400, 'MOVE needs a Destination header');
+                    const destPathname = decodeURIComponent(new URL(destination, 'http://localhost').pathname);
+                    if (!destPathname.startsWith('/api/fs/')) throw httpError(400, 'Destination is not under /api/fs/');
+                    const destPath = await resolveVirtualPath(destPathname.slice('/api/fs/'.length));
+
+                    if (isRoot || destPath === resolve(DATA_DIR)) throw httpError(403, 'Forbidden');
+                    const source = await lstat(filePath);                // 404 when there is nothing to move
+                    const inside = relative(filePath, destPath);
+                    if (inside && !inside.startsWith('..') && !isAbsolute(inside))
+                        throw httpError(400, 'A folder cannot be moved into itself');
+                    // never overwrite; the same file under another case (Windows: a.sr -> A.sr) is a rename
+                    const existing = await lstat(destPath).catch((err) => { if (err.code === 'ENOENT') return null; throw err; });
+                    if (existing && !(existing.ino === source.ino && existing.dev === source.dev))
+                        throw httpError(412, 'Already exists');
+                    await rename(filePath, destPath);
+
+                    res.writeHead(201);
                     return res.end();
                 }
             }
@@ -314,14 +361,18 @@ const httpServer = createServer(async (req, res) => {
         const status =
             err.status ??
             (err.code === 'ENOENT' ? 404 :
-             err.code === 'EISDIR' ? 400 : 500);
+             err.code === 'ENOTEMPTY' ? 409 :
+             err.code === 'EEXIST' ? 409 :
+             err.code === 'EISDIR' || err.code === 'ENOTDIR' ? 400 : 500);
 
         res.writeHead(status, {
             'Content-Type': 'text/plain; charset=utf-8'
         });
 
         res.end(
-            status === 403 ? 'Forbidden' :
+            err.status ? err.message :
+            err.code === 'ENOTEMPTY' ? 'The folder is not empty' :
+            err.code === 'EEXIST' ? 'Already exists' :
             status === 404 ? 'Not Found' :
             status === 400 ? 'Invalid file operation' :
             'Internal Server Error'
@@ -349,6 +400,7 @@ httpServer.listen(PORT, async () => {
     if (settings.allowOrigins.length) console.log(`Allowed origins: ${settings.allowOrigins.join(', ')}`);
     if (settings.allowHosts.length) console.log(`Allowed host names: ${settings.allowHosts.join(', ')}`);
     if (!settings.hostCheck) console.warn('Host check off (--no-host-check): open to DNS rebinding from any web page');
+    if (!settings.allowDelete) console.log('Deleting files is turned off (--no-delete)');
     if (settings.open) {
         await open(`http://localhost:${PORT}?ws=localhost:${PORT}`);
     }

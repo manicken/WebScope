@@ -80,7 +80,7 @@ async function saveToLocation({name, data, location}) {
     } else if (location == FileDialog.FDSources.Backend) {
     
         try {
-            await uploadFile('/api/fs/' + name, data);
+            await uploadFile(FileDialog.apiUrl + '/' + name.split('/').map(encodeURIComponent).join('/'), data);   // ?fsapi=
             console.log('Upload complete');
         } catch (err) {
             console.error(err);

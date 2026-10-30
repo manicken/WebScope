@@ -2,7 +2,7 @@
 //! settings.json and command line as the Node backend.
 //!
 //!   webscope-backend [--port <n>] [--open] [--allow-origin <origin>] [--allow-host <name>] [--no-host-check]
-//!                    [--settings <file>] [--allow-admin]
+//!                    [--no-delete] [--settings <file>] [--allow-admin]
 //!   settings.json    next to the executable (or in the current folder), see settings.rs
 //!   env PORT             the default port (settings.json and --port win)
 //!   env WEBSCOPE_BIND    default 0.0.0.0
@@ -324,27 +324,41 @@ fn route(stream: &TcpStream, reader: &mut http::Reader, req: &http::Request, ctx
     if pathname == "/api/fs" || pathname.starts_with("/api/fs/") {
         let requested = pathname.strip_prefix("/api/fs/").unwrap_or("");
         println!("FS Request: {} {requested}", req.method);
-        let mut extra = Vec::new();
+        // MKCOL makes a folder, MOVE renames or moves (WebDAV); DELETE removes a file or an empty folder
+        let mut methods = vec!["GET", "HEAD", "PUT", "MKCOL", "MOVE"];
+        if ctx.settings.allow_delete {
+            methods.push("DELETE");
+        }
+        // what this backend allows, on every answer: the file dialog greys out what is missing (--no-delete)
+        let mut extra = vec![("Allow".to_string(), methods.join(", "))];
         if let Some(origin) = req.header("origin") {
             if !is_origin_allowed(Some(origin), req.header("host"), &ctx.settings) {
                 return Err(HttpError(403));
             }
             extra.push(("Access-Control-Allow-Origin".to_string(), origin.to_string()));
+            extra.push(("Access-Control-Expose-Headers".to_string(), "Allow".to_string()));
             extra.push(("Vary".to_string(), "Origin".to_string()));
         }
         if req.method == "OPTIONS" {
-            // CORS preflight for PUT / DELETE from an allowed page on another origin
-            extra.push(("Access-Control-Allow-Methods".into(), "GET, HEAD, PUT, DELETE".into()));
+            // CORS preflight for PUT / DELETE / MKCOL / MOVE from an allowed page on another origin
+            extra.push(("Access-Control-Allow-Methods".into(), methods.join(", ")));
             extra.push(("Access-Control-Allow-Headers".into(), req.header("access-control-request-headers").unwrap_or("").into()));
             extra.push(("Access-Control-Allow-Private-Network".into(), "true".into()));
             extra.push(("Access-Control-Max-Age".into(), "600".into()));
             http::respond_with(stream, 204, None, &extra, &[], false)?;
             return Ok(());
         }
-        if !matches!(req.method.as_str(), "GET" | "HEAD" | "PUT" | "DELETE") {
-            return Err(HttpError(405));
+        let result = if !methods.contains(&req.method.as_str()) {
+            Err(HttpError(405))
+        } else {
+            let destination = req.header("destination").map(|d| http::destination_path(d, "/api/fs/")).transpose();
+            destination.and_then(|d| http::serve_fs(stream, reader, req, &ctx.data_dir, requested, d.as_deref(), &extra))
+        };
+        // errors with the same headers: without CORS a page on another origin would not see the status
+        if let Err(HttpError(status)) = result {
+            http::respond_error_with(stream, status, &extra);
         }
-        return http::serve_fs(stream, reader, req, &ctx.data_dir, requested, &extra);
+        return Ok(());
     }
 
     // the Python decoder extension: /python/runtime/..., /python/decoders/... (read only)
@@ -354,7 +368,7 @@ fn route(stream: &TcpStream, reader: &mut http::Reader, req: &http::Request, ctx
                 return Err(HttpError(405));
             }
             let dir = dir.as_ref().ok_or(HttpError(404))?;
-            return http::serve_fs(stream, reader, req, dir, sub, &[]);
+            return http::serve_fs(stream, reader, req, dir, sub, None, &[]);
         }
     }
     http::serve_static(stream, req, &ctx.public_dir, &pathname)
@@ -569,6 +583,9 @@ fn main() {
     }
     if !settings.host_check {
         eprintln!("Host check off (--no-host-check): open to DNS rebinding from any web page");
+    }
+    if !settings.allow_delete {
+        println!("Deleting files is turned off (--no-delete)");
     }
     if settings.open {
         open_browser(&format!("http://localhost:{port}?ws=localhost:{port}"));
