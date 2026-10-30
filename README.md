@@ -205,6 +205,58 @@ Decoders run in the browser on the capture on screen: UART, I²C, SPI, I²S, CAN
 
 **Python (sigrok)** runs sigrok's protocol decoders (Python, unchanged) in the browser with [Pyodide](https://pyodide.org): add it, then choose the decoder (e.g. `uart`, `i2c`, `eeprom24xx`) and its channels and options in its card. Python decoders stack on each other as in sigrok (e.g. I²C → 24xx EEPROM), and a custom decoder can stack on one. The decoders are in `python_decoders/` (sigrok's, plus your own in `python_decoders/user/`), the Python runtime in `python_runtime/`; both are served by the Node backend and only downloaded when a Python decoder is used. Decoding runs in a Web Worker, so the page stays responsive. See `python_decoders/README.md`.
 
+### Python decoders: their output
+
+What a Python decoder hands on (to a custom decoder stacked on it, and to scripts as `ws.decoders[i].output`) is what the sigrok decoder sends as `OUTPUT_PYTHON`: one entry per `put()`, in the order the decoder made them (not sorted):
+
+```js
+{ start, end, data, type }
+```
+
+| Field | |
+|---|---|
+| `start`, `end` | sample numbers, as in the annotations |
+| `data` | the sigrok decoder's own Python data, as JSON |
+| `type` | `data[0]` when `data` is a list that starts with a text (almost every decoder does), so you can filter on `f.type === 'DATA WRITE'`; missing otherwise |
+
+From Python to JavaScript: tuples and lists become arrays, `None` becomes `null`, `bytes` an array of numbers, `NaN` / `inf` a text, any other object the text of its `repr()`.
+
+**What `data` holds is up to each sigrok decoder.** Its `pd.py` describes it at the top, under *OUTPUT_PYTHON format*, e.g.:
+
+- [`i2c`](python_decoders/sigrok/i2c/pd.py): `[<ptype>, <pdata>]`, e.g. `['DATA WRITE', 0x3c]`, `['ADDRESS READ', 0x51]` (the address without the R/W bit), `['START', null]`
+- [`uart`](python_decoders/sigrok/uart/pd.py): `[<ptype>, <rxtx>, <pdata>]` with rxtx 0 = RX, 1 = TX, e.g. `['DATA', 0, [65, [[bit, start, end], ...]]]`, `['FRAME', 0, [65, true]]`
+- [`spi`](python_decoders/sigrok/spi/pd.py): `['DATA', mosi, miso]` (`null` for a channel that is not used), `['CS-CHANGE', old, new]`, `['TRANSFER', [[start, end, value], ...], [...]]` (MOSI, MISO). In Python a transfer holds `Data(ss, es, val)` named tuples: in JavaScript they are plain arrays, without the field names
+
+A custom decoder on top of a Python I²C decoder, showing the bytes written:
+
+```js
+({
+    init(self) {},
+    rows(self) { return { bytes: { label: 'Bytes' } }; },
+    run(self) {
+        const frames = self.getSource();   // the I²C decoder's output
+        return {
+            bytes: frames.filter((f) => f.type === 'DATA WRITE')
+                         .map((f) => ({ start: f.start, end: f.end, class: 0, text: f.data[1].toString(16) })),
+        };
+    },
+})
+```
+
+The same in a script, saving them to a file. Every Python decoder has the type `Python (sigrok)`: find one by `settings.decoder` (`'uart'`, `'i2c'`, ...) or by its name (`I²C (sigrok)`):
+
+```js
+const i2c = ws.decoders.find((d) => d.settings.decoder === 'i2c');
+ws.save('i2c_writes.bin', Uint8Array.from(i2c.output.filter((f) => f.type === 'DATA WRITE'), (f) => f.data[1]));
+```
+
+Good to know:
+
+- `output` is `null` for a decoder that sends no Python output (some only make annotations): nothing can be stacked on it.
+- It is `[]` while the decoder is still decoding (its card says *decoding…*). A custom decoder on it runs again by itself when the result is there; run a script once the decoding is done.
+- Only `OUTPUT_PYTHON` comes out; sigrok's `OUTPUT_BINARY` and `OUTPUT_META` are not used (yet).
+- The annotations (the texts in the waveform) are in `ws.decoders[i].annotations`, as for every decoder.
+
 ### Files
 
 WebScope project files (the capture as a sigrok `.sr` file plus the decoder setup and the project's scripts) can be loaded. Captures can be imported from sigrok session files (`.sr`) and Saleae Logic 2 binary files.
@@ -241,7 +293,7 @@ Scripts can import data too. This one reads a CSV file with one line per sample 
 | `ws.` | What it gives |
 |---|---|
 | `capture` | the capture on screen: `samplerate`, `length`, `trigger`, `channels` (`index`, `name`, `captured`), `sample(i)` (bit n = channel n), `bit(i, ch)`, `edges(ch, from, to)`, `samples(from, count)`, `time(i)` in seconds; `null` without a capture |
-| `decoders` | one entry per decoder: `name`, `type`, `settings`, `annotations` (`{ row: [{ start, end, startTime, endTime, text }] }`), `output` (what it hands to decoders stacked on it, e.g. UART frames), `parent` |
+| `decoders` | one entry per decoder: `name`, `type`, `settings`, `annotations` (`{ row: [{ start, end, startTime, endTime, text }] }`), `output` (what it hands to decoders stacked on it, e.g. UART frames; for Python decoders see [Python decoders: their output](#python-decoders-their-output)), `parent` |
 | `range` | `{ start, end, selected }`: the selected time range in samples, else the whole capture |
 | `save(name, data)` | asks where to save (local download or the backend's files); `data` is text, bytes, or anything else (saved as JSON). A script does not need to `await` it: the run waits for it before it reports *done*, and its errors show in the output |
 | `open(extensions)` | asks for a file to read (local or the backend's files), e.g. `await ws.open(['.csv'])`; gives `{ name, ext, bytes, text() }`, or `null` when cancelled |
