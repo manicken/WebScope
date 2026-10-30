@@ -57,21 +57,30 @@ function checkHost(req) {
 
 const PUBLIC_DIR = fileURLToPath(new URL('../frontend', import.meta.url));
 const DATA_DIR = fileURLToPath(new URL('../user_data_fs', import.meta.url));
+// the Python decoder extension (frontend/js/extensions/python): read only, served at /python/<name>/
+const PYTHON_DIRS = {
+    runtime: fileURLToPath(new URL('../python_runtime', import.meta.url)),     // Pyodide
+    decoders: fileURLToPath(new URL('../python_decoders', import.meta.url)),   // sigrok decoders: sigrok/ and user/
+};
 
 const MIME_TYPES = {
     '.html': 'text/html; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
     '.json': 'application/json; charset=utf-8',
+    '.py': 'text/plain; charset=utf-8',
     '.svg': 'image/svg+xml',
     '.png': 'image/png',
     '.ico': 'image/x-icon',
-    '.wasm': 'application/wasm'
+    '.wasm': 'application/wasm',
+    '.zip': 'application/zip'
 };
 
-async function resolveVirtualPath(virtualPath) {
-    const filePath = resolve(DATA_DIR, virtualPath);
-    const relPath = relative(DATA_DIR, filePath);
+/** The file `virtualPath` names in folder `root` (default: the user's files); 403 when it is outside. */
+async function resolveVirtualPath(virtualPath, root = DATA_DIR) {
+    const filePath = resolve(root, virtualPath);
+    const relPath = relative(root, filePath);
     console.log({filePath, relPath});
     // Prevent directory traversal.
     if (
@@ -88,7 +97,7 @@ async function resolveVirtualPath(virtualPath) {
         : filePath;
 
     const parentPath = await realpath(checkPath);
-    const parentRel = relative(DATA_DIR, parentPath);
+    const parentRel = relative(root, parentPath);
     console.log({parentPath, parentRel});
     if (
         parentRel === '..' ||
@@ -102,7 +111,7 @@ async function resolveVirtualPath(virtualPath) {
     if (relPath) {
         try {
             const targetPath = await realpath(filePath);
-            const targetRel = relative(DATA_DIR, targetPath);
+            const targetRel = relative(root, targetPath);
 
             if (
                 targetRel === '..' ||
@@ -117,6 +126,43 @@ async function resolveVirtualPath(virtualPath) {
     }
 
     return filePath;
+}
+
+/** GET / HEAD of a file, or of a folder: its listing as JSON [{ name, isDir?, size? }]. */
+async function sendFileOrListing(req, res, filePath) {
+    const info = await stat(filePath);
+
+    if (info.isDirectory()) {
+        const files = await readdir(filePath, { withFileTypes: true });
+
+        const result = await Promise.all(files.map(async file => {
+            const fullPath = join(filePath, file.name);
+            const info = await stat(fullPath);
+
+            return {
+                name: file.name,
+                isDir: file.isDirectory() || undefined, // short for file.isDirectory()?true:undefined
+                size: (file.isDirectory()==false)?info.size:undefined
+            };
+        }));
+
+        res.writeHead(200, {
+            'Content-Type': 'application/json'
+        });
+
+        return res.end(JSON.stringify(result));
+    }
+
+    const content = await readFile(filePath);
+
+    res.writeHead(200, {
+        'Content-Type':
+            MIME_TYPES[extname(filePath).toLowerCase()]
+            ?? 'application/octet-stream',
+        'Content-Length': content.length
+    });
+
+    return res.end(req.method === 'HEAD' ? undefined : content);
 }
 
 const httpServer = createServer(async (req, res) => {
@@ -166,41 +212,8 @@ const httpServer = createServer(async (req, res) => {
 
             switch (req.method) {
                 case 'GET':
-                case 'HEAD': {
-                    const info = await stat(filePath);
-
-                    if (info.isDirectory()) {
-                        const files = await readdir(filePath, { withFileTypes: true });
-
-                        const result = await Promise.all(files.map(async file => {
-                            const fullPath = join(filePath, file.name);
-                            const info = await stat(fullPath);
-
-                            return {
-                                name: file.name,
-                                isDir: file.isDirectory() || undefined, // short for file.isDirectory()?true:undefined
-                                size: (file.isDirectory()==false)?info.size:undefined
-                            };
-                        }));
-
-                        res.writeHead(200, {
-                            'Content-Type': 'application/json'
-                        });
-
-                        return res.end(JSON.stringify(result));
-                    }
-
-                    const content = await readFile(filePath);
-
-                    res.writeHead(200, {
-                        'Content-Type':
-                            MIME_TYPES[extname(filePath).toLowerCase()]
-                            ?? 'application/octet-stream',
-                        'Content-Length': content.length
-                    });
-
-                    return res.end(req.method === 'HEAD' ? undefined : content);
-                }
+                case 'HEAD':
+                    return await sendFileOrListing(req, res, filePath);   // await: errors go to the catch below
 
                 case 'PUT': {
                     await writeFile(filePath, req);
@@ -216,6 +229,20 @@ const httpServer = createServer(async (req, res) => {
                     return res.end();
                 }
             }
+        }
+
+        // -------------------------------
+        // Python decoder extension: /python/runtime/..., /python/decoders/... (read only)
+        // -------------------------------
+
+        const python = /^\/python\/([^/]+)\/(.*)$/.exec(pathname);
+        if (python && PYTHON_DIRS[python[1]]) {
+            if (req.method !== 'GET' && req.method !== 'HEAD') {
+                res.writeHead(405);
+                return res.end('Method Not Allowed');
+            }
+            const filePath = await resolveVirtualPath(python[2], PYTHON_DIRS[python[1]]);
+            return await sendFileOrListing(req, res, filePath);
         }
 
         // -------------------------------

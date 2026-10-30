@@ -203,6 +203,8 @@ The waveform always lists all of the device's channels. Channels you hide are co
 
 Decoders run in the browser on the capture on screen: UART, I²C, SPI, I²S, CAN / CAN-FD, 1-Wire (link and network layer), RGB LED (WS281x), USB signalling / packet / request, USB Power Delivery, and a custom decoder you can write in JavaScript. A decoder's channel lists only offer active channels. When a decoder reads a channel without data (not active, or not in the capture), its card says so and the Analyzers tab shows an orange dot.
 
+**Python (sigrok)** runs sigrok's protocol decoders (Python, unchanged) in the browser with [Pyodide](https://pyodide.org): add it, then choose the decoder (e.g. `uart`, `i2c`, `eeprom24xx`) and its channels and options in its card. Python decoders stack on each other as in sigrok (e.g. I²C → 24xx EEPROM), and a custom decoder can stack on one. The decoders are in `python_decoders/` (sigrok's, plus your own in `python_decoders/user/`), the Python runtime in `python_runtime/`; both are served by the Node backend and only downloaded when a Python decoder is used. Decoding runs in a Web Worker, so the page stays responsive. See `python_decoders/README.md`.
+
 ### Files
 
 WebScope project files (the capture as a sigrok `.sr` file plus the decoder setup and the project's scripts) can be loaded. Captures can be imported from sigrok session files (`.sr`) and Saleae Logic 2 binary files.
