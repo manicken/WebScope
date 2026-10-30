@@ -78,6 +78,7 @@ fn reason(status: u16) -> &'static str {
         200 => "OK",
         204 => "No Content",
         400 => "Bad Request",
+        401 => "Unauthorized",
         403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
@@ -86,10 +87,18 @@ fn reason(status: u16) -> &'static str {
     }
 }
 
-pub fn respond(mut out: &TcpStream, status: u16, content_type: Option<&str>, body: &[u8], head_only: bool) -> io::Result<()> {
+pub fn respond(out: &TcpStream, status: u16, content_type: Option<&str>, body: &[u8], head_only: bool) -> io::Result<()> {
+    respond_with(out, status, content_type, &[], body, head_only)
+}
+
+/// `extra`: more headers, e.g. the CORS ones of /api/fs.
+pub fn respond_with(mut out: &TcpStream, status: u16, content_type: Option<&str>, extra: &[(String, String)], body: &[u8], head_only: bool) -> io::Result<()> {
     let mut head = format!("HTTP/1.1 {status} {}\r\n", reason(status));
     if let Some(ct) = content_type {
         head += &format!("Content-Type: {ct}\r\n");
+    }
+    for (k, v) in extra {
+        head += &format!("{k}: {v}\r\n");
     }
     if status != 204 {
         head += &format!("Content-Length: {}\r\n", body.len());
@@ -155,12 +164,14 @@ fn mime_type(path: &Path) -> &'static str {
     match ext.as_str() {
         "html" => "text/html; charset=utf-8",
         "css" => "text/css; charset=utf-8",
-        "js" => "text/javascript; charset=utf-8",
+        "js" | "mjs" => "text/javascript; charset=utf-8",
         "json" => "application/json; charset=utf-8",
+        "py" => "text/plain; charset=utf-8",
         "svg" => "image/svg+xml",
         "png" => "image/png",
         "ico" => "image/x-icon",
         "wasm" => "application/wasm",
+        "zip" => "application/zip",
         _ => "application/octet-stream",
     }
 }
@@ -217,15 +228,18 @@ fn resolve_virtual_path(data_dir: &Path, virt: &str) -> Result<PathBuf, HttpErro
     Ok(file)
 }
 
+/// The virtual file system under `data_dir` (canonical): GET / HEAD of a file or a folder listing, PUT,
+/// DELETE. Also serves the read-only Python folders (the caller only lets GET / HEAD through).
 pub fn serve_fs(
     stream: &TcpStream,
     reader: &mut Reader,
     req: &Request,
     data_dir: &Path,
     requested: &str,
+    extra: &[(String, String)],
 ) -> Result<(), HttpError> {
     let path = resolve_virtual_path(data_dir, requested)?;
-    println!("FS Request: {} {requested}", req.method);
+    let respond = |out: &TcpStream, status: u16, ct: Option<&str>, body: &[u8], head_only: bool| respond_with(out, status, ct, extra, body, head_only);
 
     match req.method.as_str() {
         "GET" | "HEAD" => {
