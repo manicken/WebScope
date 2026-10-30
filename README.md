@@ -327,9 +327,9 @@ The decoded result can contain both presentation annotations and structured data
 
 ## Current status
 
-This project is under development. The browser frontend, the capture buffer, the decoders and the Node.js backend with the drivers above work. 
-Other backends (`backend_cpp`, `backend_rust`) are experiments and currently use old structures, 
-they will be updated when the node.js variant is stable in structure, i will probably only use rust as it's easier to setup and use.
+This project is under development. The browser frontend, the capture buffer, the decoders and the Node.js backend with the drivers above work.
+
+`backend_rust` is a port of the Node.js backend to a single executable (no Node.js needed): the same WebSocket protocol, `settings.json` and command line options, the same drivers (demo device, sigrok-cli, gusmanb LogicAnalyzer over USB and WiFi, sigrok-pico), the software trigger, the device settings and the Python decoder folders. Build it with `cargo build --release` in `backend_rust` and run `target/release/webscope-backend` (it finds the WebScope folder from its own location or the current folder). `backend_cpp` is an older experiment.
 
 Expect things to change.
 

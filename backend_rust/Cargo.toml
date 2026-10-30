@@ -3,13 +3,19 @@ name = "webscope-backend"
 version = "0.1.0"
 edition = "2021"
 
-# Only two direct dependencies:
+# Direct dependencies:
 #   tungstenite - WebSocket framing + handshake helper (sync, no async runtime)
 #   serde_json  - JSON for the small control protocol
-# HTTP server, static files, /api/fs, demo device and the sigrok-cli wrapper are plain std.
+#   serialport  - USB serial ports of the LogicAnalyzer / sigrok-pico boards (list with vendor / product id)
+#   regex-lite  - the patterns of the device settings fields and the protocol parsers (no Unicode tables)
+#   if-addrs    - this computer's addresses, for the host check against DNS rebinding
+# HTTP server, static files, /api/fs, the drivers and the sigrok-cli wrapper are plain std.
 [dependencies]
 tungstenite = "0.24"
 serde_json = "1"
+serialport = "4.10.1"
+regex-lite = "0.1.9"
+if-addrs = "0.15.0"
 
 [profile.release]
 opt-level = 3
