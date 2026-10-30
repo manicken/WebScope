@@ -109,7 +109,8 @@
 
     /* ============================== form fields ============================== */
     // Each is bound to one setting (a ReactiveValue): it writes with setting.set(v, input) and
-    // subscribes to it to show changes made elsewhere. Returns { input } (+ fillOptions for channels).
+    // subscribes to it to show changes made elsewhere. Returns { input, dispose } (+ fillOptions for
+    // channels); dispose() ends the subscription when the field is replaced.
 
     /** The channels decoder d reads that give it no data: not active (hidden, so not in the next capture)
      *  or not in the capture on screen. One text per channel, empty when all is fine. */
@@ -140,9 +141,9 @@
         }
         input.addEventListener('change', () => setting.set(input.value === '' ? null : Number(input.value), input));
         // refill: an inactive channel that is no longer chosen leaves the list
-        setting.subscribe(({ source }) => { if (source !== input) fillOptions(); else show(); });
+        const dispose = setting.subscribe(({ source }) => { if (source !== input) fillOptions(); else show(); });
         fillOptions();
-        return { input, fillOptions };
+        return { input, fillOptions, dispose };
     }
 
     function selectField(setting, f) {
@@ -153,9 +154,9 @@
             if (opt) setting.set(opt[0], input);
         });
         const show = () => { input.value = String(setting.value); };
-        setting.subscribe(({ source }) => { if (source !== input) show(); });
+        const dispose = setting.subscribe(({ source }) => { if (source !== input) show(); });
         show();
-        return { input };
+        return { input, dispose };
     }
 
     function boolField(setting) {
@@ -164,9 +165,20 @@
             onchange: (e) => { setting.set(e.currentTarget.checked, input); }
         });
         const show = () => { input.checked = Boolean(setting.value); };
-        setting.subscribe(({ source }) => { if (source !== input) show(); });
+        const dispose = setting.subscribe(({ source }) => { if (source !== input) show(); });
         show();
-        return { input };
+        return { input, dispose };
+    }
+
+    function textField(setting) {
+        const input = document.createElement('input');
+        input.className = 'mono';
+        const show = () => { input.value = String(setting.value ?? ''); };
+        input.addEventListener('change', () => setting.set(input.value, input));
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+        const dispose = setting.subscribe(({ source }) => { if (source !== input) show(); });
+        show();
+        return { input, dispose };
     }
 
     /** Code editor for CustomDecoder. `onCompiled` is called after a successful compile (the form may change). */
@@ -205,11 +217,12 @@
         input.append(codeText, buttons);
 
         const show = () => { codeText.value = String(setting.value ?? ''); };
-        setting.subscribe(({ source }) => { if (source !== codeText) show(); });
+        const dispose = setting.subscribe(({ source }) => { if (source !== codeText) show(); });
         show();
-        return { input };
+        return { input, dispose };
     }
 
+    /** A number above 0, or at least f.min when the field has one (min: -Infinity: any number). */
     function numberField(setting, f) {
         const input = document.createElement('input');
         input.title = "Unknown settings type: " + f.type;
@@ -217,14 +230,14 @@
         const show = () => { input.value = String(setting.value); };
         const commit = () => {
             const n = Number(input.value);
-            if (isFinite(n) && n > 0) setting.set(n, input);
+            if (input.value.trim() !== '' && isFinite(n) && (f.min === undefined ? n > 0 : n >= f.min)) setting.set(n, input);
             show(); // normalises the text, or reverts an invalid value
         };
         input.addEventListener('blur', commit);
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
-        setting.subscribe(({ source }) => { if (source !== input) show(); });
+        const dispose = setting.subscribe(({ source }) => { if (source !== input) show(); });
         show();
-        return { input };
+        return { input, dispose };
     }
 
     /* ============================== One decoder card ============================== */
@@ -246,9 +259,11 @@
         warnEl.hidden = true;
         form.appendChild(warnEl);
 
-        // One row per setting, created the first time the setting is in getCfgGui() and then kept:
-        // a CustomDecoder's fields can change after a compile, rows that are gone are only hidden.
-        const formRows = new Map();   // key -> row element
+        // One row per setting, created the first time the setting is in getCfgGui() and then kept, in
+        // getCfgGui()'s order. A decoder's fields can change (a CustomDecoder's after a compile, a
+        // decoder with d.guiChanged whenever it bumps it): rows that are gone are only hidden, a row
+        // whose field definition is another object is made again.
+        const formRows = new Map();   // key -> { row, f, field }
         const channelFields = [];     // { fillOptions } of the channel selects
         let subSection = null;        // row with the sub-decoder cards, if this decoder has an output
 
@@ -261,21 +276,35 @@
             }
             if (f.type === 'select') return selectField(setting, f);
             if (f.type === 'bool') return boolField(setting);
+            if (f.type === 'text') return textField(setting);
             if (f.type === 'js_code_edit') { row.className = 'form-col'; return codeField(d, setting, updateForm); }
             return numberField(setting, f);
         }
 
+        function formRow(key, f) {
+            const row = el('label', 'form-row' + (f.type === 'bool' ? ' bool' : ''));
+            if (f.desc) row.title = f.desc;
+            row.appendChild(el('span', null, f.label));
+            const field = fieldFor(key, f, row);
+            row.appendChild(field.input);
+            return { row, f, field };
+        }
+
         function updateForm() {
-            const keys = Object.keys(d.getCfgGui());
-            for (const [key, f] of Object.entries(d.getCfgGui())) {
-                if (formRows.has(key)) continue;
-                const row = el('label', 'form-row' + (f.type === 'bool' ? ' bool' : ''));
-                row.appendChild(el('span', null, f.label));
-                row.appendChild(fieldFor(key, f, row).input);
-                formRows.set(key, row);
-                form.appendChild(row);
+            const gui = d.getCfgGui();
+            for (const [key, f] of Object.entries(gui)) {
+                const old = formRows.get(key);
+                if (old?.f === f) continue;
+                if (old) {
+                    old.field.dispose?.();
+                    const i = channelFields.indexOf(old.field);
+                    if (i >= 0) channelFields.splice(i, 1);
+                    old.row.remove();
+                }
+                formRows.set(key, formRow(key, f));
             }
-            for (const [key, row] of formRows) row.hidden = !keys.includes(key);
+            for (const [key, { row }] of formRows) row.hidden = !(key in gui);
+            for (const key of Object.keys(gui)) form.appendChild(formRows.get(key).row);
 
             if (!subSection && typeof d.getOutput === 'function' && d.getOutput() != null) {
                 subSection = el('label', 'form-col');
@@ -303,6 +332,12 @@
 
         d.settingsChanged.subscribe(updateHead);
         d.visible.subscribe(updateHead);
+        // optional: a decoder whose fields, rows or summary change by themselves (e.g. PythonDecoder)
+        d.guiChanged?.subscribe(() => {
+            if (d.removed) return;
+            updateForm();
+            updateHead();
+        });
         // the channels outlive the decoder: stop updating once it is removed
         ReactiveValue.subscribeItems(appState.channels, (ch) => [ch.name, ch.visible], () => {
             if (d.removed) return;
