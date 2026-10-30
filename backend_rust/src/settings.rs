@@ -4,6 +4,7 @@
 //!     "sigrokCli": "...", "logicAnalyzerHosts": ["192.168.1.20:4045"] }      every key optional
 //! Command line (wins over settings.json; the lists add to the ones in settings.json):
 //!   --port <n>  --open  --allow-origin <origin>  --allow-host <name>  --no-host-check  --settings <file>
+//!   --allow-admin   run as root/administrator (refused otherwise); command line only, not in settings.json
 //! The access checks (is_host_allowed / is_origin_allowed) are here too, as they only depend on the settings.
 
 use serde_json::Value;
@@ -20,6 +21,8 @@ pub struct Settings {
     pub host_check: bool,
     pub sigrok_cli: Option<String>,
     pub logic_analyzer_hosts: Vec<String>,
+    /// --allow-admin: command line only
+    pub allow_admin: bool,
     /// the settings.json that was read
     pub file: Option<PathBuf>,
 }
@@ -34,6 +37,7 @@ impl Default for Settings {
             host_check: true,
             sigrok_cli: None,
             logic_analyzer_hosts: Vec::new(),
+            allow_admin: false,
             file: None,
         }
     }
@@ -89,6 +93,7 @@ pub fn apply_args(s: &mut Settings, args: &[String]) -> Result<(), String> {
                 i += 1;
             }
             "--no-host-check" => s.host_check = false,
+            "--allow-admin" => s.allow_admin = true,
             "--settings" => i += 1, // read by load_settings()
             other => eprintln!("unknown argument {other} ignored"),
         }
@@ -211,10 +216,10 @@ mod tests {
 
         let mut s = Settings::default();
         apply_settings_json(&mut s, &json!({ "port": 9000, "allowOrigins": ["https://a.example"] }), "f").unwrap();
-        let args: Vec<String> = ["--port", "8081", "--open", "--allow-origin", "https://b.example", "--no-host-check", "--settings", "x.json"]
+        let args: Vec<String> = ["--port", "8081", "--open", "--allow-origin", "https://b.example", "--no-host-check", "--settings", "x.json", "--allow-admin"]
             .map(String::from).to_vec();
         apply_args(&mut s, &args).unwrap();
-        assert_eq!((s.port, s.open, s.host_check), (8081, true, false));
+        assert_eq!((s.port, s.open, s.host_check, s.allow_admin), (8081, true, false, true));
         assert_eq!(s.allow_origins, vec!["https://a.example", "https://b.example"]);
         assert!(apply_args(&mut Settings::default(), &["--allow-host".to_string()]).unwrap_err().contains("needs a value"));
     }

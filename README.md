@@ -62,6 +62,7 @@ Every setting can be given on the command line or in a `settings.json` next to `
 | `sigrokCli` | | | Full path to `sigrok-cli`, when it is not on `PATH` or in a usual install folder (env `SIGROK_CLI`) |
 | `logicAnalyzerHosts` | | `[]` | WiFi LogicAnalyzer boards to look for, e.g. `["192.168.1.20:4045"]` (env `LOGICANALYZER_HOSTS`, comma separated) |
 | | `--settings <file>` | `backend/settings.json` | Reads the settings from another file |
+| | `--allow-admin` | | Lets the backend run as root/administrator, see [Not as root or administrator](#not-as-root-or-administrator) (command line only) |
 
 ```json
 {
@@ -133,6 +134,20 @@ node index.js --allow-host scope.example.com
 A refused name is logged with the option that would allow it. `--no-host-check` (`"hostCheck": false`) turns the check off, e.g. behind a reverse proxy that does its own checks; without it, pages on other sites can reach the backend through DNS rebinding. A reverse proxy has to pass the browser's `Host` on (nginx: `proxy_set_header Host $host;`, Caddy does by default), or the backend sees the proxy's name.
 
 These checks only keep *web pages* from using the backend behind your back. They are not a password: any program on the computer or the network can still connect.
+
+### Not as root or administrator
+
+The backend refuses to start as root (Linux, macOS) or as an elevated administrator (Windows). It checks that a file in `user_data_fs` really is inside it, and then reads or writes it. In between, anyone who can write in `user_data_fs` can swap a folder for a symlink (on Windows, a junction, which needs no admin rights) to a file only root may open. Run as root, the backend would then read or write that file for them. Run as a normal user, it can only open what that user already can.
+
+On Linux the serial ports need the user in the `dialout` group (`uucp` on Arch), not `sudo`:
+
+```sh
+sudo usermod -aG dialout $USER      # then log out and in again
+```
+
+(Testing under WSL: USB devices are passed in from Windows with [usbipd-win](https://github.com/dorssel/usbipd-win).)
+
+`--allow-admin` starts it anyway, with a warning; only when no one else can write in `user_data_fs`.
 
 A page loaded over `https` may not open a plain `ws://` connection (mixed content), with one exception:
 

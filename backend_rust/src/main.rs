@@ -2,7 +2,7 @@
 //! settings.json and command line as the Node backend.
 //!
 //!   webscope-backend [--port <n>] [--open] [--allow-origin <origin>] [--allow-host <name>] [--no-host-check]
-//!                    [--settings <file>]
+//!                    [--settings <file>] [--allow-admin]
 //!   settings.json    next to the executable (or in the current folder), see settings.rs
 //!   env PORT             the default port (settings.json and --port win)
 //!   env WEBSCOPE_BIND    default 0.0.0.0
@@ -456,6 +456,20 @@ fn open_browser(url: &str) {
     }
 }
 
+/// Root (Linux/macOS) or an elevated administrator (Windows)? Without a crate: the commands that tell.
+fn is_admin() -> bool {
+    let ok = |cmd: &str, args: &[&str]| {
+        process::Command::new(cmd).args(args).stdin(process::Stdio::null()).stdout(process::Stdio::piped())
+            .stderr(process::Stdio::null()).output().ok().filter(|o| o.status.success())
+    };
+    if cfg!(windows) {
+        // both only succeed elevated; fltmc also works when the Server service ("net session") is stopped
+        ok("fltmc", &[]).is_some() || ok("net", &["session"]).is_some()
+    } else {
+        ok("id", &["-u"]).is_some_and(|o| String::from_utf8_lossy(&o.stdout).trim() == "0")
+    }
+}
+
 /// The console on stdin: help, e / exit.
 fn console() {
     let prompt = || {
@@ -497,6 +511,16 @@ fn main() {
             process::exit(1);
         }
     };
+    // Elevated, a file request can be raced with a symlink into a file only root/admin may open (TOCTOU between
+    // the checks in http.rs and the read/write): any user who can write in user_data_fs would get root's access.
+    if is_admin() {
+        if !settings.allow_admin {
+            eprintln!("Refusing to run as root/administrator: anyone who can write in user_data_fs could then read and write any file.");
+            eprintln!("Run it as a normal user (Linux: serial ports need the dialout or uucp group, not sudo), or start with --allow-admin.");
+            process::exit(1);
+        }
+        eprintln!("Running as root/administrator (--allow-admin): anyone who can write in user_data_fs can read and write any file");
+    }
     // the drivers read these from the environment; an environment variable that is set wins over settings.json
     if let Some(cli) = &settings.sigrok_cli {
         if env::var_os("SIGROK_CLI").is_none() {

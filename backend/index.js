@@ -34,9 +34,35 @@ import open from 'open';
 
 import readline from 'node:readline';
 
+import { execFileSync } from 'node:child_process';
+
+/** Root (Linux/macOS) or an elevated administrator (Windows)? */
+function isAdmin() {
+    if (process.platform !== 'win32') return process.geteuid?.() === 0;
+    // both only succeed elevated; fltmc also works when the Server service ("net session") is stopped
+    for (const [cmd, args] of [['fltmc', []], ['net', ['session']]]) {
+        try {
+            execFileSync(cmd, args, { stdio: 'ignore', windowsHide: true });
+            return true;
+        } catch {}
+    }
+    return false;
+}
+
 // settings.json next to this file (or --settings <file>), then the command line, see settings.js
 const settings = loadSettings(process.argv.slice(2), fileURLToPath(new URL('./settings.json', import.meta.url)));
 const PORT = settings.port;
+
+// Elevated, a file request can be raced with a symlink into a file only root/admin may open (TOCTOU between the
+// checks in resolveVirtualPath() and the read/write): any user who can write in user_data_fs would get root's access.
+if (isAdmin()) {
+    if (!settings.allowAdmin) {
+        console.error('Refusing to run as root/administrator: anyone who can write in user_data_fs could then read and write any file.');
+        console.error('Run it as a normal user (Linux: serial ports need the dialout or uucp group, not sudo), or start with --allow-admin.');
+        process.exit(1);
+    }
+    console.warn('Running as root/administrator (--allow-admin): anyone who can write in user_data_fs can read and write any file');
+}
 
 // the drivers read these from the environment; an environment variable that is set wins over settings.json
 if (settings.sigrokCli && !process.env.SIGROK_CLI) process.env.SIGROK_CLI = settings.sigrokCli;

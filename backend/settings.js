@@ -15,6 +15,7 @@
 //
 // Command line (wins over settings.json; the lists add to the ones in settings.json):
 //   --port <n>  --open  --allow-origin <origin>  --allow-host <name>  --no-host-check  --settings <file>
+//   --allow-admin   run as root/administrator (refused otherwise); command line only, not in settings.json
 //
 // The access checks (isHostAllowed / isOriginAllowed) are here too, as they only depend on the settings.
 
@@ -40,6 +41,7 @@ export function defaultSettings() {
         hostCheck: true,
         sigrokCli: null,
         logicAnalyzerHosts: [],
+        allowAdmin: false,      // not in TYPES: command line only
     };
 }
 
@@ -75,6 +77,7 @@ export function applyArgs(settings, argv) {
             case '--allow-origin': settings.allowOrigins = [...settings.allowOrigins, value(i)]; i++; break;
             case '--allow-host': settings.allowHosts = [...settings.allowHosts, value(i)]; i++; break;
             case '--no-host-check': settings.hostCheck = false; break;
+            case '--allow-admin': settings.allowAdmin = true; break;
             case '--settings': i++; break;                      // read by loadSettings()
             default: console.warn(`unknown argument ${argv[i]} ignored`);
         }
