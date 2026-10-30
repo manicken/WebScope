@@ -303,7 +303,7 @@ Scripts can import data too. This one reads a CSV file with one line per sample 
 | `csv(rows)`, `hex(bytes)` | text helpers |
 | `log(...)` | a line in the Messages panel (prefixed with the script's name) and in the editor's output |
 
-More example scripts are in [`ScriptEngine_examples/`](ScriptEngine_examples/): paste one into a new script.
+More example scripts are in [`ScriptEngine_examples/`](ScriptEngine_examples/): paste one into a new script. With `setCapture()` a script can also make a capture of its own, like the demo device but with any signal: [`demowave_custom_signals.ws.js`](ScriptEngine_examples/demowave_custom_signals.ws.js) uses the demo device's signal generator (`DemoWave`) for UART, I²C and SPI, and draws a broken UART frame, a chirp and short glitches edge by edge.
 
 ## Devices
 
